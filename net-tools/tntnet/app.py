@@ -17,7 +17,7 @@ import pygame  # noqa: E402
 from . import keys, reports, store, util  # noqa: E402
 from .ui import DIM, Field, Form, Menu, Message, Renderer, TaskScreen  # noqa: E402
 
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 
 
 class App:
@@ -260,7 +260,7 @@ def av_menu(app):
 
     app.push(Menu("AV discovery", [
         ("Dante devices", withform("Dante devices", av.dante)),
-        ("Dante health (PTP, flooding)", withform("Dante health", av.dante_health, "30", util.wired_name())),
+        ("Dante health (PTP, floods)", withform("Dante health", av.dante_health, "30", util.wired_name())),
         ("NDI sources", withform("NDI sources", av.ndi)),
         ("AES67 / SAP streams", withform("AES67 / SAP", av.sap, "35")),
         ("PTP leader view", withform("PTP leader", av.ptp_view, "15", util.wired_name())),
@@ -319,7 +319,7 @@ def checks_menu(app):
     app.push(Menu("Network checks", [
         ("DHCP: rogue server check", simple("DHCP check", checks.dhcp, "6")),
         ("IP conflict check", simple("IP conflict", checks.conflict)),
-        ("LLDP / CDP: switch, port, VLAN", simple("LLDP / CDP", checks.lldp, "65")),
+        ("LLDP/CDP switch port, VLAN", simple("LLDP / CDP", checks.lldp, "65")),
         ("Link / cable errors", simple("Link check", checks.link, "15")),
         ("Control-port check", ports),
     ]))
@@ -361,7 +361,7 @@ def site_menu(app):
     app.push(Menu("Site & reports", [
         (lambda: f"Site: {app.site or '(not set)'}", set_site),
         ("Browse saved reports", browse),
-        ("Reports folder: ~/TNT-Net-Reports", lambda app: app.toast(reports.ROOT)),
+        ("Where reports are saved", lambda app: app.toast(reports.ROOT)),
     ]))
 
 
@@ -403,14 +403,14 @@ def main_menu(app) -> Menu:
         ("Traceroute", do_trace),
         ("IP scan (MAC maker, names)", do_scan),
         ("Find AV gear", do_findav),
-        ("AV discovery (Dante, NDI...)", av_menu),
+        ("AV discovery (Dante, NDI)", av_menu),
         ("Device login & info pull", lambda app: brand_menu(app)),
-        ("Terminal (SSH/Telnet/TCP/UDP/serial)", lambda app: terminal.setup(app)),
+        ("Terminal (SSH/Telnet/serial)", lambda app: terminal.setup(app)),
         ("Capture (sniffer, pcap)", capture_menu),
         ("Network checks", checks_menu),
         (lambda: f"Site & reports [{app.site or 'no site'}]", site_menu),
         ("Settings / about", settings_menu),
-    ], "Enter open  1-9 jump  Esc quit")
+    ], "Up/Dn move  Enter open  Esc quit")
 
 
 def shots(out_dir: str) -> None:

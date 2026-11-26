@@ -94,7 +94,7 @@ def window(lines: list, cursor: int, rows: int, top: int) -> tuple[int, int]:
 class Menu(Screen):
     """A list of (label, action). Action is a callable(app)."""
 
-    def __init__(self, title: str, items: list, hint: str = "Enter open  Esc back"):
+    def __init__(self, title: str, items: list, hint: str = "Up/Dn move  Enter open  Esc"):
         self.title, self.items, self.hint = title, items, hint
         self.cur = 0
 
@@ -388,11 +388,13 @@ def find_lcd_fb():
 class Painter:
     """Draws a View onto a surface of any size with a given font size."""
 
-    def __init__(self, size: tuple[int, int], fsize: int, title_size: int, pad: int):
+    def __init__(self, size: tuple[int, int], fsize: int, title_size: int, pad: int,
+                 hint_size: int = 0, wrap: bool = False):
         self.size = size
+        self.wrap = wrap
         self.f = font(fsize)
         self.fb = font(title_size, bold=True)
-        self.fh = font(max(9, fsize - 1))
+        self.fh = font(hint_size or max(9, fsize - 1))
         self.lh = self.f.get_linesize()
         self.th = self.fb.get_linesize() + 4
         self.hh = self.fh.get_linesize() + 2
@@ -418,18 +420,37 @@ class Painter:
         lines = v.lines
         y = self.th + 1
         cols = self.cols()
-        for i in range(top, min(len(lines), top + rows)):
-            ln = as_line(lines[i])
-            text = ln.text.replace("\t", "    ")
+        wrap = self.wrap and not wide and not v.hscroll
+
+        def chunks(i):
+            text = as_line(lines[i]).text.replace("\t", "    ")
             if not wide and v.hscroll:
                 text = text[v.hscroll:]
-            if i == v.cursor:
-                surf.fill(SEL, (0, y, W, self.lh))
+            if not wrap or len(text) <= cols:
+                return [text[:cols + 1]]
+            import textwrap
+            ind = " " * min(len(text) - len(text.lstrip(" ")) + 2, cols // 3)
+            return textwrap.wrap(text, cols, subsequent_indent=ind, break_on_hyphens=False) or [""]
+
+        if wrap and 0 <= v.cursor < len(lines):
+            # keep the selected line fully on screen when long lines wrap
+            top = min(top, v.cursor)
+            while top < v.cursor and sum(len(chunks(j)) for j in range(top, v.cursor + 1)) > rows:
+                top += 1
+        used = 0
+        i = top
+        while i < len(lines) and used < rows:
+            ln = as_line(lines[i])
             color = ln.color
             if ln.payload is not None and color == WHITE:
                 color = INFO
-            surf.blit(self.f.render(text[:cols + 1] or " ", True, color), (self.pad, y))
-            y += self.lh
+            for part in chunks(i)[: rows - used]:
+                if i == v.cursor:
+                    surf.fill(SEL, (0, y, W, self.lh))
+                surf.blit(self.f.render(part or " ", True, color), (self.pad, y))
+                y += self.lh
+                used += 1
+            i += 1
         if v.edit is not None:
             ey = H - self.hh - self.lh - 1
             surf.fill((25, 25, 35), (0, ey, W, self.lh))
@@ -473,7 +494,8 @@ class Renderer:
         if found:
             self.lcd_dev, self.fw, self.fh, self.bpp = found
         self.lcd = pygame.Surface((320, 170))
-        self.lcd_p = Painter((320, 170), 11, 13, 3)
+        # Big enough to read at arm's length: about 6 rows x 31 columns.
+        self.lcd_p = Painter((320, 170), 17, 16, 4, hint_size=12, wrap=True)
         self.win = None
         self.win_p = None
         self.last = None
