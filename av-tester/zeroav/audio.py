@@ -121,9 +121,13 @@ class TonePlayer:
         self.mode = mode
         data = block_for(mode, dbfs=self.dbfs)
         self._stop.clear()
-        self._proc = subprocess.Popen(
-            ["aplay", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(RATE), "-c", "2", "-t", "raw"],
-            stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            self._proc = subprocess.Popen(
+                ["aplay", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(RATE), "-c", "2", "-t", "raw"],
+                stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        except OSError:
+            self._proc = None
+            return
 
         def feed(proc=self._proc):
             try:

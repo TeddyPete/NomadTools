@@ -191,7 +191,11 @@ class Camera:
         cmd = [exe, "-n", "-t", "0", "--mode", "640:480", "--width", str(self.W), "--height", str(self.H),
                "--framerate", str(self.fps), "--codec", "yuv420", "--shutter", "3000", "--gain", "4",
                "--awbgains", "1,1", "--denoise", "cdn_off", "--flush", "-o", "-"]
-        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        try:
+            self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        except OSError as e:
+            self.error = f"can't start {cmd[0]}: {e.strerror}"
+            return
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self) -> None:
@@ -246,7 +250,11 @@ class Mic:
     def start(self) -> None:
         cmd = ["arecord", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(RATE), "-c", str(self.channels),
                "-t", "raw", "--buffer-time=40000", "--period-time=5000"]
-        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        try:
+            self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        except OSError as e:
+            self.error = f"can't start {cmd[0]}: {e.strerror}"
+            return
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self) -> None:
@@ -319,7 +327,11 @@ class BeepOut:
     def start(self) -> None:
         cmd = ["aplay", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(RATE), "-c", "2", "-t", "raw",
                "--buffer-time=40000", "--period-time=10000"]
-        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        try:
+            self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+        except OSError as e:
+            self.error = f"can't start aplay: {e.strerror}"
+            return
         try:  # keep the pipe tiny so it adds little (and steady) delay
             fcntl.fcntl(self.proc.stdin.fileno(), 1031, 4096)  # F_SETPIPE_SZ
         except OSError:

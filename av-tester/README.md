@@ -65,7 +65,7 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 
 | Key | Action |
 | --- | --- |
-| Right / Down / Space / `.` / `n` | Next pattern |
+| Right / Down / Space / `.` | Next pattern |
 | Left / Up / `,` / `p` | Previous pattern |
 | `1`-`7` | Jump to category: bars, geometry, gradients, solids, sharpness, motion |
 | `t` | Audio out (HDMI): off, 1 kHz both, L/R alternating, left only, right only, pink noise, 20 Hz-20 kHz log sweep (10 s), polarity pulse |
@@ -77,6 +77,8 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 | `e` view: Left / Right | Turn the HDMI page when it doesn't all fit |
 | `e` view: `s` | Save the EDID report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
 | `l` | Lip-sync test (see below) |
+| `h` | HDMI link status: connected or not, display, mode being sent, fps, dropped frames, hot-plug log |
+| `n` | Room report: type a room name and a note; saves EDID, link, latest lip-sync and audio results in one file |
 | `a` | Audio input meter and 1/3-octave RTA from the mic, on HDMI and the small screen (see below) |
 | `q` / Esc | Quit |
 
@@ -106,7 +108,8 @@ fix. The fix leaves audio about 12 ms late, since late audio is far less noticea
 
 ## Patterns
 
-Color bars 75% and 100% (with PLUGE), crosshatch 16 and 32, safe-area frame, gray and RGB ramps,
+Color bars 75% and 100% (with PLUGE), crosshatch 16 and 32, safe-area frame, overscan ruler (0-4% bands
+per side), pixel-mapping ruler (1 px edge, ticks every 10 px, 1 px line fields), 1/2/3 px line pairs, gray and RGB ramps,
 16-step gray, solids (white, black, 50% gray, R, G, B), 1 px and 64 px checkerboard, moving box with
 frame-counter strip for judder.
 
@@ -122,4 +125,5 @@ python3 -m zeroav.app --render-dir out --size 1920x1080
   Ultrawide 2560x1080 works at 24, 25 and 30 Hz when the display lists those modes; 50 and 60 Hz
   need more than 162 MHz. The EDID view marks modes that are too fast in red.
 - Only modes the display's EDID lists can be selected (no custom timings yet).
-- The Pi's HDMI output has no HDCP.
+- The Pi's HDMI output has no HDCP, so HDCP can't be tested; the link page says so.
+- Unplugging and replugging HDMI is logged and the EDID is re-read; the picture may need `m` to come back.

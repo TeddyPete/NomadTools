@@ -117,7 +117,14 @@ class LcdPanel:
             s.blit(img, (6, y), (0, 0, 310, step))
             y += step
         if hint:
-            s.blit(self.font.render(hint[:42], True, (150, 200, 255)), (6, 150))
+            img = self.font.render(hint, True, (150, 200, 255))
+            if img.get_width() > 310:   # too long: use small text, squeezed to fit
+                img = self.font_small.render(hint, True, (150, 200, 255))
+                if img.get_width() > 314:
+                    img = pygame.transform.smoothscale(img, (314, img.get_height()))
+                s.blit(img, (3, 152))
+            else:
+                s.blit(img, (6, 150))
         self._flush([title, *lines, hint])
 
     def save(self, path: str) -> None:

@@ -433,6 +433,16 @@ def find_edid() -> tuple[str, bytes] | None:
     return None
 
 
+def hdmi_status() -> tuple[str, str]:
+    """(connector, 'connected'/'disconnected'/'unknown') of the first HDMI port."""
+    for d in sorted(glob.glob("/sys/class/drm/card*-HDMI-A-*")):
+        try:
+            return os.path.basename(d).split("-", 1)[1], open(f"{d}/status").read().strip()
+        except OSError:
+            continue
+    return "", "unknown"
+
+
 def read() -> EdidInfo | None:
     found = find_edid()
     return parse(found[1], found[0]) if found else None

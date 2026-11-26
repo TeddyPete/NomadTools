@@ -14,8 +14,10 @@ import signal
 import sys
 import time
 
-KEYS_HELP = "</> pat T tone M mode E EDID L sync A RTA"
+KEYS_HELP = "T tone M mode E EDID L sync A RTA H link N room"
 SYNC_HELP = "Enter start  C cal  S save  L back"
+STATUS_HELP = "H back  </> scroll"
+ROOM_HELP = "Enter: next / save   Esc: cancel"
 METER_HELP = "W A/Z  T tone  +/- cal  R reset  S save"
 EDID_HELP = "Up/Dn scroll  S save  E back"
 REPORT_DIR = os.path.expanduser("~/.local/share/tnt-av-tester/reports")
@@ -90,6 +92,39 @@ def save_edid_report(info, modes) -> str:
         with open(base + ".bin", "wb") as f:
             f.write(info.raw)
     return base + ".txt"
+
+
+def link_lines(edid_info, mode, size, fps, dropped, plug_log, plug_state) -> list[str]:
+    """HDMI link status, plain English."""
+    from . import edid as _e
+    conn, st = _e.hdmi_status()
+    lines = [f"HDMI {conn or '?'}: {st}"]
+    if edid_info:
+        lines.append(f"Display: {edid_info.vendor or edid_info.vendor_id} {edid_info.name}".strip())
+    lab = mode.label if getattr(mode, "size", None) == size else f"{size[0]}x{size[1]}"
+    lines.append(f"Sending {lab}, {fps:.2f} fps, dropped {dropped}")
+    lines.append("HDCP: not available (Pi HDMI has no HDCP)")
+    lines.append(f"Plug events: {len(plug_log)}")
+    lines += plug_log[-8:][::-1]
+    return lines
+
+
+def save_room_report(room, edid_info, mode, fps, dropped, plug_log, last) -> str:
+    """One text file per room: EDID, link, latest lip-sync and audio results, notes."""
+    from . import edid
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    name = room["name"].strip() or "room"
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:40]
+    path = os.path.join(REPORT_DIR, f"room-{safe}-{time.strftime('%Y%m%d-%H%M%S')}.txt")
+    out = [f"TNT AV Tester room report: {name}", time.strftime("%Y-%m-%d %H:%M:%S"), "",
+           "Notes: " + (room["notes"].strip() or "-"), "", "== Link =="]
+    out += ["  " + l for l in link_lines(edid_info, mode, mode.size, fps, dropped, plug_log, "")]
+    out += ["", last.get("sync") or "== Lip-sync ==\n  not measured in this session", "",
+            last.get("audio") or "== Audio ==\n  not measured in this session", "",
+            edid.text_report(edid_info)]
+    with open(path, "w") as f:
+        f.write("\n".join(out))
+    return path
 
 
 def pick_start_mode(modes, info, want_size=None) -> int:
@@ -183,6 +218,13 @@ def run(args) -> None:
     edid_view, edid_scroll, edid_page, edid_msg = False, 0, 0, ""
     sync, sync_msg, sync_lcd_t = None, "", 0.0
     meter, meter_msg, meter_t, meter_n = None, "", 0.0, 0
+    status_view, status_scroll = False, 0
+    room = None                     # dict while the room report form is open
+    last = {"sync": "", "audio": ""}  # latest results, for room reports
+    plug_log: list[str] = []
+    plug_state = edid.hdmi_status()[1]
+    plug_t = time.monotonic()
+    banner, banner_until = "", 0.0
     meter_surf = pygame.Surface((960, 540))
     meter_font = pygame.font.Font(None, 34)
     meter_small = pygame.font.Font(None, 24)
@@ -235,6 +277,8 @@ def run(args) -> None:
                 skip_gap = True
                 continue
             if sync is not None:
+                if sync.state == "done" and sync.result():
+                    last["sync"] = sync.report()
                 if k == pygame.K_ESCAPE or ch in ("l", "b"):
                     sync.stop()
                     sync = None
@@ -265,8 +309,41 @@ def run(args) -> None:
                 dirty = True
                 skip_gap = True
                 continue
+            if room is not None:
+                f = ("name", "notes")[room["field"]]
+                if k == pygame.K_ESCAPE:
+                    room = None
+                elif k in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    if room["field"] == 0:
+                        room["field"] = 1
+                    else:
+                        try:
+                            path = save_room_report(room, edid_info, mode, fps_measured, dropped,
+                                                    plug_log, last)
+                            banner, banner_until = "Saved " + os.path.basename(path), time.monotonic() + 4
+                        except OSError as e:
+                            banner, banner_until = f"Save failed: {e}", time.monotonic() + 4
+                        room = None
+                elif k == pygame.K_BACKSPACE:
+                    room[f] = room[f][:-1]
+                elif ev.unicode and ev.unicode.isprintable():
+                    room[f] += ev.unicode
+                dirty = True
+                skip_gap = True
+                continue
+            if status_view:
+                if k == pygame.K_ESCAPE or ch in ("h", "b"):
+                    status_view = False
+                elif k == pygame.K_DOWN or ch in (".", "n", " "):
+                    status_scroll += 1
+                elif k == pygame.K_UP or ch in (",", ";", "p"):
+                    status_scroll = max(0, status_scroll - 1)
+                dirty = True
+                skip_gap = True
+                continue
             if meter is not None:
                 if k == pygame.K_ESCAPE or ch in ("a", "b"):
+                    last["audio"] = meter.report()
                     meter.stop()
                     meter = None
                 elif ch == "q":
@@ -300,6 +377,16 @@ def run(args) -> None:
                         meter_msg = f"Save failed: {e}"
                 skip_gap = True
                 continue
+            if ch == "h":
+                status_view, status_scroll = True, 0
+                dirty = True
+                skip_gap = True
+                continue
+            if ch == "n" and k != pygame.K_DOWN:
+                room = {"field": 0, "name": "", "notes": ""}
+                dirty = True
+                skip_gap = True
+                continue
             if ch == "a":
                 from .meter import Meter
                 meter, meter_msg = Meter(args.mic_device), ""
@@ -323,7 +410,7 @@ def run(args) -> None:
                 tones.stop()
                 out.close()
                 return
-            if k in (pygame.K_RIGHT, pygame.K_DOWN, pygame.K_SPACE) or ch in (".", "/", "n"):
+            if k in (pygame.K_RIGHT, pygame.K_DOWN, pygame.K_SPACE) or ch in (".", "/"):
                 idx = (idx + 1) % len(patterns)
             elif k in (pygame.K_LEFT, pygame.K_UP) or ch in (",", ";", "p"):
                 idx = (idx - 1) % len(patterns)
@@ -355,6 +442,40 @@ def run(args) -> None:
                 dropped, nominal = 0, 0.0
             dirty = True
             skip_gap = True  # a pattern or mode change rebuilds the texture
+
+        nowm = time.monotonic()
+        if nowm - plug_t >= 1.0:
+            plug_t = nowm
+            st = edid.hdmi_status()[1]
+            if st != plug_state:
+                plug_state = st
+                plug_log.append(f"{time.strftime('%H:%M:%S')} {st}")
+                print(f"HDMI {st}", file=sys.stderr, flush=True)
+                if st == "connected":
+                    edid_info = edid.read()
+                    who = (edid_info.name or edid_info.vendor) if edid_info else ""
+                    banner = f"HDMI connected {who}".strip()
+                else:
+                    banner = "HDMI unplugged"
+                banner_until, dirty = nowm + 5, True
+        if banner and nowm > banner_until:
+            banner, dirty = "", True
+
+        if room is not None or status_view:
+            if dirty:
+                if room is not None:
+                    cur = room["field"]
+                    lines = [("> " if cur == 0 else "  ") + "Room: " + room["name"] + ("_" if cur == 0 else ""),
+                             ("> " if cur == 1 else "  ") + "Notes: " + room["notes"][-26:] + ("_" if cur == 1 else ""),
+                             "Saves EDID, link, latest",
+                             "lip-sync and audio results."]
+                    lcd.show_async("Room report", lines, ROOM_HELP)
+                else:
+                    ll = lcd.wrap(link_lines(edid_info, mode, size, fps_measured, dropped, plug_log, plug_state))
+                    status_scroll = min(status_scroll, max(0, len(ll) - lcd.ROWS_SMALL))
+                    lcd.show_async("HDMI link", ll[status_scroll:status_scroll + lcd.ROWS_SMALL],
+                                   STATUS_HELP, small=True)
+                dirty = False
 
         if meter is not None:
             now = time.monotonic()
@@ -459,9 +580,9 @@ def run(args) -> None:
             if not nominal and fps_measured > 20:
                 nominal = 1.0 / (refresh if refresh else round(fps_measured))
             dirty = True
-        if dirty:
+        if dirty and room is None and not status_view:
             tone = tones.mode or "off"
-            lcd.show_async(pat.name, status_lines(mode if size == mode.size else size, refresh, fps_measured, idx, len(patterns),
+            lcd.show_async(banner or pat.name, status_lines(mode if size == mode.size else size, refresh, fps_measured, idx, len(patterns),
                                                   pat.category, tone, tones.dbfs, dropped), KEYS_HELP)
             dirty = False
 

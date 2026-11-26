@@ -203,13 +203,120 @@ def draw_info_overlay(surf, lines: list[str]) -> None:
         y += img.get_height() + 2
 
 
+class OverscanRuler(Pattern):
+    """Bands 1% wide at every edge, labelled 0-4%. The outermost band you
+    can see on a side is how many percent the display crops there."""
+    name = "Overscan ruler (%)"
+    category = "geometry"
+
+    def draw(self, surf, frame):
+        w, h = surf.get_size()
+        surf.fill((0, 0, 0))
+        font = pygame.font.Font(None, max(14, h // 45))
+        colors = [(200, 40, 40), (200, 140, 0), (40, 160, 40), (0, 140, 200), (150, 60, 200)]
+        for i, c in enumerate(colors):
+            px, py = w * i / 100, h * i / 100
+            bw, bh = max(1, round(w / 100)), max(1, round(h / 100))
+            x0, y0 = round(px), round(py)
+            surf.fill(c, (x0, y0, w - 2 * x0, bh))                 # top
+            surf.fill(c, (x0, h - y0 - bh, w - 2 * x0, bh))        # bottom
+            surf.fill(c, (x0, y0, bw, h - 2 * y0))                 # left
+            surf.fill(c, (w - x0 - bw, y0, bw, h - 2 * y0))        # right
+        # numbers in a row just inside the bands, each with a lead line to its band
+        for i, c in enumerate(colors):
+            n = font.render(f"{i}%", True, (255, 255, 255))
+            gx, gy = (i - 2) * w // 16, (i - 2) * h // 11
+            bx, by = w * (i + 0.5) / 100, h * (i + 0.5) / 100
+            for side in ("top", "bottom", "left", "right"):
+                if side in ("top", "bottom"):
+                    x = w // 2 + gx
+                    y_in = h * 0.08 if side == "top" else h * 0.92
+                    y_b = by if side == "top" else h - by
+                    pygame.draw.line(surf, (255, 255, 255), (x, y_b), (x, y_in), 1)
+                    surf.blit(n, (x - n.get_width() // 2, y_in if side == "top" else y_in - n.get_height()))
+                else:
+                    y = h // 2 + gy
+                    x_in = w * 0.06 if side == "left" else w * 0.94
+                    x_b = bx if side == "left" else w - bx
+                    pygame.draw.line(surf, (255, 255, 255), (x_b, y), (x_in, y), 1)
+                    surf.blit(n, (x_in + 2 if side == "left" else x_in - n.get_width() - 2,
+                                  y - n.get_height() // 2))
+        pygame.draw.rect(surf, (255, 255, 255), (0, 0, w, h), 1)
+        _label(surf, "Outermost band you can see = % cropped on that side (0% = nothing cut)", (w // 2, h // 2))
+
+
+class PixelMap(Pattern):
+    """1-pixel border, corner marks and a pixel ruler every 10 px (numbered
+    every 100). If the white edge line shows on all four sides with crisp
+    single-pixel ticks, the display maps pixels 1:1 with no scaling."""
+    name = "Pixel mapping"
+    category = "geometry"
+
+    def draw(self, surf, frame):
+        w, h = surf.get_size()
+        surf.fill((0, 0, 0))
+        font = pygame.font.Font(None, max(14, h // 60))
+        white, grey = (255, 255, 255), (150, 150, 150)
+        pygame.draw.rect(surf, white, (0, 0, w, h), 1)
+        for x in range(0, w, 10):
+            ln = h // 30 if x % 100 == 0 else h // 90 if x % 50 == 0 else h // 180
+            surf.fill(white, (x, 1, 1, ln))
+            surf.fill(white, (x, h - 1 - ln, 1, ln))
+            if x % 100 == 0 and x:
+                img = font.render(str(x), True, grey)
+                surf.blit(img, (x + 2, h // 30))
+        for y in range(0, h, 10):
+            ln = w // 50 if y % 100 == 0 else w // 150 if y % 50 == 0 else w // 300
+            surf.fill(white, (1, y, ln, 1))
+            surf.fill(white, (w - 1 - ln, y, ln, 1))
+            if y % 100 == 0 and y:
+                img = font.render(str(y), True, grey)
+                surf.blit(img, (w // 50 + 3, y - img.get_height() // 2))
+        c = max(8, h // 20)
+        for cx, cy, dx, dy in ((0, 0, 1, 1), (w - 1, 0, -1, 1), (0, h - 1, 1, -1), (w - 1, h - 1, -1, -1)):
+            pygame.draw.line(surf, (255, 0, 0), (cx + 3 * dx, cy + 3 * dy), (cx + c * dx, cy + 3 * dy))
+            pygame.draw.line(surf, (255, 0, 0), (cx + 3 * dx, cy + 3 * dy), (cx + 3 * dx, cy + c * dy))
+        # single-pixel line fields in the centre: vertical lines left, horizontal right
+        bw, bh = w // 6, h // 6
+        x0, y0 = w // 2 - bw - 10, h // 2 + h // 12
+        arr = pygame.surfarray.pixels3d(surf)
+        arr[x0:x0 + bw:2, y0:y0 + bh] = 255
+        arr[w // 2 + 10:w // 2 + 10 + bw, y0:y0 + bh:2] = 255
+        del arr
+        _label(surf, f"{w} x {h}: white edge on all 4 sides + even line fields = 1:1 pixels",
+               (w // 2, h // 2 - h // 10))
+
+
+class LinePairs(Pattern):
+    """Alternating 1 px, 2 px and 3 px black/white line pairs, vertical and
+    horizontal, to show scaling, sharpening and chroma loss."""
+    name = "Line pairs 1/2/3 px"
+    category = "sharpness"
+
+    def draw(self, surf, frame):
+        w, h = surf.get_size()
+        surf.fill((0, 0, 0))
+        arr = pygame.surfarray.pixels3d(surf)
+        for i, n in enumerate((1, 2, 3)):
+            x0, x1 = i * w // 3, (i + 1) * w // 3
+            cols = np.arange(x0, x1)
+            on = cols[((cols - x0) // n) % 2 == 0]
+            arr[on, : h // 2] = 255
+            rows = np.arange(h // 2, h)
+            onr = rows[((rows - h // 2) // n) % 2 == 0]
+            arr[x0:x1][:, onr] = 255
+        del arr
+        for i, n in enumerate((1, 2, 3)):
+            _label(surf, f"{n} px", (i * w // 3 + w // 6, h // 2))
+
+
 def all_patterns() -> list[Pattern]:
     return [
         ColorBars(75), ColorBars(100),
-        Crosshatch(16), Crosshatch(32), SafeArea(),
+        Crosshatch(16), Crosshatch(32), SafeArea(), OverscanRuler(), PixelMap(),
         Gradient("gray"), Gradient("gray", 16), Gradient("red"), Gradient("green"), Gradient("blue"),
         Solid("white", (255, 255, 255)), Solid("black", (0, 0, 0)), Solid("50% gray", (128, 128, 128)),
         Solid("red", (255, 0, 0)), Solid("green", (0, 255, 0)), Solid("blue", (0, 0, 255)),
-        Checkerboard(1), Checkerboard(64),
+        Checkerboard(1), Checkerboard(64), LinePairs(),
         MovingBox(8),
     ]
