@@ -16,7 +16,7 @@ sudo apt install python3-pygame python3-numpy dpkg-dev
 sudo apt install ./build/tnt-av-tester_*_all.deb
 ```
 
-Open **TNT AV Tester** from HOME. Hold Esc for 2 s (or press Q) to return to the launcher.
+Open **TNT AV Tester** from HOME. Esc from the main menu (or Q anywhere) quits; holding Esc for 2 s goes HOME.
 
 If the Pi desktop is running on HDMI, TNT AV Tester pauses it while it runs so it can set HDMI
 resolution and refresh itself, then starts the desktop again when you quit. A reboot always
@@ -63,24 +63,35 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 
 ## Keys
 
+TNT apps share one way of getting around. On the CardputerZero the arrows are on the Fn layer
+(Fn+F up, Fn+X down, Fn+Z left, Fn+C right); plain F, X, Z and C work as arrows too, except while
+typing in a text field. OK is Enter.
+
 | Key | Action |
 | --- | --- |
-| Right / Down / Space / `.` | Next pattern |
-| Left / Up / `,` / `p` | Previous pattern |
+| Up / Down | Move in a menu or list, scroll a page, or step patterns |
+| Right / OK | Select |
+| Left | Back one level |
+| Esc | Back one level; quits from the main menu. Hold Esc for 2 s to go HOME |
+
+The main menu lists Test patterns, Video mode, Audio output, Lip-sync test, Audio meter / RTA,
+Display EDID, HDMI link status and Room report. HDMI keeps showing the current pattern meanwhile.
+These shortcuts also work from the main menu and the pattern screen:
+
+| Key | Action |
+| --- | --- |
+| Patterns: Up / Down (or Space, Right) | Previous / next pattern |
+| Patterns: OK or `i` | Info overlay: resolution, refresh, measured fps, dropped frames |
 | `1`-`7` | Jump to category: bars, geometry, gradients, solids, sharpness, motion |
-| `t` | Audio out (HDMI): off, 1 kHz both, L/R alternating, left only, right only, pink noise, 20 Hz-20 kHz log sweep (10 s), polarity pulse |
+| `t` | Next audio output (HDMI): off, 1 kHz both, L/R alternating, left only, right only, pink noise, 20 Hz-20 kHz log sweep (10 s), polarity pulse |
 | `+` / `-` | Tone level, 2 dB steps (starts at -20 dBFS) |
-| `i` | Info overlay: resolution, refresh, measured fps, frame counter |
-| `m` | Next HDMI mode: every mode the display offers, with exact refresh (1080p60, 1080p59.94, 1080p50, 1080p23.98, ...) |
-| `e` | Display EDID: maker, model, serial, build date, size, native mode, all modes, audio, HDR, color depth. Shown on HDMI and, scrollable, on the small screen |
-| `e` view: Up / Down | Scroll the small screen |
-| `e` view: Left / Right | Turn the HDMI page when it doesn't all fit |
-| `e` view: `s` | Save the EDID report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
+| `m` | Next HDMI mode, with exact refresh (1080p60, 1080p59.94, 1080p50, 1080p23.98, ...) |
+| `e` | Display EDID: maker, model, serial, build date, size, native mode, all modes, audio, HDR, color depth. Up/Down scroll the small screen, Right turns the HDMI page, `s` saves the report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
 | `l` | Lip-sync test (see below) |
 | `h` | HDMI link status: connected or not, display, mode being sent, fps, dropped frames, hot-plug log |
-| `n` | Room report: type a room name and a note; saves EDID, link, latest lip-sync and audio results in one file |
-| `a` | Audio input meter and 1/3-octave RTA from the mic, on HDMI and the small screen (see below) |
-| `q` / Esc | Quit |
+| `n` | Room report: type a room name and a note (Up/Down switch fields, OK next/save, Esc cancel); saves EDID, link, latest lip-sync and audio results in one file |
+| `a` | Audio input meter and 1/3-octave RTA (see below) |
+| `q` | Quit from anywhere |
 
 ## Audio meter and RTA
 
@@ -96,11 +107,11 @@ small screen. Play pink noise with `t` to check a room or EQ; the RTA reads flat
 ## Lip-sync test
 
 Press `l`, aim the CardputerZero's camera at the screen and put it near the speakers, then press
-Enter. The screen flashes white with a 1 kHz beep about ten times. The camera (200 fps) and mic time
+OK. The screen flashes white with a 1 kHz beep about ten times. The camera (200 fps) and mic time
 each one and the small screen shows the offset (+ = audio late), ATSC and EBU R37 pass/fail, and the
 fix. The fix leaves audio about 12 ms late, since late audio is far less noticeable than early audio.
 
-- `c` after a run on a system you trust to be in sync stores that run as the zero point
+- `0` (zero) after a run on a system you trust to be in sync stores that run as the zero point
   (`~/.config/tnt-av-tester/lipsync.json`). Do this once; it removes the camera and audio delays
   inside the CardputerZero itself. Until then results show "not calibrated".
 - `s` saves a report with every flash to `~/.local/share/tnt-av-tester/reports/`.

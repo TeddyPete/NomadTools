@@ -14,12 +14,25 @@ import signal
 import sys
 import time
 
-KEYS_HELP = "T tone M mode E EDID L sync A RTA H link N room"
-SYNC_HELP = "Enter start  C cal  S save  L back"
-STATUS_HELP = "H back  </> scroll"
-ROOM_HELP = "Enter: next / save   Esc: cancel"
-METER_HELP = "W A/Z  T tone  +/- cal  R reset  S save"
-EDID_HELP = "Up/Dn scroll  S save  E back"
+# Navigation follows the TNT standard (CardputerZero arrows are on the Fn
+# layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right; OK is Enter):
+#   Up/Down move, Right or OK select, Left back one level,
+#   Esc back one level and quit from the main menu.
+MENU_HELP = "Up/Dn move  OK/> select  Esc quit"
+KEYS_HELP = "Up/Dn pattern  OK info  < back  T tone"
+PICK_HELP = "Up/Dn move  OK/> choose  < back"
+SYNC_HELP = "OK start  0 zero cal  S save  < back"
+STATUS_HELP = "Up/Dn scroll  < back"
+ROOM_HELP = "OK next/save  Up/Dn field  Esc cancel"
+METER_HELP = "W A/Z  T tone  +/- cal  S save  < back"
+EDID_HELP = "Up/Dn scroll  > page  S save  < back"
+PLAIN_ARROWS = {}     # filled in run() once pygame is imported: f x z c -> up down left right
+MENU = [("patterns", "Test patterns"), ("modes", "Video mode"), ("audio", "Audio output"),
+        ("sync", "Lip-sync test"), ("meter", "Audio meter / RTA"), ("edid", "Display EDID"),
+        ("link", "HDMI link status"), ("room", "Room report")]
+AUDIO_MODES = [(None, "Off"), ("tone", "1 kHz tone, both"), ("lr", "1 kHz L then R"),
+               ("left", "1 kHz left only"), ("right", "1 kHz right only"), ("pink", "Pink noise"),
+               ("sweep", "Log sweep 20 Hz-20 kHz"), ("polarity", "Polarity pulse")]
 REPORT_DIR = os.path.expanduser("~/.local/share/tnt-av-tester/reports")
 
 
@@ -322,6 +335,9 @@ def run(args) -> None:
     meter, meter_msg, meter_t, meter_n = None, "", 0.0, 0
     status_view, status_scroll = False, 0
     room = None                     # dict while the room report form is open
+    PLAIN_ARROWS.update({"f": pygame.K_UP, "x": pygame.K_DOWN, "z": pygame.K_LEFT, "c": pygame.K_RIGHT})
+    screen, menu_sel = "menu", 0    # "menu", "patterns", or a picker: "modes" / "audio"
+    pick_sel = 0
     last = {"sync": "", "audio": ""}  # latest results, for room reports
     plug_log: list[str] = []
     plug_state = edid.hdmi_status()[1]
@@ -356,21 +372,24 @@ def run(args) -> None:
                 continue
             print(f"key {pygame.key.name(ev.key)!r} {ev.unicode!r}", file=sys.stderr, flush=True)
             k, ch = ev.key, (ev.unicode or "").lower()
+            if room is None and ch in PLAIN_ARROWS and len(ch) == 1:
+                k, ch = PLAIN_ARROWS[ch], ""     # plain F/X/Z/C work as arrows too
+            up, down = k == pygame.K_UP, k == pygame.K_DOWN
+            back = k in (pygame.K_ESCAPE, pygame.K_LEFT)
+            select = k in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT)
             if edid_view:
-                if k == pygame.K_ESCAPE or ch in ("e", "b"):
+                if back or ch in ("e", "b"):
                     edid_view = False
                 elif ch == "q":
                     tones.stop()
                     out.close()
                     return
-                elif k == pygame.K_DOWN or ch in (".", "n", " "):
+                elif down or ch in (".", "n"):
                     edid_scroll += 1
-                elif k == pygame.K_UP or ch in (",", ";", "p"):
+                elif up or ch in (",", ";", "p"):
                     edid_scroll = max(0, edid_scroll - 1)
-                elif k == pygame.K_RIGHT or ch == "/":
-                    edid_page += 1
-                elif k == pygame.K_LEFT:
-                    edid_page = max(0, edid_page - 1)
+                elif select or ch in ("/", " "):
+                    edid_page += 1      # next HDMI page (wraps)
                 elif ch == "s":
                     try:
                         path = save_edid_report(edid_info, modes)
@@ -384,7 +403,7 @@ def run(args) -> None:
             if sync is not None:
                 if sync.state == "done" and sync.result():
                     last["sync"] = sync.report()
-                if k == pygame.K_ESCAPE or ch in ("l", "b"):
+                if back or ch in ("l", "b"):
                     sync.stop()
                     sync = None
                 elif ch == "q":
@@ -392,13 +411,13 @@ def run(args) -> None:
                     tones.stop()
                     out.close()
                     return
-                elif k in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE) and sync.state in ("idle", "done", "error"):
+                elif (select or k == pygame.K_SPACE) and sync.state in ("idle", "done", "error"):
                     from .lipsync import LipSyncTest
                     sync.stop()
                     sync = LipSyncTest(tones.device, args.mic_device)
                     sync.start()
                     sync_msg = ""
-                elif ch == "c" and sync.state == "done":
+                elif ch == "0" and sync.state == "done":
                     cal = sync.calibrate_here()
                     sync_msg = (f"Calibrated: {cal:+.0f} ms is now zero" if cal is not None
                                 else "Need 3+ good flashes to calibrate")
@@ -416,8 +435,12 @@ def run(args) -> None:
                 continue
             if room is not None:
                 f = ("name", "notes")[room["field"]]
-                if k == pygame.K_ESCAPE:
+                if k == pygame.K_ESCAPE or (k == pygame.K_LEFT and room["field"] == 0):
                     room = None
+                elif k == pygame.K_LEFT or up:
+                    room["field"] = 0
+                elif down:
+                    room["field"] = 1
                 elif k in (pygame.K_RETURN, pygame.K_KP_ENTER):
                     if room["field"] == 0:
                         room["field"] = 1
@@ -437,17 +460,17 @@ def run(args) -> None:
                 skip_gap = True
                 continue
             if status_view:
-                if k == pygame.K_ESCAPE or ch in ("h", "b"):
+                if back or ch in ("h", "b"):
                     status_view = False
-                elif k == pygame.K_DOWN or ch in (".", "n", " "):
+                elif down or ch in (".", "n", " "):
                     status_scroll += 1
-                elif k == pygame.K_UP or ch in (",", ";", "p"):
+                elif up or ch in (",", ";", "p"):
                     status_scroll = max(0, status_scroll - 1)
                 dirty = True
                 skip_gap = True
                 continue
             if meter is not None:
-                if k == pygame.K_ESCAPE or ch in ("a", "b"):
+                if back or ch in ("a", "b"):
                     last["audio"] = meter.report()
                     meter.stop()
                     meter = None
@@ -480,14 +503,54 @@ def run(args) -> None:
                         meter_msg = "Saved " + os.path.basename(path)
                     except OSError as e:
                         meter_msg = f"Save failed: {e}"
+                dirty = True
                 skip_gap = True
                 continue
+            if screen in ("modes", "audio"):
+                n = len(modes) if screen == "modes" else len(AUDIO_MODES)
+                if back:
+                    screen = "menu"
+                elif up:
+                    pick_sel = (pick_sel - 1) % n
+                elif down:
+                    pick_sel = (pick_sel + 1) % n
+                elif select:
+                    if screen == "audio":
+                        am = AUDIO_MODES[pick_sel][0]
+                        tones.stop() if am is None else tones.play(am)
+                    elif pick_sel != mode_idx:
+                        ch, k = "m", None      # handled by the mode switch below
+                if ch != "m":
+                    dirty = True
+                    skip_gap = True
+                    continue
+            if screen == "menu" and (select or up or down):
+                if up:
+                    menu_sel = (menu_sel - 1) % len(MENU)
+                elif down:
+                    menu_sel = (menu_sel + 1) % len(MENU)
+                else:
+                    item = MENU[menu_sel][0]
+                    if item == "patterns":
+                        screen = "patterns"
+                    elif item == "modes":
+                        screen, pick_sel = "modes", mode_idx
+                    elif item == "audio":
+                        screen = "audio"
+                        pick_sel = next((i for i, (m, _) in enumerate(AUDIO_MODES) if m == tones.mode), 0)
+                    else:
+                        ch = {"sync": "l", "meter": "a", "edid": "e", "link": "h", "room": "n"}[item]
+                        k = None
+                if k is not None:
+                    dirty = True
+                    skip_gap = True
+                    continue
             if ch == "h":
                 status_view, status_scroll = True, 0
                 dirty = True
                 skip_gap = True
                 continue
-            if ch == "n" and k != pygame.K_DOWN:
+            if ch == "n":
                 room = {"field": 0, "name": "", "notes": ""}
                 dirty = True
                 skip_gap = True
@@ -511,15 +574,21 @@ def run(args) -> None:
                 dirty = True
                 skip_gap = True
                 continue
-            if k in (pygame.K_ESCAPE,) or ch == "q":
-                print(f"quit: key {pygame.key.name(k)}", file=sys.stderr, flush=True)
+            if (k == pygame.K_ESCAPE and screen == "menu") or ch == "q":
+                print(f"quit: key {pygame.key.name(k) if k else ch}", file=sys.stderr, flush=True)
                 tones.stop()
                 out.close()
                 return
-            if k in (pygame.K_RIGHT, pygame.K_DOWN, pygame.K_SPACE) or ch in (".", "/"):
+            if back:                       # patterns -> main menu
+                screen = "menu"
+            elif ch == "m" and k is None:  # chosen in the video mode list
+                mode_idx = pick_sel - 1
+            if screen == "patterns" and (down or k in (pygame.K_RIGHT, pygame.K_SPACE) or ch in (".", "/")):
                 idx = (idx + 1) % len(patterns)
-            elif k in (pygame.K_LEFT, pygame.K_UP) or ch in (",", ";", "p"):
+            elif screen == "patterns" and (up or ch in (",", ";", "p")):
                 idx = (idx - 1) % len(patterns)
+            elif screen == "patterns" and k in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                show_info = not show_info
             elif ch.isdigit() and ch != "0":
                 cats = list(dict.fromkeys(p.category for p in patterns))
                 c = int(ch) - 1
@@ -690,6 +759,24 @@ def run(args) -> None:
             if not nominal and fps_measured > 20:
                 nominal = 1.0 / (refresh if refresh else round(fps_measured))
             dirty = True
+        if dirty and room is None and not status_view and screen != "patterns":
+            if screen == "menu":
+                vals = {"patterns": pat.name, "modes": mode.label, "audio": tones.mode or "off"}
+                items = [("> " if i == menu_sel else "  ") + label + (f": {vals[key]}" if key in vals else "")
+                         for i, (key, label) in enumerate(MENU)]
+                sel, title, hint = menu_sel, banner or "TNT AV Tester", MENU_HELP
+            else:
+                names = ([m.label for m in modes] if screen == "modes"
+                         else [label for _, label in AUDIO_MODES])
+                cur = mode_idx if screen == "modes" else next(
+                    (i for i, (m, _) in enumerate(AUDIO_MODES) if m == tones.mode), 0)
+                items = [("> " if i == pick_sel else "  ") + n + ("  *" if i == cur else "")
+                         for i, n in enumerate(names)]
+                sel, hint = pick_sel, PICK_HELP
+                title = "Video mode" if screen == "modes" else f"Audio out {tones.dbfs:.0f} dBFS"
+            top = max(0, min(sel - lcd.ROWS // 2, len(items) - lcd.ROWS))
+            lcd.show_async(title, items[top:top + lcd.ROWS], hint)
+            dirty = False
         if dirty and room is None and not status_view:
             tone = tones.mode or "off"
             lcd.show_async(banner or pat.name, status_lines(mode if size == mode.size else size, refresh, fps_measured, idx, len(patterns),
