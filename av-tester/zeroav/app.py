@@ -48,9 +48,9 @@ def render_all(out_dir: str, size: tuple[int, int]) -> None:
         print(fn)
 
 
-def status_lines(size, refresh, fps, idx, total, category, tone, dbfs) -> list[str]:
+def status_lines(size, refresh, fps, idx, total, category, tone, dbfs, dropped=0) -> list[str]:
     return [
-        f"{size[0]}x{size[1]} @ {refresh or '?'} Hz ({fps:.1f})",
+        f"{size[0]}x{size[1]} @ {refresh or '?'} Hz ({fps:.1f})  drop {dropped}",
         f"Pattern {idx + 1}/{total}  [{category}]",
         f"Tone: {tone}  {dbfs:.0f} dBFS",
     ]
@@ -119,6 +119,9 @@ def run(args) -> None:
     patterns = all_patterns()
     idx, frame, show_info = 0, 0, False
     clock = pygame.time.Clock()
+    dropped, worst_ms, worst_win, nominal = 0, 0.0, 0.0, 0.0
+    last_present = time.perf_counter()
+    skip_gap = True
     fps_measured, t0, n0 = 0.0, time.monotonic(), 0
     try:
         rates = pygame.display.get_desktop_refresh_rates()
@@ -165,28 +168,46 @@ def run(args) -> None:
                 mode_idx = (mode_idx + 1) % len(modes)
                 out.open(modes[mode_idx])
                 size = out.size
+                dropped, nominal = 0, 0.0
             dirty = True
+            skip_gap = True  # a pattern or mode change rebuilds the texture
 
         pat = patterns[idx]
         overlay = None
         if show_info:
             overlay = [f"{size[0]}x{size[1]}  set {refresh or '?'} Hz  measured {fps_measured:.2f} fps",
+                       f"dropped frames: {dropped}   worst frame {worst_ms:.1f} ms",
                        pat.name]
         # Every loop presents one frame, synced to vblank: the GPU redraws the
         # cached texture, so this runs at the HDMI refresh rate.
         out.frame(pat, frame, overlay)
         frame += 1
+        # Dropped-frame check: a gap between presents longer than 1.5 frame
+        # periods means at least one vblank was missed.
+        tp = time.perf_counter()
+        gap = tp - last_present
+        last_present = tp
+        if skip_gap:
+            skip_gap = False
+        else:
+            worst_win = max(worst_win, gap)
+            if nominal and gap > 1.5 * nominal:
+                dropped += round(gap / nominal) - 1
         clock.tick(125)  # safety cap only, in case vsync isn't honoured
 
         now = time.monotonic()
         if now - t0 >= 1.0:
             fps_measured = (frame - n0) / (now - t0)
             t0, n0 = now, frame
+            worst_ms, worst_win = worst_win * 1000, 0.0
+            # Learn the frame period from the display (or from what we see).
+            if not nominal and fps_measured > 20:
+                nominal = 1.0 / (refresh if refresh else round(fps_measured))
             dirty = True
         if dirty:
             tone = tones.mode or "off"
-            lcd.show(pat.name, status_lines(size, refresh, fps_measured, idx, len(patterns),
-                                            pat.category, tone, tones.dbfs), KEYS_HELP)
+            lcd.show_async(pat.name, status_lines(size, refresh, fps_measured, idx, len(patterns),
+                                                  pat.category, tone, tones.dbfs, dropped), KEYS_HELP)
             dirty = False
 
 

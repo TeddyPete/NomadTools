@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import glob
 import os
+import threading
 
 import numpy as np
 import pygame
@@ -47,6 +48,27 @@ class LcdPanel:
         self._last_text: list[str] = []
         self.font_big = pygame.font.Font(None, 30)
         self.font = pygame.font.Font(None, 22)
+        self._pending = None
+        self._cv = threading.Condition()
+        self._worker = None
+
+    def show_async(self, title: str, lines: list[str], hint: str = "") -> None:
+        """Queue a status update and return at once. A background thread
+        draws it, so the HDMI render loop never waits on the LCD."""
+        with self._cv:
+            self._pending = (title, list(lines), hint)
+            if self._worker is None:
+                self._worker = threading.Thread(target=self._run, daemon=True)
+                self._worker.start()
+            self._cv.notify()
+
+    def _run(self) -> None:
+        while True:
+            with self._cv:
+                while self._pending is None:
+                    self._cv.wait()
+                job, self._pending = self._pending, None
+            self.show(*job)
 
     def show(self, title: str, lines: list[str], hint: str = "") -> None:
         s = self.surf
