@@ -81,7 +81,7 @@ def run(args) -> None:
     import pygame
     from .audio import TonePlayer
     from .lcd import LcdPanel
-    from .patterns import all_patterns, draw_info_overlay
+    from .patterns import all_patterns
 
     pygame.init()
     lcd = LcdPanel()
@@ -106,14 +106,15 @@ def run(args) -> None:
     if size in modes:
         mode_idx = modes.index(size)
 
-    def open_screen(sz):
-        return pygame.display.set_mode(sz, pygame.FULLSCREEN, display=disp, vsync=1)
-
+    from .output import HdmiOutput
+    windowed = driver in ("wayland", "x11")
     try:
-        screen = open_screen(size)
-    except pygame.error as e:
+        out = HdmiOutput(size, fullscreen_desktop=windowed)
+    except Exception as e:
         no_hdmi(lcd, str(e))
         return
+    size = out.size
+    print(f"GPU renderer: {'yes' if out.accelerated else 'NO (software)'}", file=sys.stderr, flush=True)
     tones = TonePlayer(args.audio_device)
     patterns = all_patterns()
     idx, frame, show_info = 0, 0, False
@@ -128,14 +129,16 @@ def run(args) -> None:
 
     while True:
         for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
+            if ev.type in (pygame.QUIT, pygame.WINDOWCLOSE):
                 tones.stop()
+                out.close()
                 return
             if ev.type != pygame.KEYDOWN:
                 continue
             k, ch = ev.key, (ev.unicode or "").lower()
             if k in (pygame.K_ESCAPE,) or ch == "q":
                 tones.stop()
+                out.close()
                 return
             if k in (pygame.K_RIGHT, pygame.K_DOWN, pygame.K_SPACE) or ch in (".", "/", "n"):
                 idx = (idx + 1) % len(patterns)
@@ -158,24 +161,22 @@ def run(args) -> None:
                 tones.dbfs = max(-60.0, tones.dbfs - 2)
                 if tones.mode:
                     tones.play(tones.mode)
-            elif ch == "m" and modes:
+            elif ch == "m" and len(modes) > 1:
                 mode_idx = (mode_idx + 1) % len(modes)
-                size = modes[mode_idx]
-                screen = open_screen(size)
+                out.open(modes[mode_idx])
+                size = out.size
             dirty = True
 
         pat = patterns[idx]
-        if dirty or pat.animated or show_info:
-            pat.draw(screen, frame)
-            if show_info:
-                draw_info_overlay(screen, [
-                    f"{size[0]}x{size[1]}  set {refresh or '?'} Hz  measured {fps_measured:.2f} fps",
-                    f"frame {frame}",
-                    pat.name,
-                ])
-            pygame.display.flip()
+        overlay = None
+        if show_info:
+            overlay = [f"{size[0]}x{size[1]}  set {refresh or '?'} Hz  measured {fps_measured:.2f} fps",
+                       pat.name]
+        # Every loop presents one frame, synced to vblank: the GPU redraws the
+        # cached texture, so this runs at the HDMI refresh rate.
+        out.frame(pat, frame, overlay)
         frame += 1
-        clock.tick(0 if pat.animated or show_info else 30)
+        clock.tick(125)  # safety cap only, in case vsync isn't honoured
 
         now = time.monotonic()
         if now - t0 >= 1.0:
