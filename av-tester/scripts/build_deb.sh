@@ -34,6 +34,7 @@ Conflicts: zeroav-tester
 Provides: zeroav-tester
 Description: TNT AV Tester for the M5Stack CardputerZero
  Part of the TNT (Tech Nomad Ted) tools, TheTechNomad.com.
+ Lip-sync tester using the built-in camera and mic.
  HDMI test patterns (bars, crosshatch, ramps, solids, checkerboards,
  judder box) and audio test tones with left/right channel ID,
  controlled from the keyboard with status on the built-in screen.

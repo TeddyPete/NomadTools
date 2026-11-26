@@ -1,12 +1,12 @@
 {
   "package_name": "tnt-av-tester",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "app_name": "TNT AV Tester",
   "bin_name": "tnt-av-tester",
   "description": "HDMI test patterns and audio test tones for AV installs",
   "store": {
     "summary": "TNT AV Tester: HDMI patterns, tones and EDID reader for AV techs",
-    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Turns the CardputerZero into a pocket AV test generator: color bars, crosshatch, safe-area, ramps, solids, checkerboards and a judder test box over HDMI in every mode the display offers (exact refresh rates such as 59.94 and 23.98), 1 kHz and left/right channel ID tones, and a plain-English EDID reader (maker, model, modes, audio formats, HDR) on HDMI and the built-in screen. Lip-sync measurement and audio meters are coming.",
+    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Turns the CardputerZero into a pocket AV test generator: color bars, crosshatch, safe-area, ramps, solids, checkerboards and a judder test box over HDMI in every mode the display offers (exact refresh rates such as 59.94 and 23.98), 1 kHz and left/right channel ID tones, and a plain-English EDID reader (maker, model, modes, audio formats, HDR) on HDMI and the built-in screen. Lip-sync tester: the screen flashes with a beep, the built-in camera (200 fps) and mic measure the A/V offset and suggest the delay fix. Audio meters are coming.",
     "categories": [
       "Media",
       "Hardware & IoT"
@@ -25,8 +25,8 @@
     },
     "share_code": "TNTA",
     "permissions": {
-      "camera": false,
-      "microphone": false,
+      "camera": true,
+      "microphone": true,
       "imu": false,
       "network": false,
       "additional_hardware": false,

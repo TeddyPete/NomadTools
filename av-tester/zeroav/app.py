@@ -14,7 +14,8 @@ import signal
 import sys
 import time
 
-KEYS_HELP = "</> pattern  T tone  M mode  E EDID  Q quit"
+KEYS_HELP = "</> pat  T tone  M mode  E EDID  L sync"
+SYNC_HELP = "Enter start  C cal  S save  L back"
 EDID_HELP = "Up/Dn scroll  S save  E back"
 REPORT_DIR = os.path.expanduser("~/.local/share/tnt-av-tester/reports")
 
@@ -179,6 +180,7 @@ def run(args) -> None:
     patterns = all_patterns()
     idx, frame, show_info = 0, 0, False
     edid_view, edid_scroll, edid_page, edid_msg = False, 0, 0, ""
+    sync, sync_msg, sync_lcd_t = None, "", 0.0
     clock = pygame.time.Clock()
     dropped, worst_ms, worst_win, nominal = 0, 0.0, 0.0, 0.0
     last_present = time.perf_counter()
@@ -227,6 +229,44 @@ def run(args) -> None:
                 dirty = True
                 skip_gap = True
                 continue
+            if sync is not None:
+                if k == pygame.K_ESCAPE or ch in ("l", "b"):
+                    sync.stop()
+                    sync = None
+                elif ch == "q":
+                    sync.stop()
+                    tones.stop()
+                    out.close()
+                    return
+                elif k in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE) and sync.state in ("idle", "done", "error"):
+                    from .lipsync import LipSyncTest
+                    sync.stop()
+                    sync = LipSyncTest(tones.device, args.mic_device)
+                    sync.start()
+                    sync_msg = ""
+                elif ch == "c" and sync.state == "done":
+                    cal = sync.calibrate_here()
+                    sync_msg = (f"Calibrated: {cal:+.0f} ms is now zero" if cal is not None
+                                else "Need 3+ good flashes to calibrate")
+                elif ch == "s" and sync.state == "done":
+                    try:
+                        os.makedirs(REPORT_DIR, exist_ok=True)
+                        path = os.path.join(REPORT_DIR, f"lipsync-{time.strftime('%Y%m%d-%H%M%S')}.txt")
+                        with open(path, "w") as f:
+                            f.write(sync.report())
+                        sync_msg = "Saved " + os.path.basename(path)
+                    except OSError as e:
+                        sync_msg = f"Save failed: {e}"
+                dirty = True
+                skip_gap = True
+                continue
+            if ch == "l":
+                from .lipsync import LipSyncTest
+                tones.stop()
+                sync, sync_msg = LipSyncTest(tones.device, args.mic_device), ""
+                dirty = True
+                skip_gap = True
+                continue
             if ch == "e":
                 edid_info = edid.read()  # re-read: the display may have changed
                 edid_view, edid_scroll, edid_page, edid_msg = True, 0, 0, ""
@@ -269,6 +309,21 @@ def run(args) -> None:
                 dropped, nominal = 0, 0.0
             dirty = True
             skip_gap = True  # a pattern or mode change rebuilds the texture
+
+        if sync is not None:
+            white = sync.frame_is_white() if sync.state in ("warmup", "running") else False
+            out.solid(white)
+            if sync.state in ("warmup", "running"):
+                sync.presented(white)
+            now = time.monotonic()
+            if dirty or now - sync_lcd_t > 0.3:
+                lines = sync.lcd_lines()
+                if sync_msg:
+                    lines = lines[:4] + [sync_msg]
+                lcd.show_async("Lip-sync test", lines, SYNC_HELP)
+                sync_lcd_t, dirty = now, False
+            frame += 1
+            continue
 
         if edid_view:
             out.text_page("Display EDID", edid_sections(), edid_page)
@@ -335,6 +390,8 @@ def main(argv=None) -> None:
     ap.add_argument("--mode", help="start in this exact mode, e.g. 1920x1080p50 or 1920x1080p59.94")
     ap.add_argument("--audio-device", default=os.environ.get("ZEROAV_AUDIO"),
                     help="ALSA device for tones (default: pipewire if present, else default)")
+    ap.add_argument("--mic-device", default=os.environ.get("TNT_MIC", "default"),
+                    help="ALSA capture device for the lip-sync test (default: default, i.e. PipeWire)")
     ap.add_argument("--render-dir", help="render all patterns to PNG files here and exit")
     args = ap.parse_args(argv)
     if args.render_dir:

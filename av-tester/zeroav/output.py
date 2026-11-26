@@ -14,6 +14,8 @@ rate when the output keeps up.
 """
 from __future__ import annotations
 
+import os
+
 import pygame
 from pygame._sdl2.video import Renderer, Texture, Window
 
@@ -49,11 +51,20 @@ class HdmiOutput:
             self.window = Window("TNT AV Tester", size=size, fullscreen=True)
         # Pick the exact refresh rate before the renderer starts.
         self.mode_set = bool(mode) and sdlmodes.set_mode(self.window.id, self.display, mode)
-        try:
-            self.renderer = Renderer(self.window, accelerated=1, vsync=True)
-            self.accelerated = True
-        except Exception:  # no GPU renderer: fall back to software (slow)
-            self.renderer = Renderer(self.window, accelerated=-1, vsync=True)
+        # On the Pi desktop (windowed), the GPU driver can crash outright
+        # when a second client renders with GL, so use software rendering
+        # there. Direct HDMI (kmsdrm) uses the GPU. TNT_RENDER=gpu|software
+        # overrides.
+        want = os.environ.get("TNT_RENDER", "software" if self.fullscreen_desktop else "gpu")
+        self.renderer = None
+        if want != "software":
+            try:
+                self.renderer = Renderer(self.window, accelerated=1, vsync=True)
+                self.accelerated = True
+            except Exception:  # no GPU renderer: fall back to software (slow)
+                self.renderer = None
+        if self.renderer is None:
+            self.renderer = Renderer(self.window, accelerated=0, vsync=True)
             self.accelerated = False
         self.size = self.window.size
         self._tex = self._overlay = self._page = None
@@ -166,6 +177,13 @@ class HdmiOutput:
     def text_page(self, title: str, sections: list[tuple[str, list[str]]], page: int) -> None:
         self.renderer.blit(self._page_texture(title, sections, page), pygame.Rect(0, 0, *self.size))
         self.renderer.present()
+
+    def solid(self, white: bool) -> None:
+        """Full-screen white or black frame (lip-sync flashes)."""
+        r = self.renderer
+        r.draw_color = (255, 255, 255, 255) if white else (0, 0, 0, 255)
+        r.clear()
+        r.present()
 
     def frame(self, pat: Pattern, frame: int, overlay: list[str] | None) -> None:
         r = self.renderer

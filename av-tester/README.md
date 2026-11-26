@@ -76,7 +76,21 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 | `e` view: Up / Down | Scroll the small screen |
 | `e` view: Left / Right | Turn the HDMI page when it doesn't all fit |
 | `e` view: `s` | Save the EDID report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
+| `l` | Lip-sync test (see below) |
 | `q` / Esc | Quit |
+
+## Lip-sync test
+
+Press `l`, aim the CardputerZero's camera at the screen and put it near the speakers, then press
+Enter. The screen flashes white with a 1 kHz beep about ten times. The camera (200 fps) and mic time
+each one and the small screen shows the offset (+ = audio late), ATSC and EBU R37 pass/fail, and the
+fix. The fix leaves audio about 12 ms late, since late audio is far less noticeable than early audio.
+
+- `c` after a run on a system you trust to be in sync stores that run as the zero point
+  (`~/.config/tnt-av-tester/lipsync.json`). Do this once; it removes the camera and audio delays
+  inside the CardputerZero itself. Until then results show "not calibrated".
+- `s` saves a report with every flash to `~/.local/share/tnt-av-tester/reports/`.
+- `python3 -m zeroav.lipsync` checks the camera frame rate and mic level without HDMI.
 
 ## Patterns
 
