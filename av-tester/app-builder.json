@@ -1,6 +1,6 @@
 {
   "package_name": "tnt-av-tester",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "app_name": "TNT AV Tester",
   "bin_name": "tnt-av-tester",
   "description": "HDMI test patterns and audio test tones for AV installs",

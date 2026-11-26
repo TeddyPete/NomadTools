@@ -16,9 +16,7 @@ import pygame
 
 PANEL_SIZES = {(320, 170), (170, 320)}
 # TNT colours: green title bar, blue highlight, red while editing a field
-TITLE_BG = (20, 110, 55)
-SELECT_BG = (30, 90, 200)
-EDIT_BG = (190, 35, 35)
+TITLE_BG = (18, 120, 52)      # same as tntui.py
 HINT = (150, 200, 255)
 
 
@@ -146,28 +144,20 @@ class LcdPanel:
 
     def show_list(self, title: str, items: list[str], sel: int, hint: str = "",
                   editing: bool = False) -> None:
-        s = self.surf
-        s.fill((0, 0, 0))
-        self._title(title)
-        rows = self.ROWS
+        """Drawn with the shared TNT UI (tntui.py): green title, 6 rows,
+        blue highlight, red row while a field is being edited."""
+        from . import tntui
+        rows = tntui.ROWS
         top = max(0, min(sel - rows // 2, len(items) - rows))
-        y = 34
+        views = []
         for i in range(top, min(len(items), top + rows)):
-            text = items[i]
-            if i == sel:
-                s.fill(EDIT_BG if editing else SELECT_BG, (0, y - 1, 320, 22))
-                if editing:   # keep the end of what is being typed in view
-                    label, sep, val = text.partition(": ")
-                    head = label + sep if sep else ""
-                    val = val if sep else text
-                    while val and self.font.size(head + "<" + val + "_")[0] > 308:
-                        val = val[1:]
-                    text = head + ("<" if val != (text.partition(": ")[2] if sep else text) else "") + val + "_"
-            s.blit(self.font.render(text, True, (255, 255, 255)), (6, y + 2), (0, 0, 310, 22))
-            y += 22
-        if top + rows < len(items):
-            s.blit(self.font_small.render("more v", True, HINT), (268, 132))
-        self._hint(hint)
+            label, sep, value = items[i].partition(": ")
+            if not sep:
+                label, value = items[i], ""
+            state = ("editing" if editing else "selected") if i == sel else "normal"
+            views.append(tntui.RowView(label, value, state,
+                                       cursor=len(value) if state == "editing" else None))
+        tntui.render(self.surf, title, views, hint)
         mark = ["> " + t if i == sel else "  " + t for i, t in enumerate(items)]
         self._flush([title, *mark, hint + (" [editing]" if editing else "")])
 

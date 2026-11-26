@@ -18,13 +18,13 @@ import time
 # layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right; OK is Enter):
 #   Up/Down move, Right or OK select, Left back one level,
 #   Esc back one level and quit from the main menu.
-MENU_HELP = "F/X move  OK select  Esc quit"
+MENU_HELP = "↑↓ move  OK/→ open  ESC quit"
 KEYS_HELP = "Up/Dn pattern  OK info  < back  T tone"
-PICK_HELP = "F/X move  OK choose  Esc back"
+PICK_HELP = "↑↓ move  OK/→ choose  ←/ESC back"
 SYNC_HELP = "OK start  0 zero cal  S save  < back"
 STATUS_HELP = "Up/Dn scroll  < back"
-ROOM_HELP = "F/X move  OK edit/save  Esc back"
-EDIT_HELP = "Type, then OK to keep  Esc undo"
+ROOM_HELP = "↑↓ move  OK/→ edit  ESC back"
+EDIT_HELP = "OK save  ESC cancel"
 METER_HELP = "W A/Z  T tone  +/- cal  S save  < back"
 EDID_HELP = "Up/Dn scroll  > page  S save  < back"
 # The CardputerZero's Sym layer sends keypad/Japanese placeholder keys for the
