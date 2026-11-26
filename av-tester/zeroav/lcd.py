@@ -48,15 +48,16 @@ class LcdPanel:
         self._last_text: list[str] = []
         self.font_big = pygame.font.Font(None, 30)
         self.font = pygame.font.Font(None, 22)
+        self.font_small = pygame.font.Font(None, 19)
         self._pending = None
         self._cv = threading.Condition()
         self._worker = None
 
-    def show_async(self, title: str, lines: list[str], hint: str = "") -> None:
+    def show_async(self, title: str, lines: list[str], hint: str = "", small: bool = False) -> None:
         """Queue a status update and return at once. A background thread
         draws it, so the HDMI render loop never waits on the LCD."""
         with self._cv:
-            self._pending = (title, list(lines), hint)
+            self._pending = (title, list(lines), hint, small)
             if self._worker is None:
                 self._worker = threading.Thread(target=self._run, daemon=True)
                 self._worker.start()
@@ -70,15 +71,37 @@ class LcdPanel:
                 job, self._pending = self._pending, None
             self.show(*job)
 
-    def show(self, title: str, lines: list[str], hint: str = "") -> None:
+    def wrap(self, lines: list[str], small: bool = True, width: int = 308) -> list[str]:
+        """Split lines so each fits the panel width, indenting the rest."""
+        font = self.font_small if small else self.font
+        out = []
+        for line in lines:
+            words, cur = line.split(" "), ""
+            for w in words:
+                trial = f"{cur} {w}" if cur else w
+                if cur and font.size(trial)[0] > width:
+                    out.append(cur)
+                    cur = "   " + w
+                else:
+                    cur = trial
+            out.append(cur)
+        return out
+
+    # lines that fit on the panel in normal and small text
+    ROWS, ROWS_SMALL = 5, 7
+
+    def show(self, title: str, lines: list[str], hint: str = "", small: bool = False) -> None:
         s = self.surf
         s.fill((0, 0, 0))
         s.fill((20, 60, 120), (0, 0, 320, 30))
         s.blit(self.font_big.render(title[:26], True, (255, 255, 255)), (6, 5))
-        y = 36
-        for line in lines[:5]:
-            s.blit(self.font.render(line[:40], True, (230, 230, 230)), (6, y))
-            y += 22
+        y = 34 if small else 36
+        font, step, rows = (self.font_small, 16, self.ROWS_SMALL) if small else (self.font, 22, self.ROWS)
+        for line in lines[:rows]:
+            color = (255, 220, 120) if line.startswith("-- ") else (230, 230, 230)
+            img = font.render(line, True, color)
+            s.blit(img, (6, y), (0, 0, 310, step))
+            y += step
         if hint:
             s.blit(self.font.render(hint[:42], True, (150, 200, 255)), (6, 150))
         self._flush([title, *lines, hint])

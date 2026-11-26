@@ -71,7 +71,11 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 | `t` | Tone: off, 1 kHz both, L/R alternating, left only, right only |
 | `+` / `-` | Tone level, 2 dB steps (starts at -20 dBFS) |
 | `i` | Info overlay: resolution, refresh, measured fps, frame counter |
-| `m` | Next HDMI resolution |
+| `m` | Next HDMI mode: every mode the display offers, with exact refresh (1080p60, 1080p59.94, 1080p50, 1080p23.98, ...) |
+| `e` | Display EDID: maker, model, serial, build date, size, native mode, all modes, audio, HDR, color depth. Shown on HDMI and, scrollable, on the small screen |
+| `e` view: Up / Down | Scroll the small screen |
+| `e` view: Left / Right | Turn the HDMI page when it doesn't all fit |
+| `e` view: `s` | Save the EDID report (text plus raw `.bin`) to `~/.local/share/zeroav/reports/` |
 | `q` / Esc | Quit |
 
 ## Patterns
@@ -88,6 +92,8 @@ python3 -m zeroav.app --render-dir out --size 1920x1080
 
 ## Known limits
 
-- HDMI refresh rate follows the mode the system boots with; the overlay shows the measured fps.
-  Per-mode refresh switching comes after the device check confirms what the HDMI output supports.
+- No 4K. The CardputerZero's HDMI (Pi VC4) tops out at a 162 MHz pixel clock, which is 1080p60.
+  Ultrawide 2560x1080 works at 24, 25 and 30 Hz when the display lists those modes; 50 and 60 Hz
+  need more than 162 MHz. The EDID view marks modes that are too fast in red.
+- Only modes the display's EDID lists can be selected (no custom timings yet).
 - The Pi's HDMI output has no HDCP.
