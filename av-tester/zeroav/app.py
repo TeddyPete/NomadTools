@@ -245,11 +245,14 @@ def run(args) -> None:
     while True:
         for ev in pygame.event.get():
             if ev.type in (pygame.QUIT, pygame.WINDOWCLOSE):
+                print("quit: stop request from the launcher (SIGTERM) or window close",
+                      file=sys.stderr, flush=True)
                 tones.stop()
                 out.close()
                 return
             if ev.type != pygame.KEYDOWN:
                 continue
+            print(f"key {pygame.key.name(ev.key)!r} {ev.unicode!r}", file=sys.stderr, flush=True)
             k, ch = ev.key, (ev.unicode or "").lower()
             if edid_view:
                 if k == pygame.K_ESCAPE or ch in ("e", "b"):
@@ -407,6 +410,7 @@ def run(args) -> None:
                 skip_gap = True
                 continue
             if k in (pygame.K_ESCAPE,) or ch == "q":
+                print(f"quit: key {pygame.key.name(k)}", file=sys.stderr, flush=True)
                 tones.stop()
                 out.close()
                 return
@@ -600,7 +604,29 @@ def main(argv=None) -> None:
     if args.render_dir:
         render_all(args.render_dir, parse_size(args.size or "1920x1080"))
         return
-    run(args)
+    # Leave a trace of every exit: Python errors and hard crashes (segfaults
+    # in SDL or the GPU driver) both go to the app log via stderr.
+    import faulthandler
+    import traceback
+    faulthandler.enable(file=sys.stderr, all_threads=True)
+    print(f"--- start {time.strftime('%Y-%m-%d %H:%M:%S')} args {argv}", file=sys.stderr, flush=True)
+    try:
+        run(args)
+        print(f"--- normal exit {time.strftime('%H:%M:%S')}", file=sys.stderr, flush=True)
+    except Exception:
+        traceback.print_exc()
+        print(f"--- CRASH {time.strftime('%H:%M:%S')}", file=sys.stderr, flush=True)
+        try:
+            from .lcd import LcdPanel
+            import pygame
+            pygame.init()
+            msg = traceback.format_exc().strip().splitlines()[-1]
+            LcdPanel().show("App error", ["Sorry, the app hit an error:", msg[:40], msg[40:80],
+                                          "Log: ~/.local/share/", "tnt-av-tester/app.log"], "Closing in 8 s")
+            time.sleep(8)
+        except Exception:
+            pass
+        raise
 
 
 if __name__ == "__main__":

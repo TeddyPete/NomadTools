@@ -16,6 +16,14 @@ export PYGAME_HIDE_SUPPORT_PROMPT=1
 # card0 is the HDMI (vc4) output; card1 is the built-in LCD panel
 export SDL_KMSDRM_DEVICE_INDEX="${SDL_KMSDRM_DEVICE_INDEX:-0}"
 
+# Keep a log of every run (stderr), trimmed so it never grows large.
+LOG_DIR="$HOME/.local/share/tnt-av-tester"
+mkdir -p "$LOG_DIR" 2>/dev/null
+LOG="$LOG_DIR/app.log"
+if [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt 1000000 ]; then mv -f "$LOG" "$LOG.1"; fi
+exec 2>>"$LOG"
+echo "=== $(date '+%F %T') launch $*" >&2
+
 DM=lightdm.service
 paused=0
 if [ "${ZEROAV_KEEP_DESKTOP:-0}" != 1 ] && systemctl is-active --quiet "$DM" 2>/dev/null; then
@@ -59,4 +67,5 @@ wait "$child"
 status=$?
 # wait returns early when a trapped signal arrives; wait again for the app
 while kill -0 "$child" 2>/dev/null; do wait "$child"; status=$?; done
+echo "=== $(date '+%F %T') app exited with status $status" >&2
 exit $status

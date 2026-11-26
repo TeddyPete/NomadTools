@@ -119,6 +119,18 @@ Preview all patterns as PNG files without a display:
 python3 -m zeroav.app --render-dir out --size 1920x1080
 ```
 
+## Logs
+
+Every run appends to `~/.local/share/tnt-av-tester/app.log`: keys pressed, mode changes, frame-rate
+lines, why the app exited, and a Python or native (segfault) traceback if it crashed.
+
+## GPU memory
+
+The CardputerZero's GPU memory pool (CMA) is 64 MB by default, and 1080p output uses most of it.
+The app keeps one full-screen texture at a time to stay inside it. For extra headroom, raise the
+pool to 128 MB (needs a reboot): in `/boot/firmware/config.txt` change
+`dtoverlay=vc4-kms-v3d,cma-64` to `dtoverlay=vc4-kms-v3d,cma-128`.
+
 ## Known limits
 
 - No 4K. The CardputerZero's HDMI (Pi VC4) tops out at a 162 MHz pixel clock, which is 1080p60.

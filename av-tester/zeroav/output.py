@@ -11,9 +11,18 @@ frame is far too slow on the CardputerZero (about 10 fps). Instead:
 
 Presents are synced to vblank, so the measured rate equals the HDMI refresh
 rate when the output keeps up.
+
+GPU memory is tight: the Pi's GPU pool (CMA) is 64 MB and the display
+buffers plus GL's own buffers use most of it at 1080p. A second 1080p
+texture (8 MB) or a burst of texture create/destroy makes the GPU driver
+fail an allocation, and Mesa then crashes the app. So there is at most ONE
+full-screen texture, updated in place when the picture changes, and every
+other texture is small, created once, and freed before anything else needs
+the space.
 """
 from __future__ import annotations
 
+import gc
 import os
 
 import pygame
@@ -29,15 +38,10 @@ class HdmiOutput:
         self.fullscreen_desktop = fullscreen_desktop
         self.display = display
         self.mode_set = False
-        self._page: Texture | None = None
-        self._page_key = None
+        self._slots: dict[str, list] = {}   # name -> [texture, key]
         self.pages = 1
         self.window: Window | None = None
         self.renderer: Renderer | None = None
-        self._tex: Texture | None = None
-        self._tex_key = None
-        self._overlay: Texture | None = None
-        self._overlay_key = None
         self.open(size)
 
     def open(self, size) -> None:
@@ -67,49 +71,77 @@ class HdmiOutput:
             self.renderer = Renderer(self.window, accelerated=0, vsync=True)
             self.accelerated = False
         self.size = self.window.size
-        self._tex = self._overlay = self._page = None
-        self._tex_key = self._overlay_key = self._page_key = None
+        self._slots = {}
 
     def close(self) -> None:
-        self._tex = self._overlay = self._page = None
+        self.drop()
         self.renderer = None
+        gc.collect()
         if self.window is not None:
             self.window.destroy()
             self.window = None
 
+    # ---- texture slots ----
+    def drop(self, *names: str) -> None:
+        """Free textures (all of them when no names are given)."""
+        freed = False
+        for n in (names or list(self._slots)):
+            slot = self._slots.pop(n, None)
+            if slot:
+                slot[0] = None
+                freed = True
+        if freed:
+            gc.collect()
+
+    def _put(self, name: str, key, make) -> Texture:
+        """Texture in slot `name` showing make() (a Surface), rebuilt only
+        when key changes, and updated in place when the size is unchanged."""
+        slot = self._slots.get(name)
+        if slot and slot[1] == key:
+            return slot[0]
+        surf = make()
+        if slot and slot[0] is not None and (slot[0].width, slot[0].height) == surf.get_size():
+            slot[0].update(surf)
+            slot[1] = key
+            return slot[0]
+        self.drop(name)
+        tex = Texture.from_surface(self.renderer, surf)
+        self._slots[name] = [tex, key]
+        return tex
+
     def _pattern_texture(self, pat: Pattern) -> Texture:
-        key = (id(pat), self.size)
-        if self._tex_key != key:
-            self._tex = None  # free the old texture before making a new one
+        def make():
             surf = pygame.Surface(self.size)
             pat.draw(surf, 0)
-            self._tex = Texture.from_surface(self.renderer, surf)
-            self._tex_key = key
-        return self._tex
+            return surf
+        self.drop("small")
+        return self._put("full", ("pattern", id(pat), self.size), make)
 
     def _overlay_texture(self, lines: list[str]) -> Texture:
-        key = tuple(lines)
-        if self._overlay_key != key:
-            w, h = self.size
-            font = pygame.font.Font(None, max(16, h // 30))
-            imgs = [font.render(t, True, (255, 255, 255), (0, 0, 0)) for t in lines]
-            surf = pygame.Surface((max(i.get_width() for i in imgs),
-                                   sum(i.get_height() + 2 for i in imgs)))
-            y = 0
-            for img in imgs:
-                surf.blit(img, (0, y))
-                y += img.get_height() + 2
-            self._overlay = Texture.from_surface(self.renderer, surf)
-            self._overlay_key = key
-        return self._overlay
+        """Fixed-size text box so changing text never allocates."""
+        w, h = self.size
+        slot = self._slots.get("overlay")
+        if slot and slot[1] == ("ovl", tuple(lines), self.size):
+            return slot[0]
+        font = pygame.font.Font(None, max(16, h // 30))
+        lh = font.get_linesize() + 2
+        box = (w * 3 // 5, lh * 3)
+
+        def make():
+            surf = pygame.Surface(box)
+            surf.fill((0, 0, 0))
+            for i, t in enumerate(lines[:3]):
+                surf.blit(font.render(t, True, (255, 255, 255)), (4, i * lh))
+            return surf
+        return self._put("overlay", ("ovl", tuple(lines), self.size), make)
 
     def _page_texture(self, title: str, sections: list[tuple[str, list[str]]], page: int) -> Texture:
         """A full-screen text page (the EDID view), laid out in columns.
         Sets self.pages to the page count when it doesn't all fit."""
-        key = (title, tuple((t, tuple(b)) for t, b in sections), page, self.size)
-        if self._page_key == key:
-            return self._page
-        self._page = None
+        key = ("page", title, tuple((t, tuple(b)) for t, b in sections), page, self.size)
+        slot = self._slots.get("full")
+        if slot and slot[1] == key:
+            return slot[0]
         w, h = self.size
         fh = max(14, h // 36)
         font = pygame.font.Font(None, fh)
@@ -170,9 +202,8 @@ class HdmiOutput:
                     y += font.get_linesize()
         surf.blit(font.render("E: back to patterns   S: save report", True, (140, 180, 255)),
                   (margin, h - h // 40 - fh))
-        self._page = Texture.from_surface(self.renderer, surf)
-        self._page_key = key
-        return self._page
+        self.drop("small", "overlay")
+        return self._put("full", key, lambda: surf)
 
     def text_page(self, title: str, sections: list[tuple[str, list[str]]], page: int) -> None:
         self.renderer.blit(self._page_texture(title, sections, page), pygame.Rect(0, 0, *self.size))
@@ -181,15 +212,16 @@ class HdmiOutput:
     def surface_page(self, surf: "pygame.Surface", key) -> None:
         """Show a CPU-drawn surface scaled to the full screen. The texture
         is only re-uploaded when key changes."""
-        if self._page_key != key:
-            self._page = None
-            self._page = Texture.from_surface(self.renderer, surf)
-            self._page_key = key
-        self.renderer.blit(self._page, pygame.Rect(0, 0, *self.size))
+        if "full" in self._slots:
+            self.drop("full", "overlay")   # make room: the pattern isn't shown now
+        tex = self._put("small", ("surf", key), lambda: surf)
+        self.renderer.blit(tex, pygame.Rect(0, 0, *self.size))
         self.renderer.present()
 
     def solid(self, white: bool) -> None:
         """Full-screen white or black frame (lip-sync flashes)."""
+        if self._slots:
+            self.drop()   # the camera needs GPU memory too
         r = self.renderer
         r.draw_color = (255, 255, 255, 255) if white else (0, 0, 0, 255)
         r.clear()
