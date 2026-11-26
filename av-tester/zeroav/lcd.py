@@ -15,6 +15,11 @@ import numpy as np
 import pygame
 
 PANEL_SIZES = {(320, 170), (170, 320)}
+# TNT colours: green title bar, blue highlight, red while editing a field
+TITLE_BG = (20, 110, 55)
+SELECT_BG = (30, 90, 200)
+EDIT_BG = (190, 35, 35)
+HINT = (150, 200, 255)
 
 
 def find_lcd_fb() -> tuple[str, int, int, int] | None:
@@ -107,8 +112,7 @@ class LcdPanel:
     def show(self, title: str, lines: list[str], hint: str = "", small: bool = False) -> None:
         s = self.surf
         s.fill((0, 0, 0))
-        s.fill((20, 60, 120), (0, 0, 320, 30))
-        s.blit(self.font_big.render(title[:26], True, (255, 255, 255)), (6, 5))
+        self._title(title)
         y = 34 if small else 36
         font, step, rows = (self.font_small, 16, self.ROWS_SMALL) if small else (self.font, 22, self.ROWS)
         for line in lines[:rows]:
@@ -116,16 +120,56 @@ class LcdPanel:
             img = font.render(line, True, color)
             s.blit(img, (6, y), (0, 0, 310, step))
             y += step
-        if hint:
-            img = self.font.render(hint, True, (150, 200, 255))
-            if img.get_width() > 310:   # too long: use small text, squeezed to fit
-                img = self.font_small.render(hint, True, (150, 200, 255))
-                if img.get_width() > 314:
-                    img = pygame.transform.smoothscale(img, (314, img.get_height()))
-                s.blit(img, (3, 152))
-            else:
-                s.blit(img, (6, 150))
+        self._hint(hint)
         self._flush([title, *lines, hint])
+
+    def _title(self, title: str) -> None:
+        self.surf.fill(TITLE_BG, (0, 0, 320, 30))
+        self.surf.blit(self.font_big.render(title[:26], True, (255, 255, 255)), (6, 5))
+
+    def _hint(self, hint: str) -> None:
+        if not hint:
+            return
+        img = self.font.render(hint, True, HINT)
+        if img.get_width() > 310:   # too long: use small text, squeezed to fit
+            img = self.font_small.render(hint, True, HINT)
+            if img.get_width() > 314:
+                img = pygame.transform.smoothscale(img, (314, img.get_height()))
+            self.surf.blit(img, (3, 152))
+        else:
+            self.surf.blit(img, (6, 150))
+
+    def show_list_async(self, title: str, items: list[str], sel: int, hint: str = "",
+                        editing: bool = False) -> None:
+        """A menu or form: the selected row is blue, or red while it is being edited."""
+        self.draw_async(lambda s: self.show_list(title, items, sel, hint, editing))
+
+    def show_list(self, title: str, items: list[str], sel: int, hint: str = "",
+                  editing: bool = False) -> None:
+        s = self.surf
+        s.fill((0, 0, 0))
+        self._title(title)
+        rows = self.ROWS
+        top = max(0, min(sel - rows // 2, len(items) - rows))
+        y = 34
+        for i in range(top, min(len(items), top + rows)):
+            text = items[i]
+            if i == sel:
+                s.fill(EDIT_BG if editing else SELECT_BG, (0, y - 1, 320, 22))
+                if editing:   # keep the end of what is being typed in view
+                    label, sep, val = text.partition(": ")
+                    head = label + sep if sep else ""
+                    val = val if sep else text
+                    while val and self.font.size(head + "<" + val + "_")[0] > 308:
+                        val = val[1:]
+                    text = head + ("<" if val != (text.partition(": ")[2] if sep else text) else "") + val + "_"
+            s.blit(self.font.render(text, True, (255, 255, 255)), (6, y + 2), (0, 0, 310, 22))
+            y += 22
+        if top + rows < len(items):
+            s.blit(self.font_small.render("more v", True, HINT), (268, 132))
+        self._hint(hint)
+        mark = ["> " + t if i == sel else "  " + t for i, t in enumerate(items)]
+        self._flush([title, *mark, hint + (" [editing]" if editing else "")])
 
     def save(self, path: str) -> None:
         """Write the current panel image to a PNG (used for store screenshots)."""

@@ -63,7 +63,7 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 
 ## Keys
 
-TNT apps share one way of getting around. On the CardputerZero the arrows are on the Fn layer
+TNT apps share one way of getting around, and the same colours: green title bar, blue for the highlighted row, red for a field being edited. On the CardputerZero the arrows are on the Fn layer
 (Fn+F up, Fn+X down, Fn+Z left, Fn+C right); plain F, X, Z and C work as arrows too, except while
 typing in a text field. OK is Enter.
 
@@ -89,7 +89,7 @@ These shortcuts also work from the main menu and the pattern screen:
 | `e` | Display EDID: maker, model, serial, build date, size, native mode, all modes, audio, HDR, color depth. Up/Down scroll the small screen, Right turns the HDMI page, `s` saves the report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
 | `l` | Lip-sync test (see below) |
 | `h` | HDMI link status: connected or not, display, mode being sent, fps, dropped frames, hot-plug log |
-| `n` | Room report: type a room name and a note (Up/Down switch fields, OK next/save, Esc cancel); saves EDID, link, latest lip-sync and audio results in one file |
+| `n` | Room report: a small form with Room, Notes and Save report. Move with F/X, press OK (or Right) to edit a field: it turns red and keys type, OK keeps the text, Esc undoes it. OK on Save report saves EDID, link, latest lip-sync and audio results in one file |
 | `a` | Audio input meter and 1/3-octave RTA (see below) |
 | `q` | Quit from anywhere |
 

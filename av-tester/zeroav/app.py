@@ -18,12 +18,13 @@ import time
 # layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right; OK is Enter):
 #   Up/Down move, Right or OK select, Left back one level,
 #   Esc back one level and quit from the main menu.
-MENU_HELP = "Up/Dn move  OK/> select  Esc quit"
+MENU_HELP = "F/X move  OK select  Esc quit"
 KEYS_HELP = "Up/Dn pattern  OK info  < back  T tone"
-PICK_HELP = "Up/Dn move  OK/> choose  < back"
+PICK_HELP = "F/X move  OK choose  Esc back"
 SYNC_HELP = "OK start  0 zero cal  S save  < back"
 STATUS_HELP = "Up/Dn scroll  < back"
-ROOM_HELP = "OK next/save  Up/Dn field  Esc cancel"
+ROOM_HELP = "F/X move  OK edit/save  Esc back"
+EDIT_HELP = "Type, then OK to keep  Esc undo"
 METER_HELP = "W A/Z  T tone  +/- cal  S save  < back"
 EDID_HELP = "Up/Dn scroll  > page  S save  < back"
 # The CardputerZero's Sym layer sends keypad/Japanese placeholder keys for the
@@ -380,7 +381,8 @@ def run(args) -> None:
                 continue
             print(f"key {pygame.key.name(ev.key)!r} {ev.unicode!r}", file=sys.stderr, flush=True)
             k, ch = ev.key, (ev.unicode or "").lower()
-            if room is None and ch in PLAIN_ARROWS and len(ch) == 1:
+            typing = room is not None and room["edit"] is not None
+            if not typing and ch in PLAIN_ARROWS and len(ch) == 1:
                 k, ch = PLAIN_ARROWS[ch], ""     # plain F/X/Z/C work as arrows too
             up, down = k == pygame.K_UP, k == pygame.K_DOWN
             back = k in (pygame.K_ESCAPE, pygame.K_LEFT)
@@ -442,16 +444,30 @@ def run(args) -> None:
                 skip_gap = True
                 continue
             if room is not None:
-                f = ("name", "notes")[room["field"]]
-                if k == pygame.K_ESCAPE or (k == pygame.K_LEFT and room["field"] == 0):
+                # Form: move with F/X (or arrows), OK or Right edits a field;
+                # while editing, keys type, OK keeps the text, Esc undoes it.
+                if typing:
+                    f = room["edit"]
+                    if k in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                        room["edit"] = None
+                    elif k == pygame.K_ESCAPE:
+                        room[f], room["edit"] = room["orig"], None
+                    elif k == pygame.K_BACKSPACE:
+                        room[f] = room[f][:-1]
+                    elif getattr(ev, "scancode", None) in SYM_SCANCODES:
+                        room[f] += SYM_SCANCODES[ev.scancode]
+                    elif ev.unicode and ev.unicode.isprintable():
+                        room[f] += ev.unicode
+                elif back:
                     room = None
-                elif k == pygame.K_LEFT or up:
-                    room["field"] = 0
+                elif up:
+                    room["sel"] = (room["sel"] - 1) % 3
                 elif down:
-                    room["field"] = 1
-                elif k in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                    if room["field"] == 0:
-                        room["field"] = 1
+                    room["sel"] = (room["sel"] + 1) % 3
+                elif select:
+                    if room["sel"] < 2:
+                        f = ("name", "notes")[room["sel"]]
+                        room["edit"], room["orig"] = f, room[f]
                     else:
                         try:
                             path = save_room_report(room, edid_info, mode, fps_measured, dropped,
@@ -460,12 +476,6 @@ def run(args) -> None:
                         except OSError as e:
                             banner, banner_until = f"Save failed: {e}", time.monotonic() + 4
                         room = None
-                elif k == pygame.K_BACKSPACE:
-                    room[f] = room[f][:-1]
-                elif getattr(ev, "scancode", None) in SYM_SCANCODES:
-                    room[f] += SYM_SCANCODES[ev.scancode]
-                elif ev.unicode and ev.unicode.isprintable():
-                    room[f] += ev.unicode
                 dirty = True
                 skip_gap = True
                 continue
@@ -561,7 +571,7 @@ def run(args) -> None:
                 skip_gap = True
                 continue
             if ch == "n":
-                room = {"field": 0, "name": "", "notes": ""}
+                room = {"sel": 0, "edit": None, "orig": "", "name": "", "notes": ""}
                 dirty = True
                 skip_gap = True
                 continue
@@ -653,12 +663,9 @@ def run(args) -> None:
         if room is not None or status_view:
             if dirty:
                 if room is not None:
-                    cur = room["field"]
-                    lines = [("> " if cur == 0 else "  ") + "Room: " + room["name"] + ("_" if cur == 0 else ""),
-                             ("> " if cur == 1 else "  ") + "Notes: " + room["notes"][-26:] + ("_" if cur == 1 else ""),
-                             "Saves EDID, link, latest",
-                             "lip-sync and audio results."]
-                    lcd.show_async("Room report", lines, ROOM_HELP)
+                    items = ["Room: " + room["name"], "Notes: " + room["notes"], "Save report"]
+                    lcd.show_list_async("Room report", items, room["sel"],
+                                        EDIT_HELP if room["edit"] else ROOM_HELP, editing=bool(room["edit"]))
                 else:
                     ll = lcd.wrap(link_lines(edid_info, mode, size, fps_measured, dropped, plug_log, plug_state))
                     status_scroll = min(status_scroll, max(0, len(ll) - lcd.ROWS_SMALL))
@@ -772,20 +779,17 @@ def run(args) -> None:
         if dirty and room is None and not status_view and screen != "patterns":
             if screen == "menu":
                 vals = {"patterns": pat.name, "modes": mode.label, "audio": tones.mode or "off"}
-                items = [("> " if i == menu_sel else "  ") + label + (f": {vals[key]}" if key in vals else "")
-                         for i, (key, label) in enumerate(MENU)]
+                items = [label + (f": {vals[key]}" if key in vals else "") for key, label in MENU]
                 sel, title, hint = menu_sel, banner or "TNT AV Tester", MENU_HELP
             else:
                 names = ([m.label for m in modes] if screen == "modes"
                          else [label for _, label in AUDIO_MODES])
                 cur = mode_idx if screen == "modes" else next(
                     (i for i, (m, _) in enumerate(AUDIO_MODES) if m == tones.mode), 0)
-                items = [("> " if i == pick_sel else "  ") + n + ("  *" if i == cur else "")
-                         for i, n in enumerate(names)]
+                items = [n + ("  *" if i == cur else "") for i, n in enumerate(names)]
                 sel, hint = pick_sel, PICK_HELP
                 title = "Video mode" if screen == "modes" else f"Audio out {tones.dbfs:.0f} dBFS"
-            top = max(0, min(sel - lcd.ROWS // 2, len(items) - lcd.ROWS))
-            lcd.show_async(title, items[top:top + lcd.ROWS], hint)
+            lcd.show_list_async(title, items, sel, hint)
             dirty = False
         if dirty and room is None and not status_view:
             tone = tones.mode or "off"
