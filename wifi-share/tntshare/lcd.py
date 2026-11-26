@@ -45,9 +45,21 @@ def find_lcd_fb():
     return None
 
 
+FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+              "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+
+
+def _font(size: int) -> "pygame.font.Font":
+    for p in FONT_PATHS:
+        if os.path.exists(p):
+            return pygame.font.Font(p, size)
+    return pygame.font.Font(None, int(size * 1.35))
+
+
 class Panel:
-    TITLE_H, ROW_H, HINT_H = 24, 18, 18
-    ROWS = (H - TITLE_H - HINT_H - 4) // ROW_H  # 6 rows
+    # Big, readable text: 6 rows of 17 px bold between a title and a key-hint bar.
+    TITLE_H, ROW_H, HINT_H = 26, 20, 19
+    ROWS = (H - TITLE_H - HINT_H - 2) // ROW_H  # 6 rows
 
     def __init__(self, headless: bool = False):
         pygame.font.init()
@@ -56,9 +68,9 @@ class Panel:
         if found:
             self.dev, self.fw, self.fh, self.bpp = found
         self.surf = pygame.Surface((W, H))
-        self.f_title = pygame.font.Font(None, 26)
-        self.f = pygame.font.Font(None, 21)
-        self.f_small = pygame.font.Font(None, 18)
+        self.f_title = _font(19)
+        self.f = _font(17)
+        self.f_small = _font(14)
         self._last = None
 
     def text_width(self, s: str) -> int:
@@ -70,27 +82,27 @@ class Panel:
         s = self.surf
         s.fill(BG)
         s.fill(BAR, (0, 0, W, self.TITLE_H))
-        s.blit(self.f_title.render(title, True, (255, 255, 255)), (6, 4))
+        s.blit(self.f_title.render(title, True, (255, 255, 255)), (6, 2))
         if right:
             img = self.f_small.render(right, True, (255, 230, 200))
-            s.blit(img, (W - img.get_width() - 6, 6))
-        y = self.TITLE_H + 3
+            s.blit(img, (W - img.get_width() - 6, 5))
+        y = self.TITLE_H + 1
         for i, row in enumerate(rows[: self.ROWS]):
             if isinstance(row, str):
                 row = (row, FG)
             text, color = row[0], row[1]
             rtext = row[2] if len(row) > 2 else ""
             if selected is not None and i == selected:
-                s.fill(SEL_BG, (0, y - 1, W, self.ROW_H))
-            s.blit(self.f.render(text, True, color), (6, y), (0, 0, W - 12, self.ROW_H))
+                s.fill(SEL_BG, (0, y, W, self.ROW_H))
+            s.blit(self.f.render(text, True, color), (6, y + 1), (0, 0, W - 12, self.ROW_H))
             if rtext:
                 img = self.f.render(rtext, True, DIM if i != selected else FG)
-                s.fill(SEL_BG if selected == i else BG, (W - img.get_width() - 10, y - 1, img.get_width() + 10, self.ROW_H))
-                s.blit(img, (W - img.get_width() - 6, y))
+                s.fill(SEL_BG if selected == i else BG, (W - img.get_width() - 10, y, img.get_width() + 10, self.ROW_H))
+                s.blit(img, (W - img.get_width() - 6, y + 1))
             y += self.ROW_H
         if hint:
             s.fill((24, 28, 40), (0, H - self.HINT_H, W, self.HINT_H))
-            s.blit(self.f_small.render(hint, True, HINT), (6, H - self.HINT_H + 3))
+            s.blit(self.f_small.render(hint, True, HINT), (6, H - self.HINT_H + 1))
         self.flush()
 
     def save(self, path: str) -> None:

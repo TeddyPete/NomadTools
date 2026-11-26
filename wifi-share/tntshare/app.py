@@ -10,7 +10,7 @@ from . import lcd as L
 from . import net, portal
 from . import settings as S
 from .keys import Key, Keyboard
-from .ui import Busy, Confirm, Form, Menu, Message, Screen, TextInput, wrap
+from .ui import BACK, SELECT, Busy, Confirm, Form, Menu, Message, Screen, TextInput, nav_key, wrap
 
 APP_TITLE = "TNT WiFi Share"
 
@@ -92,7 +92,8 @@ class App:
             keys = self.kb.poll(0.1) if self.kb else (time.sleep(0.1) or [])
             for k in keys:
                 if self.stack:
-                    self.stack[-1].key(k)
+                    top = self.stack[-1]
+                    top.key(k if top.text_entry else nav_key(k))
                 self.dirty = True
             if self.stack:
                 self.stack[-1].tick()
@@ -139,7 +140,7 @@ class Home(Menu):
             ("Hotspot settings", lambda: edit_hotspot(app)),
             ("Stop sharing", self.stop, ""),
         ]
-        super().__init__(app, APP_TITLE, items, "1-8 pick  Enter select  Esc quit", numbered=True)
+        super().__init__(app, APP_TITLE, items, "\u2191\u2193 move  OK/\u2192 open  ESC quit", numbered=True)
 
     def mode1(self):
         app, c = self.app, self.app.cfg
@@ -156,7 +157,7 @@ class Home(Menu):
                          f"Pi on Ethernet: {c['share_ip']}/{p}. {dhcp}",
                          lambda: app.run_task("Wi-Fi -> Ethernet", "Starting", lambda: net.start_wifi_to_eth(app.cfg),
                                               ok_title="Sharing on"),
-                         yes="Enter start", no="Esc back"))
+                         yes="OK start", no="ESC back"))
 
     def mode2(self):
         app, c = self.app, self.app.cfg
@@ -168,7 +169,7 @@ class Home(Menu):
                          f"Hotspot {c['hs_ssid']}  password {c['hs_password']}  ch {c['hs_channel']}. {up}.{warn}",
                          lambda: app.run_task("Hotspot", "Starting hotspot", lambda: net.start_hotspot(app.cfg),
                                               ok_title="Hotspot on"),
-                         yes="Enter start", no="Esc back"))
+                         yes="OK start", no="ESC back"))
 
     def stop(self):
         app = self.app
@@ -177,10 +178,13 @@ class Home(Menu):
 
     def key(self, k):
         if k.name == "esc":
-            sharing = self.app.status.get("mode")
-            text = ("Sharing stops and the normal network comes back." if sharing
-                    else "Any network changes made by the app are undone.")
-            self.app.push(Confirm(self.app, "Quit?", text, self._quit, yes="Enter quit", no="Esc stay"))
+            if self.app.status.get("mode"):
+                self.app.push(Confirm(self.app, "Quit?", "Sharing stops and the normal network comes back.",
+                                      self._quit, yes="OK quit", no="ESC stay"))
+            else:
+                self._quit()
+        elif k.name == "left":
+            pass  # already on the main page
         else:
             super().key(k)
 
@@ -190,38 +194,56 @@ class Home(Menu):
 
 class Status(Screen):
     title = "Status"
-    hint = "Enter clients  R recheck  Esc back"
+    hint = "OK clients  R recheck  \u2190 back"
 
-    def rows(self):
+    def __init__(self, app):
+        super().__init__(app)
+        self.top = 0
+
+    def all_rows(self):
         st, app = self.app.status, self.app
-        rows = [(f"Mode: {net.MODE_NAMES.get(st.get('mode'), '?')}", L.OK if st.get("mode") else L.FG)]
-        rows.append(inet_row(app))
+        mode = st.get("mode")
+        rows = [("Mode", L.OK if mode else L.FG, {"wifi2eth": "Wi-Fi > Ethernet", "hotspot": "Hotspot"}.get(mode, "Off"))]
+        text, color = inet_row(app)
+        rows.append(("Internet", color, text.split(": ", 1)[1].replace(" (portal)", "")))
         if st.get("wifi"):
-            if st.get("mode") == "hotspot":
-                rows.append((f"Hotspot: {app.cfg['hs_ssid']}", L.FG, ip_short(st.get("wifi_ip"))))
-                rows.append((f"Password: {app.cfg['hs_password']}", L.WARN))
+            if mode == "hotspot":
+                rows.append(("Hotspot", L.FG, app.cfg["hs_ssid"]))
+                rows.append(("Password", L.WARN, app.cfg["hs_password"]))
+                rows.append(("Hotspot IP", L.FG, ip_short(st.get("wifi_ip")).split("/")[0]))
             else:
                 link = st.get("wifi_link") or {}
                 if link:
-                    rows.append((f"Wi-Fi: {link.get('ssid', '')[:16]} {link.get('signal', 0)}%", L.FG, ip_short(st.get("wifi_ip"))))
+                    rows.append(("Wi-Fi", L.FG, f"{link.get('ssid', '')[:14]} {link.get('signal', 0)}%"))
+                    rows.append(("Wi-Fi IP", L.FG, ip_short(st.get("wifi_ip")).split("/")[0]))
                 else:
-                    rows.append((f"Wi-Fi: {st.get('wifi_state', '?')}", L.DIM))
+                    rows.append(("Wi-Fi", L.DIM, st.get("wifi_state", "?")))
         if st.get("eth"):
             if not st.get("eth_carrier"):
-                rows.append(("Ethernet: no cable", L.WARN))
+                rows.append(("Ethernet", L.WARN, "no cable"))
             else:
-                rows.append(("Ethernet: link up", L.FG, ip_short(st.get("eth_ip")) or st.get("eth_state", "")))
-        if st.get("mode"):
-            rows.append((f"Clients: {len(st.get('clients', []))}", L.FG))
+                rows.append(("Ethernet", L.FG, ip_short(st.get("eth_ip")).split("/")[0] or st.get("eth_state", "")))
+        if mode:
+            rows.append(("Clients", L.FG, str(len(st.get("clients", [])))))
         else:
             r = st.get("route")
-            rows.append((f"Gateway: {r[0]} ({r[1]})" if r else "No default route", L.DIM))
-        return rows, None
+            rows.append(("Gateway", L.DIM, f"{r[0]}" if r else "none"))
+        return rows
+
+    def rows(self):
+        rows = self.all_rows()
+        self.top = min(self.top, max(0, len(rows) - L.Panel.ROWS))
+        return rows[self.top:self.top + L.Panel.ROWS], None
 
     def key(self, k):
+        n = len(self.all_rows())
         if k.char in ("r", "R"):
             self.app.refresh()
-        elif k.name == "enter":
+        elif k.name == "up":
+            self.top = max(0, self.top - 1)
+        elif k.name == "down":
+            self.top = min(max(0, n - L.Panel.ROWS), self.top + 1)
+        elif k.name in SELECT:
             self.app.push(Clients(self.app))
         else:
             super().key(k)
@@ -233,7 +255,7 @@ def ip_short(ips) -> str:
 
 class Clients(Screen):
     title = "Clients"
-    hint = "Up/Dn scroll  Esc back"
+    hint = "\u2191\u2193 scroll  \u2190/ESC back"
 
     def __init__(self, app):
         super().__init__(app)
@@ -253,9 +275,9 @@ class Clients(Screen):
 
     def key(self, k):
         n = len(self.app.status.get("clients", []))
-        if k.name in ("up", ";"):
+        if k.name == "up":
             self.top = max(0, self.top - 1)
-        elif k.name in ("down", "."):
+        elif k.name == "down":
             self.top = min(max(0, n - L.Panel.ROWS), self.top + 1)
         else:
             super().key(k)
@@ -283,7 +305,7 @@ class WifiList(Menu):
             label = ("* " if n["active"] else "") + n["ssid"][:22] + (" (saved)" if n["saved"] and not n["active"] else "")
             items.append((label, lambda n=n: self.pick(n), right, L.OK if n["active"] else L.FG))
         items.append(("Other network (hidden)...", self.hidden, ""))
-        super().__init__(app, "Join Wi-Fi", items, "Enter join  R rescan  F forget  Esc")
+        super().__init__(app, "Join Wi-Fi", items, "OK join  R rescan  D forget  \u2190 back")
 
     def pick(self, n):
         app = self.app
@@ -311,7 +333,7 @@ class WifiList(Menu):
         if k.char in ("r", "R"):
             self.app.pop(self)
             open_wifi_list(self.app)
-        elif k.char in ("f", "F") and self.sel < len(self.nets):
+        elif k.char in ("d", "D") and self.sel < len(self.nets):
             n = self.nets[self.sel]
             if n["saved"] or n["active"]:
                 self.app.push(Confirm(self.app, "Forget network", f"Forget saved network {n['ssid']}?",
@@ -335,7 +357,7 @@ def _after_check(app, msg, res):
     state, url = res
     if state == "portal":
         app.push(Confirm(app, "Guest login needed", f"{msg}. This network shows a login page. Open it now?",
-                         lambda: start_portal(app), yes="Enter open", no="Esc later"))
+                         lambda: start_portal(app), yes="OK open", no="ESC later"))
     elif state == "online":
         app.push(Message(app, "Connected", f"{msg}. Internet is working.", L.OK))
     else:
@@ -397,7 +419,7 @@ class PortalPage(Menu):
         items.append(("Open on HDMI browser", self.hdmi, "", L.HINT))
         items.append(("Page text", self.show_text, "", L.DIM))
         title = (page.title or "Guest login")[:24]
-        super().__init__(app, title, items, "Enter select  H HDMI  Esc back")
+        super().__init__(app, title, items, "OK select  H HDMI  \u2190 back")
         if page.needs_browser:
             self.sel = len(items) - 2
 
@@ -533,7 +555,7 @@ def saved(app, values, mode):
         start = net.start_wifi_to_eth if app.status.get("mode") == "wifi2eth" else net.start_hotspot
         app.push(Confirm(app, "Saved", "Settings saved. Restart sharing now to use them?",
                          lambda: app.run_task("Restart", "Restarting", lambda: start(app.cfg)),
-                         yes="Enter restart", no="Esc later"))
+                         yes="OK restart", no="ESC later"))
     else:
         app.push(Message(app, "Saved", "Settings saved.", L.OK))
 

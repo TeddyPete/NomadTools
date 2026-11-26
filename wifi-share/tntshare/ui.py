@@ -12,13 +12,32 @@ import time
 from . import lcd as L
 from .keys import Key
 
-UP = {"up", ";"}
-DOWN = {"down", "."}
+# TNT key standard (all TNT apps): Up/Down move the highlight, OK (Enter) or
+# Right selects, Left backs out one level, Esc backs out (quits on the main
+# page). On the CardputerZero the arrows are Fn+F/X/Z/C.
+UP = {"up"}
+DOWN = {"down"}
+SELECT = {"enter", "right"}
+BACK = {"esc", "left"}
+
+# Outside text fields the bare arrow-legend keys also navigate (Ted's request).
+NAV_LETTERS = {"f": "up", "x": "down", "z": "left", "c": "right"}
+
+
+def nav_key(k: Key) -> Key:
+    """Turn plain F/X/Z/C into Up/Down/Left/Right (not used in text fields)."""
+    if k.char and not k.ctrl and k.char.lower() in NAV_LETTERS:
+        return Key(NAV_LETTERS[k.char.lower()])
+    return k
+
+
+HINT_MENU = "\u2191\u2193 move  OK/\u2192 open  \u2190/ESC back"
 
 
 class Screen:
     title = ""
-    hint = "Esc back"
+    text_entry = False  # True: letters type text, F/X/Z/C don't navigate
+    hint = "\u2190/ESC back"
 
     def __init__(self, app):
         self.app = app
@@ -30,7 +49,7 @@ class Screen:
         return self.app.mode_badge()
 
     def key(self, k: Key) -> None:
-        if k.name == "esc":
+        if k.name in BACK:
             self.app.pop()
 
     def tick(self) -> None:
@@ -40,7 +59,7 @@ class Screen:
 class Menu(Screen):
     """A list of items: (label, action, right_text_or_callable)."""
 
-    def __init__(self, app, title: str, items: list, hint: str = "Enter select  Esc back", numbered=False):
+    def __init__(self, app, title: str, items: list, hint: str = HINT_MENU, numbered=False):
         super().__init__(app)
         self.title, self.items, self.hint, self.numbered = title, items, hint, numbered
         self.sel = 0
@@ -78,7 +97,7 @@ class Menu(Screen):
             self.sel = max(0, self.sel - L.Panel.ROWS)
         elif k.name == "pagedown":
             self.sel = min(len(self.items) - 1, self.sel + L.Panel.ROWS)
-        elif k.name == "enter":
+        elif k.name in SELECT:
             act = self.items[self.sel][1]
             if act:
                 act()
@@ -97,7 +116,7 @@ class Message(Screen):
         self.title, self.color, self.then = title, color, then
         self.lines = wrap(app.panel, text)
         self.top = 0
-        self.hint = "Enter OK" + ("  Up/Dn scroll" if len(self.lines) > L.Panel.ROWS else "")
+        self.hint = "OK close" + ("  \u2191\u2193 scroll" if len(self.lines) > L.Panel.ROWS else "")
 
     def rows(self):
         return [(l, self.color) for l in self.lines[self.top:self.top + L.Panel.ROWS]], None
@@ -107,14 +126,14 @@ class Message(Screen):
             self.top = max(0, self.top - 1)
         elif k.name in DOWN:
             self.top = min(max(0, len(self.lines) - L.Panel.ROWS), self.top + 1)
-        elif k.name in ("enter", "esc", " "):
+        elif k.name in SELECT | BACK or k.char == " ":
             self.app.pop()
             if self.then:
                 self.then()
 
 
 class Confirm(Screen):
-    def __init__(self, app, title: str, text: str, on_yes, yes="Enter yes", no="Esc no"):
+    def __init__(self, app, title: str, text: str, on_yes, yes="OK yes", no="ESC no"):
         super().__init__(app)
         self.title, self.on_yes = title, on_yes
         self.lines = wrap(app.panel, text)
@@ -124,30 +143,35 @@ class Confirm(Screen):
         return self.lines, None
 
     def key(self, k):
-        if k.name == "enter" or k.char in ("y", "Y"):
+        if k.name in SELECT or k.char in ("y", "Y"):
             self.app.pop()
             self.on_yes()
-        elif k.name == "esc" or k.char in ("n", "N"):
+        elif k.name in BACK or k.char in ("n", "N"):
             self.app.pop()
 
 
 class TextInput(Screen):
+    text_entry = True
+    """One-line text entry. OK saves, ESC cancels, Left/Right move the cursor
+    (Left at the start of the line backs out, like a menu), DEL deletes."""
+
     def __init__(self, app, title: str, prompt: str, value: str, on_done, secret=False, help_text=""):
         super().__init__(app)
         self.title, self.prompt, self.value, self.on_done = title, prompt, value, on_done
         self.secret = secret
         self.help = help_text
-        self.hint = "Enter OK  Esc cancel" + ("  Tab show" if secret else "")
-        self.blink = True
+        self.pos = len(value)
+        self.hint = "OK save  ESC cancel" + ("  Tab show" if secret else "")
 
     def rows(self):
         shown = "*" * len(self.value) if self.secret else self.value
-        cursor = "_" if int(time.monotonic() * 2) % 2 == 0 else " "
-        line = shown + cursor
-        # keep the end of long values visible
-        while self.app.panel.text_width(line) > 300 and len(line) > 1:
-            line = line[1:]
-        rows = [(self.prompt, L.DIM), (line, L.WARN), ""]
+        on = int(time.monotonic() * 2) % 2 == 0
+        line = shown[:self.pos] + ("|" if on else " ") + shown[self.pos:]
+        # keep the cursor visible on long values
+        start = 0
+        while self.app.panel.text_width(line[start:self.pos + 1]) > 300 and start < self.pos:
+            start += 1
+        rows = [(self.prompt, L.DIM), (line[start:], L.WARN), ""]
         rows += [(l, L.DIM) for l in wrap(self.app.panel, self.help)][:3]
         return rows, None
 
@@ -160,14 +184,29 @@ class TextInput(Screen):
         elif k.name == "enter":
             self.app.pop()
             self.on_done(self.value)
-        elif k.name in ("backspace", "delete"):
-            self.value = self.value[:-1]
+        elif k.name == "left":
+            if self.pos == 0 and not self.value:
+                self.app.pop()
+            self.pos = max(0, self.pos - 1)
+        elif k.name == "right":
+            self.pos = min(len(self.value), self.pos + 1)
+        elif k.name == "home":
+            self.pos = 0
+        elif k.name == "end":
+            self.pos = len(self.value)
+        elif k.name == "backspace":
+            if self.pos:
+                self.value = self.value[:self.pos - 1] + self.value[self.pos:]
+                self.pos -= 1
+        elif k.name == "delete":
+            self.value = self.value[:self.pos] + self.value[self.pos + 1:]
         elif k.name == "tab" and self.secret is not None:
             self.secret = not self.secret
         elif k.ctrl and k.char in ("u", "U"):
-            self.value = ""
+            self.value, self.pos = "", 0
         elif k.char and not k.ctrl and len(self.value) < 128:
-            self.value += k.char
+            self.value = self.value[:self.pos] + k.char + self.value[self.pos:]
+            self.pos += 1
 
 
 class Busy(Screen):
@@ -217,7 +256,7 @@ class Form(Screen):
         self.items.append(("__save", "Save", "action"))
         self.sel = next(i for i, f in enumerate(self.items) if f[2] != "header")
         self.top = 0
-        self.hint = "Enter edit  S save  Esc back"
+        self.hint = "OK/\u2192 change  \u2190/ESC back"
 
     def visible(self, f) -> bool:
         cond = f[4] if len(f) > 4 else None
@@ -278,7 +317,7 @@ class Form(Screen):
             self._move(1)
         elif k.char in ("s", "S") and k.ctrl is False and f[2] in ("bool", "choice", "action", "header"):
             self.save()
-        elif k.name == "enter" or (k.char == " " and f[2] in ("bool", "choice")):
+        elif k.name in SELECT or (k.char == " " and f[2] in ("bool", "choice")):
             kind = f[2]
             if kind == "action":
                 self.save()
@@ -294,16 +333,16 @@ class Form(Screen):
                 self.app.push(TextInput(self.app, self.title, f[1], str(self.values[f[0]]), done,
                                         secret=False if f[2] == "secret" else None,
                                         help_text=f[3] if len(f) > 3 and isinstance(f[3], str) else ""))
-        elif k.name == "esc":
+        elif k.name in BACK:
             if self.values != self.orig:
                 self.app.push(Confirm(self.app, "Unsaved changes", "Save your changes?",
-                                      self.save, yes="Enter save", no="Esc discard"))
+                                      self.save, yes="OK save", no="ESC discard"))
                 # Esc on the confirm discards: pop this form too
                 conf = self.app.stack[-1]
                 orig_key = conf.key
 
                 def k2(kk, conf=conf, orig_key=orig_key):
-                    if kk.name == "esc" or kk.char in ("n", "N"):
+                    if kk.name in BACK or kk.char in ("n", "N"):
                         self.app.pop(conf)
                         self.app.pop(self)
                     else:

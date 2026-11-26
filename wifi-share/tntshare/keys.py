@@ -25,6 +25,16 @@ for _code, _pair in {2: "1!", 3: "2@", 4: "3#", 5: "4$", 6: "5%", 7: "6^", 8: "7
                      40: "'\"", 41: "`~", 43: "\\|", 51: ",<", 52: ".>", 53: "/?", 57: "  "}.items():
     _CHARS[_code] = (_pair[0], _pair[1])
 
+# CardputerZero internal keyboard (tca8418c). Its driver switches layers
+# itself: Fn (sends KEY_DVD) gives real arrows, F-keys, Delete, Home/End/PgUp/
+# PgDn; Sym (sends KEY_CD) switches to a layer whose codes are keypad/Japanese
+# keys standing in for the symbols printed on the keycaps. Map those to the
+# printed symbol (device tree linux,keymap1, by key position).
+SYM_LAYER = {55: "~", 69: "`", 70: "_", 71: "-", 72: "+", 73: "=", 74: "[", 75: "]", 76: "{", 77: "}",
+             79: ";", 80: ":", 81: "'", 82: '"', 83: "<", 85: ">", 86: "\\", 89: "|",
+             90: ",", 91: ".", 92: "/", 93: "?"}
+FN_KEY, SYM_KEY = 389, 383  # KEY_DVD, KEY_CD: layer keys, never text
+
 NAMED = {1: "esc", 14: "backspace", 15: "tab", 28: "enter", 96: "enter", 103: "up", 108: "down",
          105: "left", 106: "right", 111: "delete", 102: "home", 107: "end", 104: "pageup",
          109: "pagedown"}
@@ -51,6 +61,13 @@ def _is_keyboard(event_path: str) -> bool:
     return all(bits >> code & 1 for code in (16, 30, 44))  # q, a, z
 
 
+def _name(event_path: str) -> str:
+    try:
+        return open(f"/sys/class/input/{os.path.basename(event_path)}/device/name").read().strip()
+    except OSError:
+        return ""
+
+
 class Keyboard:
     def __init__(self, devices: list[str] | None = None):
         paths = devices or [p for p in sorted(glob.glob("/dev/input/event*")) if _is_keyboard(p)]
@@ -61,6 +78,7 @@ class Keyboard:
             except OSError:
                 pass
         self.shift = self.ctrl = self.alt = False
+        self.internal = any(_name(p).startswith("tca8418") for p in paths) or devices is not None
         self.caps = False
 
     @property
@@ -106,7 +124,16 @@ class Keyboard:
         if not down:
             return None
         if code in NAMED:
+            # Holding ESC exits to the launcher's HOME; its auto-repeat must not
+            # back out of several screens. OK/Enter doesn't repeat either.
+            if value == 2 and NAMED[code] in ("esc", "enter"):
+                return None
             return Key(NAMED[code], ctrl=self.ctrl)
+        if code in (FN_KEY, SYM_KEY):
+            return None
+        if code in SYM_LAYER and self.internal:
+            ch = SYM_LAYER[code]
+            return Key(ch, ch, ctrl=self.ctrl)
         if code in _CHARS:
             lo, hi = _CHARS[code]
             up = self.shift

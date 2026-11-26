@@ -15,13 +15,24 @@ Gets a standalone AV rack online from the M5Stack CardputerZero, all from its ke
 1. **Status**: mode, internet (online / login page / offline), Wi-Fi SSID, signal and IP, Ethernet link and IP, connected clients. Enter lists clients by name, IP or MAC.
 2. **Share Wi-Fi to Ethernet**: start or stop mode 1.
 3. **Hotspot from Ethernet**: start or stop mode 2 (shows SSID and password).
-4. **Join Wi-Fi**: scan, pick, type the password. Hidden networks too. `F` forgets a saved network.
+4. **Join Wi-Fi**: scan, pick, type the password. Hidden networks too. `D` forgets a saved network.
 5. **Guest Wi-Fi login**: finds the captive portal page. Simple pages (accept terms, room number, email) are filled in on the small screen. Anything that needs JavaScript opens in a browser on the HDMI desktop (`H`).
 6. **Ethernet settings**: Pi address, subnet mask and DHCP server for mode 1; DHCP or static IP, mask, gateway and DNS for the mode 2 uplink.
 7. **Hotspot settings**: SSID, password, channel, Pi address.
 8. **Stop sharing**: back to the normal network.
 
-Keys: number keys or Up/Down (`;` `.`) and Enter to pick, Esc to go back. In text fields Backspace deletes, Tab shows a password, Ctrl+U clears.
+Keys (TNT standard, same in every TNT app):
+
+| Key on the CardputerZero | Does |
+| --- | --- |
+| Fn+F / Fn+X (or plain F / X outside text fields) | Up / Down |
+| OK, or Fn+C (plain C) | Open / select / change |
+| Fn+Z (plain Z) | Back one level |
+| ESC/HOME, short press | Back one level; on the main page, quit (asks first only while sharing). Hold it to exit to HOME. |
+| 1-8 | Jump to a menu item |
+
+In text fields letters type normally: OK saves, ESC cancels, Fn+Z / Fn+C move the cursor, DEL deletes, Tab shows a password.
+Dots, dashes and other symbols come from the Sym layer as printed on the keys (Sym+B = `.`, Sym+R = `-`, Sym+N = `/`).
 
 ## Safe by design
 

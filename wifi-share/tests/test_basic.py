@@ -47,6 +47,14 @@ class Keys(unittest.TestCase):
         self.assertEqual(kb._feed(30, 1).char, "A")
         self.assertEqual(kb._feed(28, 1).name, "enter")
         self.assertIsNone(kb._feed(30, 0))
+        self.assertEqual(kb._feed(1, 1).name, "esc")
+        self.assertIsNone(kb._feed(1, 2))       # Esc auto-repeat ignored
+        self.assertEqual(kb._feed(103, 2).name, "up")  # arrows repeat
+        # Sym layer codes (CardputerZero) -> printed symbols; Fn/Sym keys alone give nothing
+        self.assertIsNone(kb._feed(383, 1))
+        self.assertIsNone(kb._feed(389, 1))
+        kb._feed(58, 1)  # caps off again
+        self.assertEqual("".join(kb._feed(c, 1).char for c in (2, 91, 71, 92, 70)), "1.-/_")
 
 
 PORTAL = """<html><head><title>Guest</title><meta charset=utf-8></head><body>
@@ -152,6 +160,43 @@ class UiFlow(unittest.TestCase):
         self.assertEqual(app.cfg["hs_ssid"], "RackNet")
         for s in app.stack:
             s.rows()
+
+
+class Nav(unittest.TestCase):
+    def test_standard_keys(self):
+        from tntshare import app as A
+        from tntshare.keys import Key
+        from tntshare.demo import fake_app
+        from tntshare.ui import TextInput, nav_key
+        app = fake_app()
+        app.status["mode"] = None
+        home = A.Home(app)
+        app.stack = [home]
+
+        def press(k):
+            top = app.stack[-1]
+            top.key(k if top.text_entry else nav_key(k))
+        press(Key("x", "x"))          # plain X = down
+        self.assertEqual(home.sel, 1)
+        press(Key("up"))
+        self.assertEqual(home.sel, 0)
+        press(Key("c", "c"))          # plain C = right = open Status
+        self.assertIsInstance(app.stack[-1], A.Status)
+        press(Key("z", "z"))          # plain Z = left = back
+        self.assertIs(app.stack[-1], home)
+        press(Key("left"))            # left on the main page does nothing
+        self.assertIs(app.stack[-1], home)
+        # in a text field letters type
+        got = []
+        app.push(TextInput(app, "t", "p", "", got.append))
+        for ch in "fxzc":
+            press(Key(ch, ch))
+        press(Key("left"))
+        press(Key("1", "1"))
+        press(Key("enter"))
+        self.assertEqual(got, ["fxz1c"])
+        press(Key("esc"))             # ESC on the main page quits when not sharing
+        self.assertTrue(app.quit)
 
 
 if __name__ == "__main__":
