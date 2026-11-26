@@ -112,9 +112,9 @@ class Menu(Screen):
     def on_key(self, k: Key, app) -> None:
         if k.name == "esc":
             app.pop()
-        elif k.name in ("up",) or k.char == ";":
+        elif k.up:
             self.cur = (self.cur - 1) % len(self.items)
-        elif k.name in ("down", "tab") or k.char == ".":
+        elif k.down or k.name == "tab":
             self.cur = (self.cur + 1) % len(self.items)
         elif k.name == "enter":
             self.items[self.cur][1](app)
@@ -185,9 +185,9 @@ class Message(Screen):
         return View(self.title, self.lines[self.top:], self.hint)
 
     def on_key(self, k: Key, app) -> None:
-        if k.name in ("down",):
+        if k.down:
             self.top = min(self.top + 1, max(0, len(self.lines) - 1))
-        elif k.name == "up":
+        elif k.up:
             self.top = max(0, self.top - 1)
         else:
             app.pop()
@@ -330,9 +330,9 @@ class TaskScreen(Screen):
         if k.name == "esc":
             self.out.stop()
             app.pop()
-        elif k.name == "up" or k.char == ";":
+        elif k.up:
             self.cur = max(0, cur - 1)
-        elif k.name == "down" or k.char == ".":
+        elif k.down:
             self.cur = -1 if cur + 1 >= n - 1 else cur + 1
         elif k.name == "pgup":
             self.cur = max(0, cur - 8)

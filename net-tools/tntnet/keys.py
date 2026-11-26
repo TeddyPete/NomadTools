@@ -29,6 +29,16 @@ class Key:
     def __repr__(self) -> str:
         return f"Key({self.name or repr(self.char)}{' ctrl' if self.ctrl else ''})"
 
+    # Up/Down for lists. Besides the arrow keys (Fn layer on the
+    # CardputerZero), accept the Cardputer-style ; and . plus vi-style k/j.
+    @property
+    def up(self) -> bool:
+        return self.name == "up" or (not self.ctrl and self.char in (";", "k", "K"))
+
+    @property
+    def down(self) -> bool:
+        return self.name == "down" or (not self.ctrl and self.char in (".", "j", "J"))
+
 
 NAMED = {1: "esc", 14: "bksp", 15: "tab", 28: "enter", 96: "enter", 103: "up", 108: "down",
          105: "left", 106: "right", 104: "pgup", 109: "pgdn", 102: "home", 107: "end", 111: "del"}
@@ -71,6 +81,18 @@ class EvdevKeyboard:
         self.path = path
         self.shift = self.ctrl = self.caps = False
         self.held: set[int] = set()
+        self.last_raw: list[str] = []
+        self.log = None
+        try:
+            d = os.path.expanduser("~/.cache/tnt-av-net-tools")
+            os.makedirs(d, exist_ok=True)
+            path = os.path.join(d, "keys.log")
+            if os.path.exists(path) and os.path.getsize(path) > 200_000:
+                os.replace(path, path + ".1")
+            self.log = open(path, "a", buffering=1)
+            self.log.write(f"--- open {path}\n")
+        except OSError:
+            self.log = None
 
     def poll(self, timeout: float = 0.0) -> list[Key]:
         out: list[Key] = []
@@ -83,6 +105,14 @@ class EvdevKeyboard:
             return out
         for i in range(0, len(data) - EVENT.size + 1, EVENT.size):
             _, _, etype, code, value = EVENT.unpack_from(data, i)
+            if etype in (EV_KEY, 4):
+                raw = f"{'key' if etype == EV_KEY else 'msc'} {code} {value}"
+                self.last_raw = (self.last_raw + [raw])[-6:]
+                if self.log:
+                    try:
+                        self.log.write(raw + "\n")
+                    except OSError:
+                        pass
             if etype != EV_KEY:
                 continue
             if code in SHIFT:

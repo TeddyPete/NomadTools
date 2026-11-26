@@ -15,9 +15,9 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame  # noqa: E402
 
 from . import keys, reports, store, util  # noqa: E402
-from .ui import DIM, Field, Form, Menu, Message, Renderer, TaskScreen  # noqa: E402
+from .ui import DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.1.8"
+VERSION = "0.1.9"
 
 
 class App:
@@ -384,15 +384,38 @@ def settings_menu(app):
             "Network tools for AV techs.",
             f"Keyboard: {app.kb.path if app.kb else 'window keys'}",
             f"LCD: {app.r.lcd_dev or 'none'}  Desktop window: {'yes' if app.r.win else 'no'}",
-            "Keys: arrows or ; . , / to move, Enter pick,",
+            "Keys: Up/Down arrows, or ; . or k j to move,",
+            "Enter pick,",
             "Esc back, S save, R rerun, X stop.",
         ]))
 
     app.push(Menu("Settings", [
+        ("Keyboard test", lambda app: app.push(KeyTest())),
         ("Default interface", iface),
         ("Forget all saved logins", forget),
         ("About", about),
     ]))
+
+
+class KeyTest(Screen):
+    """Shows what each key press arrives as. Esc twice to leave."""
+    title = "Keyboard test"
+    hint = "Press keys  Esc twice to leave"
+
+    def __init__(self):
+        self.seen: list[str] = []
+        self.esc = 0
+
+    def view(self, rows: int) -> View:
+        return View(self.title, [Line(t) for t in (self.seen[-(rows):] or ["Press any key..."])], self.hint)
+
+    def on_key(self, k, app) -> None:
+        raw = " ".join(app.kb.last_raw[-2:]) if app.kb else ""
+        what = "UP" if k.up else "DOWN" if k.down else (k.name or repr(k.char))
+        self.seen.append(f"{what:<6} {raw}")
+        self.esc = self.esc + 1 if k.name == "esc" else 0
+        if self.esc >= 2:
+            app.pop()
 
 
 def main_menu(app) -> Menu:
