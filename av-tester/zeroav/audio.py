@@ -6,6 +6,9 @@ Modes:
   left  - L/R channel ID: tone on the left only
   right - tone on the right only
   lr    - alternates left and right every second (ID test)
+  pink  - pink noise (equal energy per octave), both channels, for RTA/EQ
+  sweep - log sine sweep 20 Hz to 20 kHz over 10 s, then 1 s silence
+  polarity - positive-going pulse twice a second, for polarity checkers
 """
 from __future__ import annotations
 
@@ -39,7 +42,54 @@ def block_for(mode: str, freq: float = 1000.0, dbfs: float = -20.0) -> bytes:
         return stereo(z, s)
     if mode == "lr":
         return stereo(s, z) + stereo(z, s)
+    if mode == "pink":
+        p = pink_noise(10.0, dbfs)
+        return stereo(p, p)
+    if mode == "sweep":
+        w = np.concatenate([log_sweep(20, 20000, 10.0, dbfs), np.zeros(RATE)])
+        return stereo(w, w)
+    if mode == "polarity":
+        x = polarity_pulse(dbfs)
+        return stereo(x, x)
     raise ValueError(mode)
+
+
+def pink_noise(seconds: float, dbfs: float = -20.0, seed: int = 7) -> np.ndarray:
+    """Pink noise with RMS at dbfs. Shaped in the frequency domain so the
+    loop is seamless (the FFT is periodic)."""
+    n = int(RATE * seconds)
+    rng = np.random.default_rng(seed)
+    spec = rng.normal(size=n // 2 + 1) + 1j * rng.normal(size=n // 2 + 1)
+    f = np.fft.rfftfreq(n, 1 / RATE)
+    spec[1:] /= np.sqrt(f[1:])
+    spec[f < 15] = 0          # no subsonic rumble
+    spec[f > 22000] = 0
+    x = np.fft.irfft(spec, n)
+    x *= (10 ** (dbfs / 20)) / np.sqrt(np.mean(x ** 2))
+    return np.clip(x, -1, 1)
+
+
+def log_sweep(f0: float, f1: float, seconds: float, dbfs: float = -20.0) -> np.ndarray:
+    """Exponential sine sweep with short fades at each end."""
+    t = np.arange(int(RATE * seconds)) / RATE
+    k = np.log(f1 / f0)
+    x = np.sin(2 * np.pi * f0 * seconds / k * (np.exp(t * k / seconds) - 1))
+    fade = int(0.01 * RATE)
+    env = np.ones_like(x)
+    env[:fade] = np.linspace(0, 1, fade)
+    env[-fade:] = np.linspace(1, 0, fade)
+    return (10 ** (dbfs / 20)) * np.sqrt(2) * x * env
+
+
+def polarity_pulse(dbfs: float = -20.0) -> np.ndarray:
+    """0.5 s loop: a 1 ms positive half-sine pulse with a slow negative
+    return, so the first (sharp) movement is clearly positive."""
+    x = np.zeros(RATE // 2)
+    n = int(0.001 * RATE)
+    x[:n] = np.sin(np.pi * np.arange(n) / n)
+    tail = int(0.02 * RATE)
+    x[n:n + tail] = -np.sum(x[:n]) / tail   # net zero DC, slow return
+    return np.clip(x * 10 ** ((dbfs + 14) / 20), -1, 1)
 
 
 def pick_device() -> str:
@@ -97,8 +147,8 @@ class TonePlayer:
         self.mode = None
 
     def cycle(self) -> str | None:
-        """Off -> tone -> lr -> left -> right -> off."""
-        order = [None, "tone", "lr", "left", "right"]
+        """Off -> tone -> lr -> left -> right -> pink -> sweep -> polarity -> off."""
+        order = [None, "tone", "lr", "left", "right", "pink", "sweep", "polarity"]
         nxt = order[(order.index(self.mode) + 1) % len(order)]
         if nxt is None:
             self.stop()

@@ -394,7 +394,7 @@ class LipSyncTest:
         self.mic.start()
         self.out.start()
         self.state = "warmup"
-        self.next_at = time.perf_counter() + 12.0  # give up if not ready by then
+        self.next_at = time.perf_counter() + 15.0  # give up if not ready by then
         self.message = "Starting camera and mic..."
 
     def stop(self) -> None:

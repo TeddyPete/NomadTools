@@ -68,7 +68,7 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 | Right / Down / Space / `.` / `n` | Next pattern |
 | Left / Up / `,` / `p` | Previous pattern |
 | `1`-`7` | Jump to category: bars, geometry, gradients, solids, sharpness, motion |
-| `t` | Tone: off, 1 kHz both, L/R alternating, left only, right only |
+| `t` | Audio out (HDMI): off, 1 kHz both, L/R alternating, left only, right only, pink noise, 20 Hz-20 kHz log sweep (10 s), polarity pulse |
 | `+` / `-` | Tone level, 2 dB steps (starts at -20 dBFS) |
 | `i` | Info overlay: resolution, refresh, measured fps, frame counter |
 | `m` | Next HDMI mode: every mode the display offers, with exact refresh (1080p60, 1080p59.94, 1080p50, 1080p23.98, ...) |
@@ -77,7 +77,19 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 | `e` view: Left / Right | Turn the HDMI page when it doesn't all fit |
 | `e` view: `s` | Save the EDID report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
 | `l` | Lip-sync test (see below) |
+| `a` | Audio input meter and 1/3-octave RTA from the mic, on HDMI and the small screen (see below) |
 | `q` / Esc | Quit |
+
+## Audio meter and RTA
+
+Press `a`. The mic's level (RMS, peak, Leq, max) and 31-band 1/3-octave RTA show on HDMI and the
+small screen. Play pink noise with `t` to check a room or EQ; the RTA reads flat for flat pink noise.
+
+- `w` switches A and Z (flat) weighting. `r` resets max and Leq. `s` saves a report.
+- SPL needs a one-time calibration: with a calibrator or a reference meter next to the
+  CardputerZero, press `+` / `-` until the SPL matches. It is saved in
+  `~/.config/tnt-av-tester/spl.json`. Until then SPL reads "uncal" and levels are dBFS.
+- Polarity pulse: a sharp positive-going pulse twice a second, for a polarity checker.
 
 ## Lip-sync test
 

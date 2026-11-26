@@ -14,8 +14,9 @@ import signal
 import sys
 import time
 
-KEYS_HELP = "</> pat  T tone  M mode  E EDID  L sync"
+KEYS_HELP = "</> pat T tone M mode E EDID L sync A RTA"
 SYNC_HELP = "Enter start  C cal  S save  L back"
+METER_HELP = "W A/Z  T tone  +/- cal  R reset  S save"
 EDID_HELP = "Up/Dn scroll  S save  E back"
 REPORT_DIR = os.path.expanduser("~/.local/share/tnt-av-tester/reports")
 
@@ -181,6 +182,10 @@ def run(args) -> None:
     idx, frame, show_info = 0, 0, False
     edid_view, edid_scroll, edid_page, edid_msg = False, 0, 0, ""
     sync, sync_msg, sync_lcd_t = None, "", 0.0
+    meter, meter_msg, meter_t, meter_n = None, "", 0.0, 0
+    meter_surf = pygame.Surface((960, 540))
+    meter_font = pygame.font.Font(None, 34)
+    meter_small = pygame.font.Font(None, 24)
     clock = pygame.time.Clock()
     dropped, worst_ms, worst_win, nominal = 0, 0.0, 0.0, 0.0
     last_present = time.perf_counter()
@@ -260,6 +265,47 @@ def run(args) -> None:
                 dirty = True
                 skip_gap = True
                 continue
+            if meter is not None:
+                if k == pygame.K_ESCAPE or ch in ("a", "b"):
+                    meter.stop()
+                    meter = None
+                elif ch == "q":
+                    meter.stop()
+                    tones.stop()
+                    out.close()
+                    return
+                elif ch == "w":
+                    meter.weighting = "A" if meter.weighting == "Z" else "Z"
+                    meter.reset()
+                elif ch == "r":
+                    meter.reset()
+                    meter_msg = "Max and Leq reset"
+                elif ch in ("+", "="):
+                    meter.adjust_cal(+1.0)
+                    meter_msg = f"SPL cal {meter.cal:+.0f} dB (saved)"
+                elif ch in ("-", "_"):
+                    meter.adjust_cal(-1.0)
+                    meter_msg = f"SPL cal {meter.cal:+.0f} dB (saved)"
+                elif ch == "t":
+                    tones.cycle()
+                    meter_msg = f"Output: {tones.mode or 'off'}"
+                elif ch == "s":
+                    try:
+                        os.makedirs(REPORT_DIR, exist_ok=True)
+                        path = os.path.join(REPORT_DIR, f"audio-{time.strftime('%Y%m%d-%H%M%S')}.txt")
+                        with open(path, "w") as f:
+                            f.write(meter.report())
+                        meter_msg = "Saved " + os.path.basename(path)
+                    except OSError as e:
+                        meter_msg = f"Save failed: {e}"
+                skip_gap = True
+                continue
+            if ch == "a":
+                from .meter import Meter
+                meter, meter_msg = Meter(args.mic_device), ""
+                meter.start()
+                skip_gap = True
+                continue
             if ch == "l":
                 from .lipsync import LipSyncTest
                 tones.stop()
@@ -309,6 +355,42 @@ def run(args) -> None:
                 dropped, nominal = 0, 0.0
             dirty = True
             skip_gap = True  # a pattern or mode change rebuilds the texture
+
+        if meter is not None:
+            now = time.monotonic()
+            if now - meter_t >= 0.1:
+                meter_t = now
+                meter.update()
+                from .meter import draw_rta
+                ms, mf, mm = meter_surf, meter_font, meter_small
+                ms.fill((8, 12, 24))
+                ms.blit(mf.render(f"Audio input ({meter.weighting}-weighted)   output: {tones.mode or 'off'}",
+                                  True, (255, 255, 255)), (20, 12))
+                for i, line in enumerate(meter.lines()):
+                    ms.blit(mm.render(line, True, (230, 230, 230)), (20, 52 + i * 24))
+                if meter.mic.error:
+                    ms.blit(mm.render(meter.mic.error[:80], True, (255, 120, 120)), (20, 124))
+                draw_rta(ms, (20, 150, 920, 370), meter.bands, meter.hold, font=mm)
+                meter_n += 1
+                out.surface_page(ms, ('meter', meter_n))
+                bands, hold = meter.bands.copy(), meter.hold.copy()
+                lines = meter.lines()[:2]
+                msg, wt = meter_msg, meter.weighting
+
+                def draw(s, bands=bands, hold=hold, lines=lines, msg=msg, wt=wt):
+                    s.fill((0, 0, 0))
+                    s.fill((20, 60, 120), (0, 0, 320, 22))
+                    s.blit(lcd.font.render(f"Audio in  {wt}   {tones.mode or ''}", True, (255, 255, 255)), (6, 3))
+                    for i, ln in enumerate(lines):
+                        s.blit(lcd.font_small.render(ln, True, (230, 230, 230)), (6, 25 + i * 15))
+                    draw_rta(s, (2, 58, 316, 92), bands, hold, font=None)
+                    s.blit(lcd.font_small.render(msg or METER_HELP, True, (150, 200, 255)), (4, 154))
+
+                lcd.draw_async(draw)
+            else:
+                out.surface_page(meter_surf, ("meter", meter_n))
+            frame += 1
+            continue
 
         if sync is not None:
             white = sync.frame_is_white() if sync.state in ("warmup", "running") else False

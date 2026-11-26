@@ -63,13 +63,27 @@ class LcdPanel:
                 self._worker.start()
             self._cv.notify()
 
+    def draw_async(self, fn) -> None:
+        """Queue a custom drawing: fn(surface) draws the whole 320x170 panel."""
+        with self._cv:
+            self._pending = ("fn", fn)
+            if self._worker is None:
+                self._worker = threading.Thread(target=self._run, daemon=True)
+                self._worker.start()
+            self._cv.notify()
+
     def _run(self) -> None:
         while True:
             with self._cv:
                 while self._pending is None:
                     self._cv.wait()
                 job, self._pending = self._pending, None
-            self.show(*job)
+            if job[0] == "fn":
+                job[1](self.surf)
+                if self.dev:
+                    self._flush([])
+            else:
+                self.show(*job)
 
     def wrap(self, lines: list[str], small: bool = True, width: int = 308) -> list[str]:
         """Split lines so each fits the panel width, indenting the rest."""

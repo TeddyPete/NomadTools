@@ -178,6 +178,16 @@ class HdmiOutput:
         self.renderer.blit(self._page_texture(title, sections, page), pygame.Rect(0, 0, *self.size))
         self.renderer.present()
 
+    def surface_page(self, surf: "pygame.Surface", key) -> None:
+        """Show a CPU-drawn surface scaled to the full screen. The texture
+        is only re-uploaded when key changes."""
+        if self._page_key != key:
+            self._page = None
+            self._page = Texture.from_surface(self.renderer, surf)
+            self._page_key = key
+        self.renderer.blit(self._page, pygame.Rect(0, 0, *self.size))
+        self.renderer.present()
+
     def solid(self, white: bool) -> None:
         """Full-screen white or black frame (lip-sync flashes)."""
         r = self.renderer
