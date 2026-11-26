@@ -229,8 +229,14 @@ class TerminalScreen(Screen):
         if self.scroll:
             lines = lines[: max(1, len(lines) - self.scroll)]
         mode = f"{'HEX' if self.send_hex else 'ASC'}>{self.ending} view:{'HEX' if self.view_hex else 'ASC'}"
-        hint = self.msg or f"{mode}  Esc menu  PgUp/Dn scroll"
-        return View(self.title, lines, hint, len(lines) - 1 if lines else -1, 0, self.edit)
+        if self.msg:
+            hint = self.msg
+        elif getattr(self, "editing", True):
+            hint = f"{mode}  OK send  Esc stop typing"
+        else:
+            hint = "OK type  F/X scroll  Esc menu"
+        return View(self.title, lines, hint, len(lines) - 1 if lines else -1, 0, self.edit,
+                    editing=getattr(self, "editing", True))
 
     def send_line(self, text: str, send_hex: bool | None = None, ending: str | None = None) -> None:
         send_hex = self.send_hex if send_hex is None else send_hex
@@ -256,8 +262,20 @@ class TerminalScreen(Screen):
 
     def on_key(self, k: Key, app) -> None:
         self.msg = ""
+        if not getattr(self, "editing", True):
+            # move mode: scroll the output, OK/Right goes back to typing
+            nav = k.nav
+            if nav in ("esc", "left"):
+                app.push(self.menu())
+            elif nav in ("enter", "right"):
+                self.editing = True
+            elif nav == "up" or k.name == "pgup":
+                self.scroll = min(max(0, len(self.lines) - 1), self.scroll + (6 if k.name == "pgup" else 1))
+            elif nav == "down" or k.name == "pgdn":
+                self.scroll = max(0, self.scroll - (6 if k.name == "pgdn" else 1))
+            return
         if k.name == "esc":
-            app.push(self.menu())
+            self.editing = False
         elif k.name == "enter":
             if self.edit or not self.send_hex:
                 self.send_line(self.edit)

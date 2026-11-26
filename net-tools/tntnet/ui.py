@@ -25,8 +25,9 @@ OK = (110, 230, 120)
 WARN = (255, 190, 60)
 BAD = (255, 95, 95)
 INFO = (130, 200, 255)
-BAR = (150, 30, 20)       # TNT red title bar
-SEL = (40, 70, 130)
+BAR = (20, 110, 50)       # green title bar
+SEL = (30, 80, 170)       # blue highlight: move with F/X
+EDIT = (170, 30, 30)      # red highlight: typing into this field
 
 MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 MONO_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
@@ -58,6 +59,7 @@ class View:
     cursor: int = -1          # index into lines that is highlighted, -1 none
     hscroll: int = 0
     edit: str | None = None   # an input line shown above the hint (terminal)
+    editing: bool = False     # highlight / input line shown red: keys type
 
 
 # ---------------------------------------------------------------- screens
@@ -134,53 +136,84 @@ class Field:
 
 
 class Form(Screen):
-    """Fields typed on the keyboard. Up/Down (or Tab) move between fields,
-    Left/Right cycle a choice, Enter submits. Secret fields show as dots."""
+    """Fields on the keyboard, two modes (TNT standard):
+    move: F/X (or arrows) pick a field, OK/Right starts editing it, Esc/Left
+          backs out. On a choice field OK/Right/Left cycle the choice.
+          OK on [ OK ] runs.
+    edit: (highlight turns red) keys type, OK keeps the text and returns to
+          move mode, Esc puts the old text back."""
 
     def __init__(self, title: str, fields: list[Field], submit, note: str = ""):
         self.title, self.fields, self.submit, self.note = title, fields, submit, note
         self.cur = 0
-        self.hint = "Fn+F/X field  Fn+Z/C choice  OK  Esc"
+        self.editing = False
+        self.before = ""
+
+    @property
+    def hint(self) -> str:
+        if self.editing:
+            return "Type  OK done  Esc cancel"
+        f = self.fields[self.cur] if self.cur < len(self.fields) else None
+        if f is None:
+            return "OK run  F/X move  Esc back"
+        if f.choices:
+            return "Z/C or OK change  F/X move  Esc"
+        return "OK edit  F/X move  Esc back"
 
     def view(self, rows: int) -> View:
         lines = []
-        for f in self.fields:
-            v = "•" * len(f.value) if f.secret else f.value
+        for i, f in enumerate(self.fields):
+            v = "\u2022" * len(f.value) if f.secret else f.value
             if f.choices:
                 v = f"< {v} >"
+            elif self.editing and i == self.cur:
+                v += "_"
             lines.append(Line(f"{f.label}: {v}"))
         if self.note:
             lines.append(Line(self.note, DIM))
         lines.append(Line("[ OK ]", OK))
-        return View(self.title, lines, self.hint, self.cur if self.cur < len(self.fields) else len(lines) - 1)
+        cur = self.cur if self.cur < len(self.fields) else len(lines) - 1
+        return View(self.title, lines, self.hint, cur, editing=self.editing)
+
+    def values(self) -> dict:
+        return {f.key: f.value.strip() if not f.secret else f.value for f in self.fields}
 
     def on_key(self, k: Key, app) -> None:
         f = self.fields[self.cur] if self.cur < len(self.fields) else None
-        if k.name == "esc":
-            app.pop()
-        elif k.name == "up":
-            self.cur = max(0, self.cur - 1)
-        elif k.name in ("down", "tab"):
-            self.cur = min(len(self.fields), self.cur + 1)
-        elif k.name == "enter":
-            self.submit({f.key: f.value.strip() if not f.secret else f.value for f in self.fields}, app)
-        elif f is None:
-            if k.nav == "left":
-                app.pop()
-            elif k.nav == "right":
-                self.submit({f.key: f.value.strip() if not f.secret else f.value for f in self.fields}, app)
+        if self.editing:
+            if k.name == "enter":
+                self.editing = False
+            elif k.name == "esc":
+                f.value = self.before
+                self.editing = False
+            elif k.name == "bksp":
+                f.value = f.value[:-1]
+            elif k.name == "del":
+                f.value = ""
+            elif k.char:
+                f.value += k.char
             return
-        elif k.name == "left" and not f.choices:
+        nav = k.nav
+        if nav == "esc":
             app.pop()
-        elif f.choices and k.name in ("left", "right") or f.choices and k.char == " ":
-            i = f.choices.index(f.value) if f.value in f.choices else 0
-            f.value = f.choices[(i + (-1 if k.name == "left" else 1)) % len(f.choices)]
-        elif k.name == "bksp":
-            f.value = f.value[:-1]
-        elif k.name == "del":
-            f.value = ""
-        elif k.char and not f.choices:
-            f.value += k.char
+        elif nav == "up":
+            self.cur = max(0, self.cur - 1)
+        elif nav in ("down", "tab"):
+            self.cur = min(len(self.fields), self.cur + 1)
+        elif f is None:
+            if nav in ("enter", "right"):
+                self.submit(self.values(), app)
+            elif nav == "left":
+                app.pop()
+        elif f.choices:
+            if nav in ("left", "right", "enter") or k.char == " ":
+                i = f.choices.index(f.value) if f.value in f.choices else 0
+                f.value = f.choices[(i + (-1 if nav == "left" else 1)) % len(f.choices)]
+        elif nav in ("enter", "right"):
+            self.before = f.value
+            self.editing = True
+        elif nav == "left":
+            app.pop()
 
 
 class Message(Screen):
@@ -453,16 +486,17 @@ class Painter:
                 color = INFO
             for part in chunks(i)[: rows - used]:
                 if i == v.cursor:
-                    surf.fill(SEL, (0, y, W, self.lh))
+                    surf.fill(EDIT if v.editing else SEL, (0, y, W, self.lh))
                 surf.blit(self.f.render(part or " ", True, color), (self.pad, y))
                 y += self.lh
                 used += 1
             i += 1
         if v.edit is not None:
             ey = H - self.hh - self.lh - 1
-            surf.fill((25, 25, 35), (0, ey, W, self.lh))
-            e = "> " + v.edit + "_"
-            surf.blit(self.f.render(e[-cols:], True, (255, 255, 160)), (self.pad, ey))
+            surf.fill(EDIT if v.editing else (40, 40, 55), (0, ey, W, self.lh))
+            e = "> " + v.edit + ("_" if v.editing else "")
+            surf.blit(self.f.render(e[-cols:], True, (255, 255, 255) if v.editing else (170, 170, 180)),
+                      (self.pad, ey))
         surf.fill((22, 26, 36), (0, H - self.hh, W, self.hh))
         surf.blit(self.fh.render(v.hint, True, (170, 200, 255)), (self.pad, H - self.hh + 1))
         # scroll indicator

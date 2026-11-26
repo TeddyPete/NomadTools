@@ -62,7 +62,8 @@ In lists (menus and results) F, X, Z and C work without Fn too, as do `;` and `.
 | Esc or Left | Back one level (Esc quits from the main menu; Left does not) |
 | Hold Esc | Exit the app (CardputerZero standard) |
 | `1`-`9` | Jump to a menu item |
-| Left / Right in a form | Change a choice |
+| OK or Right on a field | Start typing (highlight turns red). OK again keeps it, Esc puts the old text back |
+| Z / C on a choice | Change the choice |
 | `,` `/` | Scroll wide results sideways on the small screen |
 | PgUp / PgDn, Home / End | Page through results |
 | S / R / Q | Save to site report / run again / stop |
