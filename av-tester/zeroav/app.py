@@ -156,6 +156,13 @@ def run(args) -> None:
         modes = [sdlmodes.Mode(1920, 1080, 60.0)]
     want = parse_size(args.size) if args.size and not windowed else None
     mode_idx = pick_start_mode(modes, edid_info, want)
+    if args.mode:
+        hits = [i for i, m in enumerate(modes) if m.label == args.mode]
+        if hits:
+            mode_idx = hits[0]
+        else:
+            print(f"mode {args.mode} not offered; have: {', '.join(m.label for m in modes)}",
+                  file=sys.stderr, flush=True)
     mode = modes[mode_idx]
     print(f"video driver {driver}, display {disp}, {len(modes)} modes, start {mode.label}",
           file=sys.stderr, flush=True)
@@ -308,6 +315,9 @@ def run(args) -> None:
             fps_measured = (frame - n0) / (now - t0)
             t0, n0 = now, frame
             worst_ms, worst_win = worst_win * 1000, 0.0
+            if int(now) % 5 == 0:
+                print(f"{mode.label}: {fps_measured:.2f} fps, dropped {dropped}, worst {worst_ms:.1f} ms",
+                      file=sys.stderr, flush=True)
             # Learn the frame period from the display (or from what we see).
             if not nominal and fps_measured > 20:
                 nominal = 1.0 / (refresh if refresh else round(fps_measured))
@@ -322,6 +332,7 @@ def run(args) -> None:
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--size", help="HDMI resolution, e.g. 1920x1080 (default: display's preferred)")
+    ap.add_argument("--mode", help="start in this exact mode, e.g. 1920x1080p50 or 1920x1080p59.94")
     ap.add_argument("--audio-device", default=os.environ.get("ZEROAV_AUDIO"),
                     help="ALSA device for tones (default: pipewire if present, else default)")
     ap.add_argument("--render-dir", help="render all patterns to PNG files here and exit")
