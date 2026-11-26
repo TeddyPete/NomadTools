@@ -240,7 +240,7 @@ def main() -> int:
         btn = "Following ▼" if follow else "Paused (click)"
         win.blit(fb.render(btn, True, (210, 255, 215)), (W - 150, 6))
         # packet list
-        cols = [("No.", 60), ("Time", 90), ("Source", 150), ("Destination", 150), ("Protocol", 120),
+        cols = [("No.", 60), ("Time", 90), ("Source", 170), ("Destination", 170), ("Protocol", 120),
                 ("Len", 50), ("Info", 0)]
         x = 8
         win.fill(PANEL, (0, 34, lw, lh))
