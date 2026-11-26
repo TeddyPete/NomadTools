@@ -218,7 +218,11 @@ def selftest(out, modes, mode, patterns, edid_info) -> None:
 def log_cma(what: str) -> None:
     from .kms import cma_free_kb
     free, total = cma_free_kb()
-    print(f"CMA free {free // 1024} of {total // 1024} MB ({what})", file=sys.stderr, flush=True)
+    # Linux lends idle CMA to its page cache and moves it back on demand, so
+    # a low number here during a run is normal; GPU allocation failures show
+    # up in the kernel log as "Failed to allocate from GEM DMA helper".
+    print(f"CMA free {free // 1024} of {total // 1024} MB ({what}; includes memory lent to cache)",
+          file=sys.stderr, flush=True)
 
 
 def run(args) -> None:

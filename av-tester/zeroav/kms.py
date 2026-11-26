@@ -261,6 +261,10 @@ class KmsOutput:
         self._mode_info = mi_c
         self._shown = ("black",)
         self._pat_surf = self._pat_key = self._ovl_rect = None
+        uniq = {id(b): b for b in self.bufs}.values()
+        mb = sum(b.size for b in uniq) / 2 ** 20
+        print(f"KMS: {len(uniq)} framebuffer(s), {mb:.1f} MB of GPU memory in use by this app",
+              file=__import__("sys").stderr, flush=True)
 
     def _free_buffers(self) -> None:
         for b in {id(b): b for b in self.bufs}.values():
