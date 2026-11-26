@@ -17,7 +17,7 @@ import pygame  # noqa: E402
 from . import keys, reports, store, util  # noqa: E402
 from .ui import DIM, Field, Form, Menu, Message, Renderer, TaskScreen  # noqa: E402
 
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 
 
 class App:
@@ -83,7 +83,7 @@ class App:
                     self.quit = True
                 elif st != "wait":
                     evs.append(keys.Key(st, "") if len(st) > 1 else keys.Key("", st))
-            for ev in pygame.event.get():
+            for ev in (pygame.event.get() if pygame.display.get_init() else []):
                 if ev.type == pygame.QUIT:
                     self.quit = True
                 elif ev.type == pygame.VIDEORESIZE and self.r.win is not None:

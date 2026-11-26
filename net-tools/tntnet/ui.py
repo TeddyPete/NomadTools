@@ -445,6 +445,27 @@ class Painter:
             surf.fill((90, 90, 110), (W - 3, by, 3, bar_h))
 
 
+
+def live_wayland_socket(rt: str, pref: str = "") -> str:
+    """Name of a wayland-N socket in rt that a compositor is listening on."""
+    import socket as _s
+    try:
+        names = [n for n in os.listdir(rt) if n.startswith("wayland-") and not n.endswith(".lock")]
+    except OSError:
+        return ""
+    names.sort(key=lambda n: (n != pref, n))
+    for n in names:
+        c = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
+        c.settimeout(0.5)
+        try:
+            c.connect(os.path.join(rt, n))
+            return n
+        except OSError:
+            pass
+        finally:
+            c.close()
+    return ""
+
 class Renderer:
     def __init__(self, want_window: bool = True):
         self.lcd_dev = None
@@ -460,11 +481,26 @@ class Renderer:
         self.tops = {}
         if want_window:
             self.open_window()
+        else:
+            self._dummy_display()
+
+    @staticmethod
+    def _init_display() -> None:
+        """Init SDL video. The desktop may have been restarted onto another
+        socket (wayland-1...) leaving a stale wayland-0, and SDL can't retry
+        in-process, so pick a socket that accepts a connection first."""
+        if os.environ.get("SDL_VIDEODRIVER") == "wayland":
+            sock = live_wayland_socket(os.environ.get("XDG_RUNTIME_DIR", ""),
+                                       os.environ.get("WAYLAND_DISPLAY", ""))
+            if not sock:
+                raise pygame.error("no live Wayland desktop")
+            os.environ["WAYLAND_DISPLAY"] = sock
+        pygame.display.init()
 
     def open_window(self) -> None:
         try:
             if not pygame.display.get_init():
-                pygame.display.init()
+                self._init_display()
             if os.environ.get("SDL_VIDEODRIVER") in ("dummy", "offscreen"):
                 return
             if pygame.display.get_driver() in ("dummy", "offscreen"):
@@ -481,6 +517,18 @@ class Renderer:
         except pygame.error as e:
             print(f"no desktop window: {e}", flush=True)
             self.win = None
+            self._dummy_display()
+
+    @staticmethod
+    def _dummy_display() -> None:
+        """LCD-only mode still needs an initialised display for the event
+        queue, so fall back to SDL's dummy driver when the desktop is gone."""
+        try:
+            pygame.display.quit()
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+            pygame.display.init()
+        except pygame.error as e:
+            print(f"display init failed: {e}", flush=True)
 
     def resize(self, w: int, h: int) -> None:
         fs = 18 if h >= 600 else 15

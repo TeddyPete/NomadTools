@@ -11,8 +11,10 @@ export PYGAME_HIDE_SUPPORT_PROMPT=1
 export PATH="$PATH:/usr/sbin:/sbin"
 
 if [ -z "$SDL_VIDEODRIVER" ]; then
-  if [ -S "$XDG_RUNTIME_DIR/${WAYLAND_DISPLAY:-wayland-0}" ] && pgrep -x labwc >/dev/null 2>&1; then
-    export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" SDL_VIDEODRIVER=wayland
+  # The app picks the live wayland-N socket itself (a restarted desktop can
+  # leave a stale wayland-0 behind).
+  if ls "$XDG_RUNTIME_DIR"/wayland-[0-9]* >/dev/null 2>&1 && pgrep -x labwc >/dev/null 2>&1; then
+    export SDL_VIDEODRIVER=wayland
     # The window is plain text; software GL avoids a crash in the vc4 GPU
     # driver that SDL's Wayland window surface hits on this device.
     export LIBGL_ALWAYS_SOFTWARE=1
@@ -23,4 +25,5 @@ if [ -z "$SDL_VIDEODRIVER" ]; then
   fi
 fi
 
+echo "tnt-av-net-tools: video driver ${SDL_VIDEODRIVER}" >&2
 exec python3 -m tntnet.app "$@"
