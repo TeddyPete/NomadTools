@@ -33,6 +33,12 @@ if [ "${ZEROAV_KEEP_DESKTOP:-0}" != 1 ] && systemctl is-active --quiet "$DM" 2>/
     # let the compositor release HDMI
     i=0
     while [ $i -lt 20 ] && pgrep -x labwc >/dev/null 2>&1; do sleep 0.25; i=$((i + 1)); done
+    # and for the desktop's GPU memory (CMA) to be released: up to 3 s for 24 MB free
+    i=0
+    while [ $i -lt 12 ] && [ "$(awk '/^CmaFree/{print $2}' /proc/meminfo)" -lt 24576 ] 2>/dev/null; do
+      sleep 0.25; i=$((i + 1))
+    done
+    echo "tnt-av-tester: CMA free $(awk '/^CmaFree/{print int($2/1024)}' /proc/meminfo) MB after pausing desktop" >&2
   else
     echo "tnt-av-tester: could not pause desktop; using a window on it" >&2
   fi

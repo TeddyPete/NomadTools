@@ -228,7 +228,24 @@ class KmsOutput:
             mi = cands[0] if cands else self.drm_modes[self.preferred_index()]
         self._free_buffers()
         w, h = mi.hdisplay, mi.vdisplay
-        self.bufs = [_Buffer(self.fd, self.drm, w, h) for _ in range(2)]
+        # The desktop's buffers can take a moment to be released after it
+        # stops, so retry, and fall back to one buffer if two won't fit.
+        self.bufs = []
+        for attempt in range(10):
+            try:
+                while len(self.bufs) < 2:
+                    self.bufs.append(_Buffer(self.fd, self.drm, w, h))
+                break
+            except OSError as e:
+                if attempt == 9:
+                    if not self.bufs:
+                        raise OSError(e.errno, f"not enough GPU memory for {w}x{h} "
+                                               f"(CMA free {cma_free_kb()[0] // 1024} MB)") from e
+                    print(f"KMS: only one framebuffer fits ({e}); motion may tear",
+                          file=__import__("sys").stderr, flush=True)
+                    self.bufs.append(self.bufs[0])
+                    break
+                time.sleep(0.3)
         for b in self.bufs:
             b.px[:] = 0
         conn = ctypes.c_uint32(self.connector_id)
@@ -246,7 +263,7 @@ class KmsOutput:
         self._pat_surf = self._pat_key = self._ovl_rect = None
 
     def _free_buffers(self) -> None:
-        for b in self.bufs:
+        for b in {id(b): b for b in self.bufs}.values():
             b.free()
         self.bufs = []
 
@@ -270,8 +287,9 @@ class KmsOutput:
 
     def _flip(self, i: int) -> None:
         """Show buffer i from the next vblank, and wait for it."""
-        if i == self.front:
+        if i == self.front or self.bufs[i] is self.bufs[self.front]:
             self._wait_vblank()
+            self.front = i
             return
         if self.drm.drmModePageFlip(self.fd, self.crtc_id, self.bufs[i].fb, DRM_MODE_PAGE_FLIP_EVENT, None) != 0:
             # flip refused: switch on the next vblank instead
