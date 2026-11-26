@@ -1,0 +1,15 @@
+#!/bin/sh
+# Give tcpdump capture rights so the app itself never runs as root.
+# Re-run when tcpdump is upgraded (see the triggers file).
+set -e
+PATH="$PATH:/usr/sbin:/sbin"
+case "$1" in
+  configure|triggered)
+    bin=$(command -v tcpdump 2>/dev/null || true)
+    if [ -n "$bin" ]; then
+      bin=$(readlink -f "$bin")
+      setcap cap_net_raw,cap_net_admin=eip "$bin" 2>/dev/null || echo "tnt-packet-capture: could not setcap $bin" >&2
+    fi
+    ;;
+esac
+exit 0
