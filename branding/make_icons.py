@@ -22,7 +22,7 @@ FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 # app folder -> (short name, name colour)
 APPS = {
-    "av-tester": ("AV", (255, 255, 255)),  # colour-bars background
+    "av-tester": ("AV TEST", (255, 255, 255)),  # colour-bars background
     "net-tools": ("NET", (120, 220, 120)),
     "wifi-share": ("WIFI", (255, 200, 60)),
     "pcap-capture": ("PCAP", (255, 140, 200)),
