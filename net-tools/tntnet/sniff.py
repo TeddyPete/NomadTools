@@ -155,7 +155,7 @@ def sniffer(out, iface: str = "", extra: str = "") -> None:
         bpf += f" or port {port}"
         PROTO_PORTS.setdefault(int(port), f"port {port}")
     cap = capture.Capture(iface, bpf, promisc=True, snaplen=4096, out=out)
-    out.dim(f"Sniffing control traffic on {iface} (promiscuous). Use a mirror port. X stops.")
+    out.dim(f"Sniffing control traffic on {iface} (promiscuous). Use a mirror port. Q stops.")
     out.dim("Crestron CIP/console, Q-SYS QRC/ECP, Extron SIS/Telnet, PJLink")
     seen = Counter()
     try:
@@ -192,7 +192,7 @@ def pcap(out, cfg, iface: str = "", bpf: str = "", seconds: str = "", max_mb: st
     dur = float(seconds) if seconds else 1e9
     with open(path, "wb") as f:
         cap = capture.Capture(iface, bpf, promisc=True, snaplen=65535, out=out, raw_sink=f)
-        out.dim(f"Capturing on {iface} (promiscuous){' filter: ' + bpf if bpf else ''}. X stops.")
+        out.dim(f"Capturing on {iface} (promiscuous){' filter: ' + bpf if bpf else ''}. Q stops.")
         out.line(f"File: {path}")
         out.line("")
         protos = Counter()

@@ -94,7 +94,7 @@ def window(lines: list, cursor: int, rows: int, top: int) -> tuple[int, int]:
 class Menu(Screen):
     """A list of (label, action). Action is a callable(app)."""
 
-    def __init__(self, title: str, items: list, hint: str = "Up/Dn move  Enter open  Esc"):
+    def __init__(self, title: str, items: list, hint: str = "F/X move  OK open  Esc back"):
         self.title, self.items, self.hint = title, items, hint
         self.cur = 0
 
@@ -110,13 +110,14 @@ class Menu(Screen):
         return View(self.title, [Line(t) for t in self.labels()], self.hint, self.cur)
 
     def on_key(self, k: Key, app) -> None:
-        if k.name == "esc":
-            app.pop()
-        elif k.up:
+        nav = k.nav
+        if nav == "esc" or (nav == "left" and len(app.stack) > 1):
+            app.pop()                       # Left never quits from the main menu
+        elif nav == "up":
             self.cur = (self.cur - 1) % len(self.items)
-        elif k.down or k.name == "tab":
+        elif nav in ("down", "tab"):
             self.cur = (self.cur + 1) % len(self.items)
-        elif k.name == "enter":
+        elif nav in ("enter", "right"):
             self.items[self.cur][1](app)
         elif k.char.isdigit() and k.char != "0" and int(k.char) <= len(self.items):
             self.cur = int(k.char) - 1
@@ -139,7 +140,7 @@ class Form(Screen):
     def __init__(self, title: str, fields: list[Field], submit, note: str = ""):
         self.title, self.fields, self.submit, self.note = title, fields, submit, note
         self.cur = 0
-        self.hint = "Up/Dn field  </> choice  Enter OK  Esc"
+        self.hint = "Fn+F/X field  Fn+Z/C choice  OK  Esc"
 
     def view(self, rows: int) -> View:
         lines = []
@@ -164,7 +165,13 @@ class Form(Screen):
         elif k.name == "enter":
             self.submit({f.key: f.value.strip() if not f.secret else f.value for f in self.fields}, app)
         elif f is None:
+            if k.nav == "left":
+                app.pop()
+            elif k.nav == "right":
+                self.submit({f.key: f.value.strip() if not f.secret else f.value for f in self.fields}, app)
             return
+        elif k.name == "left" and not f.choices:
+            app.pop()
         elif f.choices and k.name in ("left", "right") or f.choices and k.char == " ":
             i = f.choices.index(f.value) if f.value in f.choices else 0
             f.value = f.choices[(i + (-1 if k.name == "left" else 1)) % len(f.choices)]
@@ -189,7 +196,7 @@ class Message(Screen):
             self.top = min(self.top + 1, max(0, len(self.lines) - 1))
         elif k.up:
             self.top = max(0, self.top - 1)
-        else:
+        elif k.nav != "right":
             app.pop()
 
 
@@ -320,14 +327,14 @@ class TaskScreen(Screen):
         picks = any(l.payload is not None for l in lines)
         state = "running... " if self.running else ""
         hint = self.saved_msg or (state + ("Enter pick  " if picks else "")
-                                  + ("X stop  " if self.running else "R rerun  ") + "S save  Esc back")
+                                  + ("Q stop  " if self.running else "R rerun  ") + "S save  Esc back")
         title = self.title if not self.running else f"{self.title} *"
         return View(title, lines, hint, cur, self.hscroll)
 
     def on_key(self, k: Key, app) -> None:
         n = len(self.out.lines)
         cur = self.cur if 0 <= self.cur < n else n - 1
-        if k.name == "esc":
+        if k.nav in ("esc", "left"):
             self.out.stop()
             app.pop()
         elif k.up:
@@ -342,11 +349,11 @@ class TaskScreen(Screen):
             self.cur = 0
         elif k.name == "end":
             self.cur = -1
-        elif k.name == "left" or k.char == ",":
+        elif k.char == ",":
             self.hscroll = max(0, self.hscroll - 10)
-        elif k.name == "right" or k.char == "/":
+        elif k.char == "/":
             self.hscroll += 10
-        elif k.char in ("x", "X"):
+        elif k.char in ("q", "Q", " "):
             self.out.stop()
         elif k.char in ("r", "R") and not self.running:
             self.start()
@@ -357,7 +364,7 @@ class TaskScreen(Screen):
                 self.saved_msg = "Saved " + os.path.basename(path)
             except OSError as e:
                 self.saved_msg = f"Save failed: {e}"
-        elif k.name == "enter" and self.on_pick and 0 <= cur < n:
+        elif k.nav in ("enter", "right") and self.on_pick and 0 <= cur < n:
             p = self.out.lines[cur].payload
             if p is not None:
                 self.on_pick(app, p)

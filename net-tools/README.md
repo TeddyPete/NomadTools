@@ -52,15 +52,20 @@ Watches the wired port (default `eth0`) for PTP and multicast:
 
 ## Keys
 
+The CardputerZero's arrows are on the Fn layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right.
+In lists (menus and results) F, X, Z and C work without Fn too, as do `;` and `.` for up/down.
+
 | Key | Action |
 | --- | --- |
-| Up / Down (or `;` `.`) | Move |
-| Enter | Open / run / pick a device |
+| Up / Down | Move |
+| OK (Enter) or Right | Open / run / pick a device |
+| Esc or Left | Back one level (Esc quits from the main menu; Left does not) |
+| Hold Esc | Exit the app (CardputerZero standard) |
 | `1`-`9` | Jump to a menu item |
-| Esc | Back (quits from the main menu) |
-| Left / Right (or `,` `/`) | Scroll wide results sideways on the small screen; change a choice in a form |
+| Left / Right in a form | Change a choice |
+| `,` `/` | Scroll wide results sideways on the small screen |
 | PgUp / PgDn, Home / End | Page through results |
-| S / R / X | Save to site report / run again / stop |
+| S / R / Q | Save to site report / run again / stop |
 
 Keys are read straight from the CardputerZero keyboard, so they work whether or not the desktop
 window has focus.

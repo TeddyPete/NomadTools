@@ -17,7 +17,7 @@ import pygame  # noqa: E402
 from . import keys, reports, store, util  # noqa: E402
 from .ui import DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.1.9"
+VERSION = "0.2.1"
 
 
 class App:
@@ -96,6 +96,9 @@ class App:
             if not self.kb and not evs:
                 time.sleep(0.03)
             for k in evs:
+                if k.name == "exit":          # Esc held: leave the app
+                    self.quit = True
+                    break
                 if self.stack:
                     self.stack[-1].on_key(k, self)
             if self.stack:
@@ -356,7 +359,7 @@ def site_menu(app):
             lines = open(path, errors="replace").read().splitlines()
         except OSError as e:
             lines = [str(e)]
-        app.push(Message(f[:30], lines, "Up/Dn scroll  other key back"))
+        app.push(Message(f[:30], lines, "F/X scroll  Esc back"))
 
     app.push(Menu("Site & reports", [
         (lambda: f"Site: {app.site or '(not set)'}", set_site),
@@ -384,9 +387,9 @@ def settings_menu(app):
             "Network tools for AV techs.",
             f"Keyboard: {app.kb.path if app.kb else 'window keys'}",
             f"LCD: {app.r.lcd_dev or 'none'}  Desktop window: {'yes' if app.r.win else 'no'}",
-            "Keys: Up/Down arrows, or ; . or k j to move,",
-            "Enter pick,",
-            "Esc back, S save, R rerun, X stop.",
+            "Arrows: Fn+F up, Fn+X down, Fn+Z back, Fn+C open",
+            "(F/X/Z/C alone also work in lists). OK opens.",
+            "Esc back, S save, R rerun, Q stop.",
         ]))
 
     app.push(Menu("Settings", [
@@ -433,7 +436,7 @@ def main_menu(app) -> Menu:
         ("Network checks", checks_menu),
         (lambda: f"Site & reports [{app.site or 'no site'}]", site_menu),
         ("Settings / about", settings_menu),
-    ], "Up/Dn move  Enter open  Esc quit")
+    ], "F/X move  OK open  Esc quit")
 
 
 def shots(out_dir: str) -> None:

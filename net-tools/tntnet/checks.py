@@ -282,7 +282,7 @@ def lldp(out, iface: str = "", seconds: str = "65") -> None:
     secs = float(seconds or 65)
     cap = capture.Capture(iface, "ether proto 0x88cc or ether dst 01:00:0c:cc:cc:cc", promisc=False,
                           snaplen=2000, out=out)
-    out.dim(f"Listening on {iface} for LLDP (every ~30s) and CDP (every ~60s). X stops.")
+    out.dim(f"Listening on {iface} for LLDP (every ~30s) and CDP (every ~60s). Q stops.")
     out.line("")
     got = set()
     t0 = time.monotonic()

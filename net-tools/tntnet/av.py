@@ -123,7 +123,7 @@ def sap(out, iface: str = "", seconds: str = "35") -> None:
             except OSError:
                 pass
     s.settimeout(0.5)
-    out.dim(f"Listening for SAP/SDP (AES67, Dante AES67, RAVENNA) for {secs:.0f}s; X stops")
+    out.dim(f"Listening for SAP/SDP (AES67, Dante AES67, RAVENNA) for {secs:.0f}s; Q stops")
     out.line("")
     sessions: dict[str, dict] = {}
     t0 = time.monotonic()
@@ -347,7 +347,7 @@ def _watch(out, iface: str, seconds: float, want_ptp: bool, want_mcast: bool) ->
     if want_mcast:
         parts.append("igmp or (ip multicast and not udp port 5353 and not udp port 1900)")
     cap = capture.Capture(iface, " or ".join(f"({x})" for x in parts), promisc=False, snaplen=200, out=out)
-    out.dim(f"Watching {iface} for {seconds:.0f}s; X stops early")
+    out.dim(f"Watching {iface} for {seconds:.0f}s; Q stops early")
     out.line("")
     ptp, mc = PtpWatch(), McastWatch(joined, {x.ip for x in util.interfaces() if x.ip})
     t0, last = time.monotonic(), 0.0

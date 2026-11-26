@@ -29,16 +29,28 @@ class Key:
     def __repr__(self) -> str:
         return f"Key({self.name or repr(self.char)}{' ctrl' if self.ctrl else ''})"
 
-    # Up/Down for lists. Besides the arrow keys (Fn layer on the
-    # CardputerZero), accept the Cardputer-style ; and . plus vi-style k/j.
+    # Navigation on list screens (menus, results, messages), where letters
+    # are not typed. The CardputerZero prints its arrows on F (up), Z (left),
+    # X (down), C (right); without Fn held those keys send plain letters, so
+    # list screens accept those letters as arrows too, plus ; . for up/down.
+    @property
+    def nav(self) -> str:
+        if self.name:
+            return self.name
+        if self.ctrl:
+            return ""
+        return LIST_ARROWS.get(self.char, "")
+
     @property
     def up(self) -> bool:
-        return self.name == "up" or (not self.ctrl and self.char in (";", "k", "K"))
+        return self.nav == "up"
 
     @property
     def down(self) -> bool:
-        return self.name == "down" or (not self.ctrl and self.char in (".", "j", "J"))
+        return self.nav == "down"
 
+
+LIST_ARROWS = {"f": "up", ";": "up", "x": "down", ".": "down", "z": "left", "c": "right"}
 
 NAMED = {1: "esc", 14: "bksp", 15: "tab", 28: "enter", 96: "enter", 103: "up", 108: "down",
          105: "left", 106: "right", 104: "pgup", 109: "pgdn", 102: "home", 107: "end", 111: "del"}
@@ -123,6 +135,19 @@ class EvdevKeyboard:
                 continue
             if code == CAPS and value == 1:
                 self.caps = not self.caps
+                continue
+            if code == 1:
+                # Short Esc = back one level; holding Esc exits the app
+                # (the CardputerZero convention). Ignore Esc auto-repeat.
+                import time as _t
+                if value == 1:
+                    self.esc_down = _t.monotonic()
+                    self.esc_done = False
+                    out.append(Key("esc"))
+                elif value == 2 and not getattr(self, "esc_done", True) \
+                        and _t.monotonic() - getattr(self, "esc_down", 0) >= 0.8:
+                    self.esc_done = True
+                    out.append(Key("exit"))
                 continue
             if value == 0:
                 continue

@@ -98,7 +98,7 @@ def ping(out, target: str, count: str = "", size: str = "") -> None:
     if size and size.isdigit():
         cmd += ["-s", size]
     cmd.append(target)
-    out.dim("X stops. " + " ".join(cmd))
+    out.dim("Q stops. " + " ".join(cmd))
     sent = [0]
 
     def filt(line: str):
