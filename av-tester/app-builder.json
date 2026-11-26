@@ -7,7 +7,7 @@
   "store": {
     "summary": "HDMI test patterns and audio tones for AV setup and troubleshooting",
     "description": "Turns the CardputerZero into a pocket AV test generator. Sends color bars, crosshatch, safe-area, ramps, solids, checkerboards and a judder test box over HDMI, with 1 kHz and left/right channel ID tones. Controlled from the keyboard with status on the built-in screen. Lip-sync measurement, EDID reader and SPL meter are coming.",
-    "categories": ["Tools"],
+    "categories": ["Media", "Hardware & IoT"],
     "screenshots": ["screenshots/lcd_0.png", "screenshots/lcd_1.png", "screenshots/lcd_2.png"],
     "icon": "packaging/icon.png",
     "license": "MIT",
