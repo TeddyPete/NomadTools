@@ -6,6 +6,7 @@ Drawn at 8x and scaled down so edges stay clean at the launcher's 100 px.
 
     python3 branding/make_icons.py            # write all app icons
     python3 branding/make_icons.py --preview  # also write branding/preview.png
+    add --plain for the no-dynamite style (big TNT + name)
 
 Writes <app>/packaging/icon.png (256, store) and icon_100.png (launcher).
 Needs Pillow and DejaVu Sans Bold (fonts-dejavu-core).
@@ -41,6 +42,7 @@ FUSE = (235, 220, 190)
 SPARK = (255, 210, 60)
 SPARK_HOT = (255, 255, 220)
 WIFI_ARC = (255, 200, 60)
+TNT_RED = (230, 40, 40)
 STICK_END = (245, 215, 170)
 
 S = 8  # supersample factor
@@ -73,48 +75,52 @@ def _star(draw, cx, cy, r_out, r_in, points, fill):
     draw.polygon(pts, fill=fill)
 
 
+def _stick(draw, x_right, cy, length, dia, bands):
+    """One horizontal stick drawn in 3D: body, round left end, paper end
+    facing right. x_right/cy is the centre of the visible right end."""
+    r = dia / 2
+    ex = dia * 0.26                      # half-width of the end ellipses
+    lx = x_right - length
+    draw.ellipse((lx - ex, cy - r, lx + ex, cy + r), fill=STICK_LO)
+    draw.rectangle((lx, cy - r, x_right, cy + r), fill=STICK)
+    draw.rectangle((lx, cy - r * 0.62, x_right, cy - r * 0.30), fill=STICK_HI)
+    draw.rectangle((lx, cy + r * 0.48, x_right, cy + r), fill=STICK_LO)
+    for f in bands:
+        bx = lx + length * f
+        draw.rectangle((bx, cy - r, bx + length * 0.07, cy + r), fill=BAND)
+    draw.ellipse((x_right - ex, cy - r, x_right + ex, cy + r),
+                 fill=STICK_END, outline=STICK_LO, width=max(1, int(dia * 0.05)))
+    draw.ellipse((x_right - ex * 0.25, cy - r * 0.22, x_right + ex * 0.25,
+                  cy + r * 0.22), fill=(200, 160, 110))
+
+
 def _dynamite(draw, x0, y0, w, h, wifi=False):
-    """Classic bundle: three horizontal sticks stacked in box (x0, y0, w, h),
-    tied with two bands, fuse out of the right end of the middle stick and a
-    spark at its tip. wifi=True adds Wi-Fi arcs radiating out of the spark."""
-    body_w = w * 0.74
-    sh = h / 3.0                 # stick height
-    gap = sh * 0.06
-    cap = sh * 0.42              # depth of the rounded end caps
-    for k in range(3):
-        top = y0 + k * sh + gap / 2
-        bot = top + sh - gap
-        lx, rx = x0, x0 + body_w
-        draw.rounded_rectangle((lx, top, rx, bot), radius=(bot - top) / 2,
-                               fill=STICK)
-        th = bot - top
-        # highlight along the top, shadow along the bottom
-        draw.rounded_rectangle((lx + cap * 0.6, top + th * 0.14,
-                                rx - cap * 0.6, top + th * 0.32),
-                               radius=th * 0.09, fill=STICK_HI)
-        draw.rectangle((lx + cap * 0.6, bot - th * 0.20, rx - cap * 0.6,
-                        bot - th * 0.04), fill=STICK_LO)
-        # paper end showing on the right
-        draw.ellipse((rx - cap * 1.1, top + th * 0.06, rx - th * 0.04,
-                      bot - th * 0.06), fill=STICK_END)
-    # two binding bands around the bundle
-    for frac in (0.28, 0.66):
-        bx = x0 + body_w * frac
-        bw = body_w * 0.07
-        draw.rectangle((bx, y0 - h * 0.02, bx + bw, y0 + h + h * 0.02),
-                       fill=BAND)
-    # fuse: out of the middle stick's right end, curling up and right
-    fx, fy = x0 + body_w - cap * 0.55, y0 + h / 2
-    room_w = x0 + w - fx
+    """Classic 3D bundle in box (x0, y0, w, h): three horizontal sticks
+    stacked as a triangle (two at the bottom, one on top), fuse out of the
+    top stick's end, spark at its tip. wifi=True adds Wi-Fi arcs."""
+    dia = h / 2.15
+    # oblique depth axis: back of the bundle sits up and to the right
+    dx, dy = 0.46 * dia, -0.39 * dia
+    length = w * 0.70 - dx
+    xr = x0 + length + dia * 0.3          # right-end centre, front stick
+    by = y0 + h - dia / 2                 # centre y, front bottom stick
+    bands = (0.22, 0.62)
+    # back-bottom, then top, then front-bottom (painter's order)
+    _stick(draw, xr + dx, by + dy, length, dia, bands)
+    tx, ty = xr + dx / 2, by + dy / 2 - 0.866 * dia
+    _stick(draw, tx, ty, length, dia, bands)
+    _stick(draw, xr, by, length, dia, bands)
+    # fuse: out of the top stick's paper end, curling up and right
+    fx, fy = tx, ty
     pts = []
     for i in range(41):
         t = i / 40
-        px = fx + room_w * 0.50 * t
-        py = fy - h * 0.42 * t * t + h * 0.06 * math.sin(t * math.pi)
+        px = fx + w * 0.16 * t
+        py = fy - h * 0.30 * t * t + h * 0.05 * math.sin(t * math.pi)
         pts.append((px, py))
-    draw.line(pts, fill=FUSE, width=int(h * 0.075), joint="curve")
+    draw.line(pts, fill=FUSE, width=int(h * 0.06), joint="curve")
     ex, ey = pts[-1]
-    sp = h * 0.24
+    sp = h * 0.20
     _star(draw, ex, ey, sp * 0.95, sp * 0.36, 8, SPARK)
     _star(draw, ex, ey, sp * 0.55, sp * 0.22, 8, SPARK_HOT)
     for a, d in ((-150, 1.35), (-40, 1.45), (25, 1.25), (-95, 1.5)):
@@ -125,10 +131,47 @@ def _dynamite(draw, x0, y0, w, h, wifi=False):
         draw.ellipse((px - dot, py - dot, px + dot, py + dot), fill=SPARK)
     if wifi:
         aim, half = -10, 36  # out to the right of the spark
-        lw = h * 0.09
-        for r in (h * 0.36, h * 0.56, h * 0.76):
+        lw = h * 0.075
+        for r in (h * 0.30, h * 0.47, h * 0.64):
             draw.arc((ex - r, ey - r, ex + r, ey + r), aim - half, aim + half,
                      fill=WIFI_ARC, width=int(lw))
+
+
+def _wifi_symbol(draw, cx, top, h, colour):
+    """Upright Wi-Fi symbol (dot + three arcs) filling height h."""
+    r_max = h * 0.95
+    by = top + h                      # centre of the arcs (the dot)
+    lw = h * 0.16
+    d = h * 0.13
+    draw.ellipse((cx - d, by - d * 2, cx + d, by), fill=colour)
+    for k in (0.42, 0.70, 0.98):
+        r = r_max * k
+        draw.arc((cx - r, by - d - r, cx + r, by - d + r), -135, -45,
+                 fill=colour, width=int(lw))
+
+
+def icon_plain(short, colour, size, bars=False, wifi=False):
+    """No-dynamite style: big TNT on top, app name below."""
+    n = size * S
+    im = Image.new("RGB", (n, n), BG)
+    d = ImageDraw.Draw(im)
+    stroke = 0
+    if bars:
+        bw = n / len(BARS)
+        for k, c in enumerate(BARS):
+            c = tuple(int(v * BARS_DIM) for v in c)
+            d.rectangle((k * bw, 0, (k + 1) * bw, n), fill=c)
+        stroke = int(n * 0.02)
+    pad = n * 0.06
+    if wifi:
+        _text(d, "TNT", n / 2, pad, n - 2 * pad, n * 0.30, TNT_RED, stroke)
+        _wifi_symbol(d, n / 2, n * 0.38, n * 0.26, WIFI_ARC)
+        _text(d, short, n / 2, n * 0.70, n - 2 * pad, n * 0.24, colour, stroke)
+    else:
+        _text(d, "TNT", n / 2, pad, n - 2 * pad, n * 0.46, TNT_RED,
+              stroke or int(n * 0.012))
+        _text(d, short, n / 2, n * 0.58, n - 2 * pad, n * 0.32, colour, stroke)
+    return im.resize((size, size), Image.LANCZOS)
 
 
 def icon(short, colour, size, bars=False, wifi=False):
@@ -146,12 +189,12 @@ def icon(short, colour, size, bars=False, wifi=False):
     # rows: TNT 22%, dynamite 50%, name 24% (plus small gaps)
     tnt_h = n * 0.20
     _text(d, "TNT", n / 2, pad, n - 2 * pad, tnt_h, TNT_TXT, stroke)
-    dyn_top = pad + tnt_h + n * 0.10
-    dyn_h = n * 0.38
+    dyn_top = pad + tnt_h + n * 0.06
+    dyn_h = n * 0.44
     dyn_w = n * (0.66 if wifi else 0.80)
     shift = n * (0.12 if wifi else 0.0)  # make room on the right for arcs
     _dynamite(d, (n - dyn_w) / 2 - shift, dyn_top, dyn_w, dyn_h, wifi)
-    name_top = dyn_top + dyn_h + n * 0.025
+    name_top = dyn_top + dyn_h + n * 0.02
     _text(d, short, n / 2, name_top, n - 2 * pad, n - pad - name_top, colour,
           stroke)
     return im.resize((size, size), Image.LANCZOS)
@@ -162,8 +205,9 @@ def main():
     for app, (short, colour) in APPS.items():
         bars = app == "av-tester"
         wifi = app == "wifi-share"
-        out[app] = (icon(short, colour, 256, bars, wifi),
-                    icon(short, colour, 100, bars, wifi))
+        fn = icon_plain if "--plain" in sys.argv else icon
+        out[app] = (fn(short, colour, 256, bars, wifi),
+                    fn(short, colour, 100, bars, wifi))
         pk = os.path.join(ROOT, app, "packaging")
         if os.path.isdir(pk) and "--preview-only" not in sys.argv:
             out[app][0].save(os.path.join(pk, "icon.png"))
@@ -178,7 +222,8 @@ def main():
             pv.paste(big, (x, 10))
             pv.paste(small, (x, 330))
             pv.paste(small.resize((150, 150), Image.LANCZOS), (x + 106, 280))
-        pv.save(os.path.join(HERE, "preview.png"))
+        pv.save(os.path.join(HERE, "preview-plain.png" if "--plain" in sys.argv
+                             else "preview.png"))
         print("wrote preview")
 
 
