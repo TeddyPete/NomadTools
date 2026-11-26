@@ -17,7 +17,7 @@ import pygame  # noqa: E402
 from . import keys, reports, store, util  # noqa: E402
 from .ui import DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 
 
 class App:
@@ -288,7 +288,7 @@ def capture_menu(app):
             app.task("pcap capture", sniff.pcap, cfg=app.cfg, iface=ifc(v), bpf=v["bpf"], seconds=v["seconds"],
                      max_mb=v["mb"])
         app.push(Form("pcap capture", [app.iface_field(util.wired_name()), Field("bpf", "Filter (tcpdump)", ""),
-                                       Field("seconds", "Seconds (blank=until X)", ""), Field("mb", "Max MB", "100")],
+                                       Field("seconds", "Seconds (blank=until Q)", ""), Field("mb", "Max MB", "100")],
                       go, "Saved in the site's report folder."))
 
     app.push(Menu("Capture", [("Control-protocol sniffer", sniffer), ("pcap capture (mirror port)", pcap)]))

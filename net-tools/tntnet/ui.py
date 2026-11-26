@@ -25,9 +25,9 @@ OK = (110, 230, 120)
 WARN = (255, 190, 60)
 BAD = (255, 95, 95)
 INFO = (130, 200, 255)
-BAR = (20, 110, 50)       # green title bar
-SEL = (30, 80, 170)       # blue highlight: move with F/X
-EDIT = (170, 30, 30)      # red highlight: typing into this field
+BAR = (18, 120, 52)       # green title bar (same as the shared TNT UI)
+SEL = (30, 90, 200)       # blue highlight: move with F/X
+EDIT = (190, 28, 28)      # red highlight: typing into this field
 
 MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 MONO_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
@@ -135,6 +135,12 @@ class Field:
     choices: list = field(default_factory=list)   # cycle with Left/Right
 
 
+# Fields that only take certain characters (IPs: digits and dots).
+_DIGITS = set("0123456789")
+ALLOWED = {"ip": _DIGITS | {"."}, "port": _DIGITS, "lport": _DIGITS, "count": _DIGITS,
+           "size": _DIGITS, "seconds": _DIGITS, "mb": _DIGITS, "extra": _DIGITS | {",", " "}}
+
+
 class Form(Screen):
     """Fields on the keyboard, two modes (TNT standard):
     move: F/X (or arrows) pick a field, OK/Right starts editing it, Esc/Left
@@ -190,7 +196,7 @@ class Form(Screen):
                 f.value = f.value[:-1]
             elif k.name == "del":
                 f.value = ""
-            elif k.char:
+            elif k.char and (f.key not in ALLOWED or k.char in ALLOWED[f.key]):
                 f.value += k.char
             return
         nav = k.nav
@@ -429,10 +435,10 @@ class Painter:
     """Draws a View onto a surface of any size with a given font size."""
 
     def __init__(self, size: tuple[int, int], fsize: int, title_size: int, pad: int,
-                 hint_size: int = 0, wrap: bool = False):
+                 hint_size: int = 0, wrap: bool = False, bold: bool = False):
         self.size = size
         self.wrap = wrap
-        self.f = font(fsize)
+        self.f = font(fsize, bold)
         self.fb = font(title_size, bold=True)
         self.fh = font(hint_size or max(9, fsize - 1))
         self.lh = self.f.get_linesize()
@@ -536,7 +542,7 @@ class Renderer:
             self.lcd_dev, self.fw, self.fh, self.bpp = found
         self.lcd = pygame.Surface((320, 170))
         # Big enough to read at arm's length: about 6 rows x 31 columns.
-        self.lcd_p = Painter((320, 170), 17, 16, 4, hint_size=12, wrap=True)
+        self.lcd_p = Painter((320, 170), 17, 17, 4, hint_size=12, wrap=True, bold=True)
         self.win = None
         self.win_p = None
         self.last = None
