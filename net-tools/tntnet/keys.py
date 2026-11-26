@@ -62,11 +62,15 @@ CHARS = {
     34: "gG", 35: "hH", 36: "jJ", 37: "kK", 38: "lL", 39: ";:", 40: "'\"", 41: "`~", 43: "\\|",
     44: "zZ", 45: "xX", 46: "cC", 47: "vV", 48: "bB", 49: "nN", 50: "mM", 51: ",<", 52: ".>",
     53: "/?", 57: "  ",
-    # keypad codes some keyboard firmwares use for symbols
-    55: "**", 74: "--", 78: "++", 83: "..", 98: "//", 117: "==",
-    71: "77", 72: "88", 73: "99", 75: "44", 76: "55", 77: "66", 79: "11", 80: "22", 81: "33", 82: "00",
+    # CardputerZero Sym layer: its driver sends keypad/Japanese codes standing
+    # in for the symbols printed on the keycaps (device tree linux,keymap1).
+    # Same table as TNT WiFi Share.
+    55: "~~", 69: "``", 70: "__", 71: "--", 72: "++", 73: "==", 74: "[[", 75: "]]", 76: "{{", 77: "}}",
+    79: ";;", 80: "::", 81: "''", 82: '""', 83: "<<", 85: ">>", 86: "\\\\", 89: "||",
+    90: ",,", 91: "..", 92: "//", 93: "??",
 }
 SHIFT, CTRL, CAPS = {42, 54}, {29, 97}, 58
+FN_KEY, SYM_KEY = 389, 383   # KEY_DVD, KEY_CD: layer keys, never text
 EV_KEY = 1
 EVENT = struct.Struct("llHHi")
 
@@ -149,7 +153,9 @@ class EvdevKeyboard:
                     self.esc_done = True
                     out.append(Key("exit"))
                 continue
-            if value == 0:
+            if value == 0 or code in (FN_KEY, SYM_KEY):
+                continue
+            if value == 2 and code in (28, 96):   # no OK/Enter auto-repeat
                 continue
             k = self.translate(code)
             if k:
