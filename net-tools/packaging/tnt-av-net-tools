@@ -1,0 +1,26 @@
+#!/bin/sh
+# APPLaunch entry point for TNT AV Net Tools.
+# APPLaunch runs Exec without a shell, so environment setup lives here.
+# The app draws on the built-in LCD (framebuffer) and, when the Pi desktop
+# is running on HDMI, also opens a window there. The desktop is left alone.
+APP_DIR=/usr/share/APPLaunch/lib/tnt-av-net-tools
+cd "$APP_DIR" || exit 1
+export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
+[ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export PYGAME_HIDE_SUPPORT_PROMPT=1
+export PATH="$PATH:/usr/sbin:/sbin"
+
+if [ -z "$SDL_VIDEODRIVER" ]; then
+  if [ -S "$XDG_RUNTIME_DIR/${WAYLAND_DISPLAY:-wayland-0}" ] && pgrep -x labwc >/dev/null 2>&1; then
+    export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" SDL_VIDEODRIVER=wayland
+    # The window is plain text; software GL avoids a crash in the vc4 GPU
+    # driver that SDL's Wayland window surface hits on this device.
+    export LIBGL_ALWAYS_SOFTWARE=1
+  elif [ -S /tmp/.X11-unix/X0 ] && pgrep -x Xorg >/dev/null 2>&1; then
+    export DISPLAY="${DISPLAY:-:0}" SDL_VIDEODRIVER=x11
+  else
+    export SDL_VIDEODRIVER=dummy
+  fi
+fi
+
+exec python3 -m tntnet.app "$@"

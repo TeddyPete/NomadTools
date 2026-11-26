@@ -1,0 +1,13 @@
+#!/bin/sh
+# Take back the rights postinst gave, when the app is removed.
+set -e
+PATH="$PATH:/usr/sbin:/sbin"
+case "$1" in
+  remove|purge)
+    for b in tcpdump arp-scan ethtool; do
+      bin=$(command -v "$b" 2>/dev/null || true)
+      [ -n "$bin" ] && setcap -r "$(readlink -f "$bin")" 2>/dev/null || true
+    done
+    ;;
+esac
+exit 0
