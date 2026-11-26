@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import sys
 import time
 
@@ -35,6 +36,24 @@ def render_all(out_dir: str, size: tuple[int, int]) -> None:
         fn = os.path.join(out_dir, f"{i:02d}_{p.name.replace(' ', '_').replace('/', '-')}.png")
         pygame.image.save(surf, fn)
         print(fn)
+    # LCD status screens, 320x170, used as store screenshots
+    from .lcd import LcdPanel
+    lcd = LcdPanel(headless=True)
+    pats = all_patterns()
+    for n, (i, tone) in enumerate([(0, "off"), (5, "tone"), (18, "lr")]):
+        p = pats[i]
+        lcd.show(p.name, status_lines(size, 60, 60.0, i, len(pats), p.category, tone, -20.0), KEYS_HELP)
+        fn = os.path.join(out_dir, f"lcd_{n}.png")
+        lcd.save(fn)
+        print(fn)
+
+
+def status_lines(size, refresh, fps, idx, total, category, tone, dbfs) -> list[str]:
+    return [
+        f"{size[0]}x{size[1]} @ {refresh or '?'} Hz ({fps:.1f})",
+        f"Pattern {idx + 1}/{total}  [{category}]",
+        f"Tone: {tone}  {dbfs:.0f} dBFS",
+    ]
 
 
 def pick_hdmi_display(pygame) -> int:
@@ -49,6 +68,14 @@ def pick_hdmi_display(pygame) -> int:
     return best
 
 
+def no_hdmi(lcd, detail: str) -> None:
+    """Explain on the LCD why HDMI output could not start, then exit."""
+    print(f"HDMI output unavailable: {detail}", file=sys.stderr, flush=True)
+    lcd.show("No HDMI output", ["Connect an HDMI display", "and open the app again.", detail[:40]],
+             "Closing in 8 s")
+    time.sleep(8)
+
+
 def run(args) -> None:
     os.environ.setdefault("SDL_VIDEODRIVER", "kmsdrm")
     import pygame
@@ -57,7 +84,15 @@ def run(args) -> None:
     from .patterns import all_patterns, draw_info_overlay
 
     pygame.init()
-    pygame.mouse.set_visible(False)
+    lcd = LcdPanel()
+    # The launcher stops apps with SIGTERM; turn that into a clean quit.
+    signal.signal(signal.SIGTERM, lambda *_: pygame.event.post(pygame.event.Event(pygame.QUIT)))
+    try:
+        pygame.display.init()
+        pygame.mouse.set_visible(False)
+    except pygame.error as e:
+        no_hdmi(lcd, f"Display error: {e}")
+        return
     disp = pick_hdmi_display(pygame)
     modes = sorted(set(pygame.display.list_modes(display=disp) or []), reverse=True)
     mode_idx = 0
@@ -68,8 +103,11 @@ def run(args) -> None:
     def open_screen(sz):
         return pygame.display.set_mode(sz, pygame.FULLSCREEN, display=disp, vsync=1)
 
-    screen = open_screen(size)
-    lcd = LcdPanel()
+    try:
+        screen = open_screen(size)
+    except pygame.error as e:
+        no_hdmi(lcd, str(e))
+        return
     tones = TonePlayer(args.audio_device)
     patterns = all_patterns()
     idx, frame, show_info = 0, 0, False
@@ -140,19 +178,16 @@ def run(args) -> None:
             dirty = True
         if dirty:
             tone = tones.mode or "off"
-            lcd.show(pat.name, [
-                f"{size[0]}x{size[1]} @ {refresh or '?'} Hz ({fps_measured:.1f})",
-                f"Pattern {idx + 1}/{len(patterns)}  [{pat.category}]",
-                f"Tone: {tone}  {tones.dbfs:.0f} dBFS",
-            ], KEYS_HELP)
+            lcd.show(pat.name, status_lines(size, refresh, fps_measured, idx, len(patterns),
+                                            pat.category, tone, tones.dbfs), KEYS_HELP)
             dirty = False
 
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--size", help="HDMI resolution, e.g. 1920x1080 (default: display's preferred)")
-    ap.add_argument("--audio-device", default=os.environ.get("ZEROAV_AUDIO", "default"),
-                    help="ALSA device for tones, e.g. hdmi:CARD=vc4hdmi or plughw:0 (default: default)")
+    ap.add_argument("--audio-device", default=os.environ.get("ZEROAV_AUDIO"),
+                    help="ALSA device for tones (default: pipewire if present, else default)")
     ap.add_argument("--render-dir", help="render all patterns to PNG files here and exit")
     args = ap.parse_args(argv)
     if args.render_dir:

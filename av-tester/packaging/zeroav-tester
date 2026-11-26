@@ -1,0 +1,11 @@
+#!/bin/sh
+# APPLaunch entry point for the ZeroAVTools AV tester.
+# APPLaunch runs Exec without a shell, so environment setup lives here.
+APP_DIR=/usr/share/APPLaunch/lib/zeroav-tester
+cd "$APP_DIR" || exit 1
+export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-kmsdrm}"
+export PYGAME_HIDE_SUPPORT_PROMPT=1
+# PipeWire session runtime, so tones reach the sound hardware it owns
+[ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+exec python3 -m zeroav.app "$@"

@@ -1,0 +1,28 @@
+{
+  "package_name": "zeroav-tester",
+  "version": "0.1.0",
+  "app_name": "AV Tester",
+  "bin_name": "zeroav-tester",
+  "description": "HDMI test patterns and audio test tones for AV installs",
+  "store": {
+    "summary": "HDMI test patterns and audio tones for AV setup and troubleshooting",
+    "description": "Turns the CardputerZero into a pocket AV test generator. Sends color bars, crosshatch, safe-area, ramps, solids, checkerboards and a judder test box over HDMI, with 1 kHz and left/right channel ID tones. Controlled from the keyboard with status on the built-in screen. Lip-sync measurement, EDID reader and SPL meter are coming.",
+    "categories": ["Tools"],
+    "screenshots": ["screenshots/lcd_0.png", "screenshots/lcd_1.png", "screenshots/lcd_2.png"],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": { "github": "TeddyPete", "display_name": "Ted" },
+    "share_code": "ZAVT",
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": false,
+      "additional_hardware": false,
+      "background_service": false,
+      "external_display": true
+    },
+    "locales": {}
+  }
+}

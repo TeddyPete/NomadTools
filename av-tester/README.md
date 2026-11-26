@@ -4,13 +4,36 @@ HDMI test patterns and audio test tones for the CardputerZero, run from the keyb
 status on the built-in screen. Lip-sync measurement, EDID reader, SPL meter, saved reports
 and a phone/web page for reports come next.
 
-## Install (on the CardputerZero)
+## Install as a launcher app (on the CardputerZero)
+
+The app installs like a Store app: it appears on the HOME screen as **AV Tester**.
 
 ```bash
 git clone https://github.com/TeddyPete/ZeroAVTools.git
 cd ZeroAVTools/av-tester
-./scripts/install.sh
+sudo apt install python3-pygame python3-numpy dpkg-dev
+./scripts/build_deb.sh                        # -> build/zeroav-tester_<ver>_all.deb
+sudo apt install ./build/zeroav-tester_*_all.deb
 ```
+
+Open **AV Tester** from HOME. Hold Esc for 2 s (or press Q) to return to the launcher.
+Uninstall with `sudo apt remove zeroav-tester`.
+
+## Publishing to the CardputerZero Store
+
+`app-builder.json` holds the Store listing (summary, category, screenshots, icon, license,
+share code `ZAVT`, permissions). To publish, use M5Stack's
+[AppBuilder](https://github.com/CardputerZero/AppBuilder) `czdev` tool from this folder:
+
+```bash
+./czdev login                                          # GitHub device login, once
+./czdev publish --deb build/zeroav-tester_0.1.0_all.deb  # opens a review PR
+```
+
+An M5Stack admin reviews and merges; then it shows in the Store.
+Regenerate the icon and screenshots with `python3 scripts/make_assets.py`.
+
+## Install for development
 
 ## First: check the device
 
@@ -21,14 +44,14 @@ cd ZeroAVTools/av-tester
 This lists HDMI modes, the connected display's EDID, audio devices and camera modes.
 Nothing is changed.
 
-## Run
+## Run from a shell (development)
 
-Run from the console (not inside a desktop session), with an HDMI display connected:
+Stop the launcher first (`systemctl --user stop APPLaunch.service`), connect an HDMI display, then:
 
 ```bash
 python3 -m zeroav.app                                  # display's preferred mode
 python3 -m zeroav.app --size 1280x720                  # pick a resolution
-python3 -m zeroav.app --audio-device hdmi:CARD=vc4hdmi # tones to HDMI audio
+python3 -m zeroav.app --audio-device pipewire         # tones through PipeWire (default when present)
 ```
 
 ## Keys

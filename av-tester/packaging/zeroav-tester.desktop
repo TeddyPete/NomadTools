@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=AV Tester
+Exec=bin/zeroav-tester
+Terminal=false
+Icon=share/images/zeroav-tester.png
+Type=Application

@@ -42,9 +42,19 @@ def block_for(mode: str, freq: float = 1000.0, dbfs: float = -20.0) -> bytes:
     raise ValueError(mode)
 
 
+def pick_device() -> str:
+    """On the stock CardputerZero image PipeWire owns the sound hardware, so
+    the 'pipewire' ALSA device is the one that works; elsewhere use default."""
+    try:
+        names = subprocess.run(["aplay", "-L"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return "default"
+    return "pipewire" if any(l.strip() == "pipewire" for l in names.splitlines()) else "default"
+
+
 class TonePlayer:
-    def __init__(self, device: str = "default"):
-        self.device = device
+    def __init__(self, device: str | None = None):
+        self.device = device or pick_device()
         self.mode: str | None = None
         self.dbfs = -20.0
         self._proc: subprocess.Popen | None = None

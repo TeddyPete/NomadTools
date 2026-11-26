@@ -17,7 +17,12 @@ PANEL_SIZES = {(320, 170), (170, 320)}
 
 
 def find_lcd_fb() -> tuple[str, int, int, int] | None:
-    override = os.environ.get("ZEROAV_LCD_FB")
+    # APPLaunch tells apps which framebuffer is the LCD; honour that first.
+    override = (os.environ.get("ZEROAV_LCD_FB")
+                or os.environ.get("APPLAUNCH_LINUX_FBDEV_DEVICE")
+                or os.environ.get("LV_LINUX_FBDEV_DEVICE"))
+    if override:
+        override = os.path.realpath(override)
     for sysdir in sorted(glob.glob("/sys/class/graphics/fb*")):
         dev = "/dev/" + os.path.basename(sysdir)
         try:
@@ -31,11 +36,12 @@ def find_lcd_fb() -> tuple[str, int, int, int] | None:
 
 
 class LcdPanel:
-    def __init__(self):
-        found = find_lcd_fb()
+    def __init__(self, headless: bool = False):
+        found = None if headless else find_lcd_fb()
         self.dev = None
         if found:
             self.dev, self.fw, self.fh, self.bpp = found
+        self.headless = headless
         self.size = (320, 170)
         self.surf = pygame.Surface(self.size)
         self._last_text: list[str] = []
@@ -55,8 +61,14 @@ class LcdPanel:
             s.blit(self.font.render(hint[:42], True, (150, 200, 255)), (6, 150))
         self._flush([title, *lines, hint])
 
+    def save(self, path: str) -> None:
+        """Write the current panel image to a PNG (used for store screenshots)."""
+        pygame.image.save(self.surf, path)
+
     def _flush(self, text: list[str]) -> None:
         if not self.dev:
+            if self.headless:
+                return
             if text != self._last_text:
                 print(" | ".join(t for t in text if t), flush=True)
                 self._last_text = text
