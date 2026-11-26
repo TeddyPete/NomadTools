@@ -277,7 +277,11 @@ class Output:
         self.line(text, DIM)
 
     def item(self, text: str, payload, color=WHITE) -> None:
-        self.line(text, color, payload)
+        """A pickable row. A "\n" in text keeps it one row that shows on two
+        lines (one cursor step per device)."""
+        with self.lock:
+            self.lines.append(Line(str(text), color, payload))
+            self.version += 1
 
     def set_status(self, text: str) -> None:
         with self.lock:
@@ -469,7 +473,15 @@ class Painter:
         wrap = self.wrap and not wide and not v.hscroll
 
         def chunks(i):
-            text = as_line(lines[i]).text.replace("\t", "    ")
+            raw = as_line(lines[i]).text.replace("\t", "    ")
+            if "\n" in raw:
+                if wide:
+                    raw = raw.replace("\n", "  ")
+                else:
+                    return [c for part in raw.split("\n") for c in one(part)]
+            return one(raw)
+
+        def one(text):
             if not wide and v.hscroll:
                 text = text[v.hscroll:]
             if not wrap or len(text) <= cols:

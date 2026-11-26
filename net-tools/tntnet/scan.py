@@ -170,9 +170,10 @@ def scan(out, iface: str = "") -> list[Host]:
     gw = util.default_gateway(i.name)
     for h in hosts:
         tag = " GW" if h.ip == gw else ""
-        line = f"{h.ip:15} {h.mac or '?':17} {(h.vendor or '?')[:22]:22} {h.name}{tag}"
+        sub = f"\n  {h.mac or '?':17} {(h.vendor or '?')[:11]}"   # fits one LCD row
+        line = f"{h.ip:15} {h.name}{tag}" + sub
         if h.dup:
-            out.item(line + "  DUPLICATE IP!", h, (255, 95, 95))
+            out.item(f"{h.ip:15} DUPLICATE IP! {h.name}{tag}" + sub, h, (255, 95, 95))
         else:
             out.item(line, h)
     return hosts
@@ -181,3 +182,14 @@ def scan(out, iface: str = "") -> list[Host]:
 def util_dim():
     from .ui import DIM
     return DIM
+
+
+def find_all(out, iface: str = "") -> list[Host]:
+    """Your own network settings (IP, mask, gateway, DNS, DHCP...) followed by
+    every device on the subnet."""
+    from . import basics
+    basics.basics(out)
+    if out.stopped:
+        return []
+    out.head("Devices on this subnet")
+    return scan(out, iface)

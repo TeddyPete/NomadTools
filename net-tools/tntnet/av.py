@@ -627,7 +627,7 @@ def find_av(out, iface: str = "") -> None:
             cur = b
         name = extra.get(h.ip, {}).get("name") or h.name
         h.name = name or h.name
-        out.item(f"{h.ip:15} {(r.get('model') or '?')[:22]:22} {name}", ("dev", b, h))
+        out.item(f"{h.ip:15} {name}\n  {(r.get('model') or '?')[:28]}", ("dev", b, h))
         pn = [f"{p} {PORT_NAMES.get(p, '')}".strip() for p in r["ports"]]
         out.dim(f"   {h.mac}  ports: {', '.join(pn) or 'none open'}")
         shown += 1

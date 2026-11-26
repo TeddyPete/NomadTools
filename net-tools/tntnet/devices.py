@@ -70,12 +70,47 @@ def crestron(out, ip: str, user: str = "", password: str = "", mode: str = "SSH"
             if out.stopped:
                 break
             c.send(cmd + "\r\n")
-            _show(out, cmd, c.read_until(CR_PROMPT, 12))
+            text = c.read_until(CR_PROMPT, 12)
+            _show(out, cmd, text)
+            if cmd == "IPTABLE":
+                iptable_summary(out, text)
         out.dim("(ERRLOG is not pulled automatically; use the terminal if you need it)")
     except OSError as e:
         out.bad(f"Connection failed: {e}")
     finally:
         c.close()
+
+
+def parse_iptable(text: str) -> list[dict]:
+    """Rows of a Crestron IPTABLE: CIP_ID |Type |Status |DevID |Port |IP Address/SiteName"""
+    rows = []
+    for l in text.replace("\r", "").split("\n"):
+        if "|" not in l or not re.search(r"(?i)\b(online|offline)\b", l):
+            continue
+        parts = [p.strip() for p in l.split("|")]
+        status = next((p for p in parts if p.upper() in ("ONLINE", "OFFLINE")), "")
+        addr = parts[-1] if parts else ""
+        rows.append({"id": parts[0], "type": parts[1] if len(parts) > 1 else "",
+                     "online": status.upper() == "ONLINE", "addr": addr})
+    return rows
+
+
+def iptable_summary(out, text: str) -> None:
+    rows = parse_iptable(text)
+    if not rows:
+        return
+    on = [r for r in rows if r["online"]]
+    off = [r for r in rows if not r["online"]]
+    out.head(f"IP table: {len(on)} online, {len(off)} offline")
+    for r in off:
+        ip = r["addr"]
+        reach = ""
+        if re.match(r"^\d+\.\d+\.\d+\.\d+$", ip):
+            ok = "bytes from" in util.run(["ping", "-c", "1", "-W", "1", ip], 3)
+            reach = "  (answers ping)" if ok else "  (no ping)"
+        out.bad(f"OFFLINE  IP ID {r['id']:>4}  {r['type'][:6]:6} {ip}{reach}")
+    for r in on:
+        out.ok(f"online   IP ID {r['id']:>4}  {r['type'][:6]:6} {r['addr']}")
 
 
 # ------------------------------------------------------------------ Extron

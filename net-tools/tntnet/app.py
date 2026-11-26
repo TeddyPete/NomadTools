@@ -17,7 +17,7 @@ import pygame  # noqa: E402
 from . import keys, reports, store, util  # noqa: E402
 from .ui import DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.2.4"
+VERSION = "0.2.6"
 
 
 class App:
@@ -152,6 +152,15 @@ def do_scan(app):
         app.pop()
         app.task("IP scan", scan.scan, on_pick=pick_host, iface=ifc(v))
     app.push(Form("IP scan", [app.iface_field()], go, "Uses arp-scan; names via DNS, mDNS, NetBIOS"))
+
+
+def do_findall(app):
+    from . import scan
+
+    def go(v, app):
+        app.pop()
+        app.task("Find all devices", scan.find_all, on_pick=pick_host, iface=ifc(v))
+    app.push(Form("Find all devices", [app.iface_field()], go, "Your IP, gateway, DNS, then every device"))
 
 
 def do_findav(app):
@@ -424,6 +433,7 @@ class KeyTest(Screen):
 def main_menu(app) -> Menu:
     from . import terminal
     return Menu("TNT AV Net Tools", [
+        ("Find all devices", do_findall),
         ("Network basics", do_basics),
         ("Ping", do_ping),
         ("Traceroute", do_trace),
