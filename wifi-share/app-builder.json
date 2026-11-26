@@ -1,6 +1,6 @@
 {
   "package_name": "tnt-wifi-share",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "app_name": "TNT WiFi Share",
   "bin_name": "tnt-wifi-share",
   "description": "Share Wi-Fi to Ethernet, or Ethernet to a Wi-Fi hotspot",

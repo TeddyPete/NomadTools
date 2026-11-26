@@ -133,33 +133,68 @@ class Portal(unittest.TestCase):
 
 
 class UiFlow(unittest.TestCase):
-    def test_form_edit_and_save(self):
+    def test_form_edit_in_place_and_save(self):
         from tntshare import app as A
         from tntshare.keys import Key
         from tntshare.demo import fake_app
+        from tntshare.ui import nav_key
         app = fake_app()
-        saved = {}
         app.stack = []
         A.edit_hotspot(app)
         form = app.stack[-1]
-        # first row is SSID: edit it
-        app.stack[-1].key(Key("enter"))
-        ti = app.stack[-1]
+
+        def press(k):
+            top = app.stack[-1]
+            top.key(k if top.text_entry else nav_key(k))
+        press(Key("enter"))                 # OK on SSID: edit right there (red)
+        self.assertIs(app.stack[-1], form)
+        self.assertTrue(form.text_entry)
+        self.assertEqual(form.form.view()[0].state, "editing")
         for _ in range(30):
-            ti.key(Key("backspace"))
-        for ch in "RackNet":
-            ti.key(Key(ch, ch))
-        ti.key(Key("enter"))
+            press(Key("backspace"))
+        for ch in "fixed":                  # f and x type while editing
+            press(Key(ch, ch))
+        press(Key("enter"))                 # OK saves the field, back to moving
+        self.assertFalse(form.text_entry)
+        self.assertEqual(form.values["hs_ssid"], "fixed")
+        press(Key("right"))                 # Right also starts editing
+        press(Key("z", "z"))
+        press(Key("esc"))                   # ESC cancels the edit only
         self.assertIs(app.stack[-1], form)
-        self.assertEqual(form.values["hs_ssid"], "RackNet")
-        form.key(Key("s", "s"))  # S saves only on non-text rows; we're on the SSID row
-        self.assertIs(app.stack[-1], form)
-        for _ in range(4):
-            form.key(Key("down"))
-        form.key(Key("enter"))  # [ Save ]
-        self.assertEqual(app.cfg["hs_ssid"], "RackNet")
+        self.assertEqual(form.values["hs_ssid"], "fixed")
+        press(Key("x", "x"))                # plain X moves down
+        self.assertEqual(form.form.current.key, "hs_password")
+        press(Key("x", "x"))
+        press(Key("enter"))                 # choice field: OK cycles 6 -> 11
+        self.assertEqual(form.values["hs_channel"], "11")
+        press(Key("x", "x"))
+        press(Key("enter"))                 # ip field: letters are ignored
+        press(Key("a", "a"))
+        press(Key("esc"))
+        press(Key("x", "x"))
+        press(Key("enter"))                 # [ Save ]
+        self.assertEqual(app.cfg["hs_ssid"], "fixed")
+        self.assertEqual(app.cfg["hs_channel"], "11")
         for s in app.stack:
             s.rows()
+
+    def test_esc_with_changes_asks(self):
+        from tntshare import app as A
+        from tntshare.keys import Key
+        from tntshare.demo import fake_app
+        from tntshare.ui import Confirm
+        app = fake_app()
+        app.stack = [A.Home(app)]
+        A.edit_ethernet(app)
+        form = app.stack[-1]
+        form.key(Key("down"))  # DHCP server row (after header and IP/mask)
+        while form.form.current.kind != "bool":
+            form.key(Key("down"))
+        form.key(Key("enter"))
+        form.key(Key("esc"))
+        self.assertIsInstance(app.stack[-1], Confirm)
+        app.stack[-1].key(Key("esc"))       # discard
+        self.assertIsInstance(app.stack[-1], A.Home)
 
 
 class Nav(unittest.TestCase):
@@ -167,7 +202,7 @@ class Nav(unittest.TestCase):
         from tntshare import app as A
         from tntshare.keys import Key
         from tntshare.demo import fake_app
-        from tntshare.ui import TextInput, nav_key
+        from tntshare.ui import Prompt, nav_key
         app = fake_app()
         app.status["mode"] = None
         home = A.Home(app)
@@ -188,13 +223,14 @@ class Nav(unittest.TestCase):
         self.assertIs(app.stack[-1], home)
         # in a text field letters type
         got = []
-        app.push(TextInput(app, "t", "p", "", got.append))
+        app.push(Prompt(app, "t", "p", "", got.append))
         for ch in "fxzc":
             press(Key(ch, ch))
         press(Key("left"))
         press(Key("1", "1"))
         press(Key("enter"))
         self.assertEqual(got, ["fxz1c"])
+        self.assertIs(app.stack[-1], home)
         press(Key("esc"))             # ESC on the main page quits when not sharing
         self.assertTrue(app.quit)
 

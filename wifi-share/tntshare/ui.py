@@ -12,26 +12,14 @@ import time
 from . import lcd as L
 from .keys import Key
 
-# TNT key standard (all TNT apps): Up/Down move the highlight, OK (Enter) or
-# Right selects, Left backs out one level, Esc backs out (quits on the main
-# page). On the CardputerZero the arrows are Fn+F/X/Z/C.
-UP = {"up"}
-DOWN = {"down"}
-SELECT = {"enter", "right"}
-BACK = {"esc", "left"}
-
-# Outside text fields the bare arrow-legend keys also navigate (Ted's request).
-NAV_LETTERS = {"f": "up", "x": "down", "z": "left", "c": "right"}
+# TNT key standard and look live in tntui.py (shared by all TNT apps).
+from .tntui import BACK, DOWN, HINT_MENU, NAV_LETTERS, SELECT, UP, EditList, Field, nav_name  # noqa: E402,F401
 
 
 def nav_key(k: Key) -> Key:
-    """Turn plain F/X/Z/C into Up/Down/Left/Right (not used in text fields)."""
-    if k.char and not k.ctrl and k.char.lower() in NAV_LETTERS:
-        return Key(NAV_LETTERS[k.char.lower()])
-    return k
-
-
-HINT_MENU = "\u2191\u2193 move  OK/\u2192 open  \u2190/ESC back"
+    """Turn plain F/X/Z/C into Up/Down/Left/Right (not used while typing)."""
+    n = nav_name(k.name, k.char, k.ctrl)
+    return k if n == k.name else Key(n)
 
 
 class Screen:
@@ -150,63 +138,40 @@ class Confirm(Screen):
             self.app.pop()
 
 
-class TextInput(Screen):
-    text_entry = True
-    """One-line text entry. OK saves, ESC cancels, Left/Right move the cursor
-    (Left at the start of the line backs out, like a menu), DEL deletes."""
+class Prompt(Screen):
+    """Ask for one value. The field starts in edit mode (red): type, OK saves
+    and calls on_done(value), ESC cancels."""
 
-    def __init__(self, app, title: str, prompt: str, value: str, on_done, secret=False, help_text=""):
+    def __init__(self, app, title: str, label: str, value: str, on_done, secret=False, help_text=""):
         super().__init__(app)
-        self.title, self.prompt, self.value, self.on_done = title, prompt, value, on_done
-        self.secret = secret
-        self.help = help_text
-        self.pos = len(value)
-        self.hint = "OK save  ESC cancel" + ("  Tab show" if secret else "")
+        self.title, self.on_done, self.help = title, on_done, help_text
+        self.form = EditList([Field("v", label, "secret" if secret else "text", help=help_text, maxlen=128)],
+                             {"v": value})
+        self.form.start_edit()
+
+    @property
+    def text_entry(self):
+        return self.form.editing
+
+    @property
+    def hint(self):
+        return self.form.hint() if self.form.editing else "OK/→ edit  ESC back"
 
     def rows(self):
-        shown = "*" * len(self.value) if self.secret else self.value
-        on = int(time.monotonic() * 2) % 2 == 0
-        line = shown[:self.pos] + ("|" if on else " ") + shown[self.pos:]
-        # keep the cursor visible on long values
-        start = 0
-        while self.app.panel.text_width(line[start:self.pos + 1]) > 300 and start < self.pos:
-            start += 1
-        rows = [(self.prompt, L.DIM), (line[start:], L.WARN), ""]
-        rows += [(l, L.DIM) for l in wrap(self.app.panel, self.help)][:3]
+        rows = list(self.form.view())
+        rows += [""] + [(l, L.DIM) for l in wrap(self.app.panel, self.help)][:3]
         return rows, None
 
-    def tick(self):
-        self.app.dirty = True
-
     def key(self, k):
-        if k.name == "esc":
-            self.app.pop()
-        elif k.name == "enter":
-            self.app.pop()
-            self.on_done(self.value)
-        elif k.name == "left":
-            if self.pos == 0 and not self.value:
-                self.app.pop()
-            self.pos = max(0, self.pos - 1)
-        elif k.name == "right":
-            self.pos = min(len(self.value), self.pos + 1)
-        elif k.name == "home":
-            self.pos = 0
-        elif k.name == "end":
-            self.pos = len(self.value)
-        elif k.name == "backspace":
-            if self.pos:
-                self.value = self.value[:self.pos - 1] + self.value[self.pos:]
-                self.pos -= 1
-        elif k.name == "delete":
-            self.value = self.value[:self.pos] + self.value[self.pos + 1:]
-        elif k.name == "tab" and self.secret is not None:
-            self.secret = not self.secret
-        elif k.ctrl and k.char in ("u", "U"):
-            self.value, self.pos = "", 0
-        elif k.char and not k.ctrl and len(self.value) < 128:
-            self.value = self.value[:self.pos] + k.char + self.value[self.pos:]
-            self.pos += 1
+        ev = self.form.handle(k)
+        if ev == "changed:v":
+            self.app.pop(self)
+            self.on_done(self.form.values["v"])
+        elif ev in ("cancel:v", "back"):
+            self.app.pop(self)
+
+
+TextInput = Prompt  # old name
 
 
 class Busy(Screen):
@@ -244,61 +209,39 @@ class Busy(Screen):
 
 
 class Form(Screen):
-    """Edit a set of settings. fields: (key, label, kind[, choices]) where kind
-    is text | ip | mask | secret | bool | choice | header."""
+    """Settings list edited in place (TNT standard, see tntui.py).
+    fields: (key, label, kind[, extra[, visible_cond]]) where kind is
+    text | ip | mask | secret | bool | choice | header; extra is the help
+    text, the choice list, or the (on, off) names for a bool."""
 
     def __init__(self, app, title: str, fields: list, values: dict, on_save, validate=None):
         super().__init__(app)
-        self.title, self.fields, self.on_save, self.validate = title, fields, on_save, validate
-        self.values = dict(values)
-        self.orig = dict(values)
-        self.items = [f for f in fields]
-        self.items.append(("__save", "Save", "action"))
-        self.sel = next(i for i, f in enumerate(self.items) if f[2] != "header")
-        self.top = 0
-        self.hint = "OK/\u2192 change  \u2190/ESC back"
+        self.title, self.on_save, self.validate = title, on_save, validate
+        conv = []
+        for f in fields:
+            key, label, kind = f[0], f[1], f[2]
+            extra = f[3] if len(f) > 3 else None
+            cond = f[4] if len(f) > 4 else None
+            conv.append(Field(key or f"_h{len(conv)}", label, kind,
+                              choices=extra if isinstance(extra, (list, tuple)) else (),
+                              help=extra if isinstance(extra, str) else "", visible=cond))
+        conv.append(Field("__save", "Save", "action"))
+        self.form = EditList(conv, values)
 
-    def visible(self, f) -> bool:
-        cond = f[4] if len(f) > 4 else None
-        return cond is None or cond(self.values)
+    @property
+    def values(self):
+        return self.form.values
 
-    def shown_items(self):
-        return [f for f in self.items if self.visible(f)]
+    @property
+    def text_entry(self):
+        return self.form.editing
 
-    def fmt(self, f) -> str:
-        key, kind = f[0], f[2]
-        v = self.values.get(key)
-        if kind == "bool":
-            names = f[3] if len(f) > 3 and isinstance(f[3], tuple) else ("On", "Off")
-            return names[0] if v else names[1]
-        if kind == "header" or kind == "action":
-            return ""
-        return str(v)
+    @property
+    def hint(self):
+        return self.form.hint()
 
     def rows(self):
-        items = self.shown_items()
-        self.sel = min(self.sel, len(items) - 1)
-        rows = []
-        for f in items:
-            if f[2] == "header":
-                rows.append((f[1], L.WARN))
-            elif f[2] == "action":
-                rows.append(("[ Save ]", L.OK))
-            else:
-                rows.append(("  " + f[1], L.FG, self.fmt(f)))
-        n = L.Panel.ROWS
-        if self.sel < self.top:
-            self.top = self.sel
-        if self.sel >= self.top + n:
-            self.top = self.sel - n + 1
-        return rows[self.top:self.top + n], self.sel - self.top
-
-    def _move(self, d):
-        items = self.shown_items()
-        for _ in range(len(items)):
-            self.sel = (self.sel + d) % len(items)
-            if items[self.sel][2] != "header":
-                break
+        return self.form.view(), None
 
     def save(self):
         err = self.validate(self.values) if self.validate else None
@@ -309,36 +252,13 @@ class Form(Screen):
         self.on_save(self.values)
 
     def key(self, k):
-        items = self.shown_items()
-        f = items[self.sel]
-        if k.name in UP:
-            self._move(-1)
-        elif k.name in DOWN:
-            self._move(1)
-        elif k.char in ("s", "S") and k.ctrl is False and f[2] in ("bool", "choice", "action", "header"):
+        ev = self.form.handle(k)
+        if ev == "action:__save":
             self.save()
-        elif k.name in SELECT or (k.char == " " and f[2] in ("bool", "choice")):
-            kind = f[2]
-            if kind == "action":
-                self.save()
-            elif kind == "bool":
-                self.values[f[0]] = not self.values[f[0]]
-            elif kind == "choice":
-                ch = f[3]
-                cur = str(self.values[f[0]])
-                self.values[f[0]] = ch[(ch.index(cur) + 1) % len(ch)] if cur in ch else ch[0]
-            elif kind != "header":
-                def done(v, key=f[0]):
-                    self.values[key] = v.strip() if f[2] != "secret" else v
-                self.app.push(TextInput(self.app, self.title, f[1], str(self.values[f[0]]), done,
-                                        secret=False if f[2] == "secret" else None,
-                                        help_text=f[3] if len(f) > 3 and isinstance(f[3], str) else ""))
-        elif k.name in BACK:
-            if self.values != self.orig:
-                self.app.push(Confirm(self.app, "Unsaved changes", "Save your changes?",
-                                      self.save, yes="OK save", no="ESC discard"))
-                # Esc on the confirm discards: pop this form too
-                conf = self.app.stack[-1]
+        elif ev == "back":
+            if self.form.changed:
+                conf = Confirm(self.app, "Unsaved changes", "Save your changes?",
+                               self.save, yes="OK save", no="ESC discard")
                 orig_key = conf.key
 
                 def k2(kk, conf=conf, orig_key=orig_key):
@@ -348,6 +268,7 @@ class Form(Screen):
                     else:
                         orig_key(kk)
                 conf.key = k2
+                self.app.push(conf)
             else:
                 self.app.pop(self)
 

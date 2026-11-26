@@ -17,15 +17,10 @@ import pygame  # noqa: E402
 PANEL_SIZES = {(320, 170), (170, 320)}
 W, H = 320, 170
 
-BG = (8, 10, 16)
-BAR = (150, 40, 20)       # TNT orange-red title bar
-FG = (232, 232, 232)
-DIM = (140, 150, 165)
-SEL_BG = (40, 80, 150)
-OK = (110, 220, 120)
-WARN = (255, 200, 90)
-BAD = (255, 110, 100)
-HINT = (150, 200, 255)
+from . import tntui as T  # noqa: E402  (shared TNT look: green title, blue select, red edit)
+
+BG, FG, DIM, OK, WARN, BAD = T.BG, T.FG, T.DIM, T.OK, T.WARN, T.BAD
+BAR, SEL_BG, HINT = T.TITLE_BG, T.SEL_BG, T.HINT_FG
 
 
 def find_lcd_fb():
@@ -45,21 +40,8 @@ def find_lcd_fb():
     return None
 
 
-FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-              "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
-
-
-def _font(size: int) -> "pygame.font.Font":
-    for p in FONT_PATHS:
-        if os.path.exists(p):
-            return pygame.font.Font(p, size)
-    return pygame.font.Font(None, int(size * 1.35))
-
-
 class Panel:
-    # Big, readable text: 6 rows of 17 px bold between a title and a key-hint bar.
-    TITLE_H, ROW_H, HINT_H = 26, 20, 19
-    ROWS = (H - TITLE_H - HINT_H - 2) // ROW_H  # 6 rows
+    TITLE_H, ROW_H, HINT_H, ROWS = T.TITLE_H, T.ROW_H, T.HINT_H, T.ROWS
 
     def __init__(self, headless: bool = False):
         pygame.font.init()
@@ -68,9 +50,8 @@ class Panel:
         if found:
             self.dev, self.fw, self.fh, self.bpp = found
         self.surf = pygame.Surface((W, H))
-        self.f_title = _font(19)
-        self.f = _font(17)
-        self.f_small = _font(14)
+        self.fonts = T.fonts()
+        self.f = self.fonts["row"]
         self._last = None
 
     def text_width(self, s: str) -> int:
@@ -78,31 +59,8 @@ class Panel:
 
     def draw(self, title: str, rows: list, hint: str = "", selected: int | None = None,
              right: str = "") -> None:
-        """rows: list of str or (text, color) or (text, color, right_text)."""
-        s = self.surf
-        s.fill(BG)
-        s.fill(BAR, (0, 0, W, self.TITLE_H))
-        s.blit(self.f_title.render(title, True, (255, 255, 255)), (6, 2))
-        if right:
-            img = self.f_small.render(right, True, (255, 230, 200))
-            s.blit(img, (W - img.get_width() - 6, 5))
-        y = self.TITLE_H + 1
-        for i, row in enumerate(rows[: self.ROWS]):
-            if isinstance(row, str):
-                row = (row, FG)
-            text, color = row[0], row[1]
-            rtext = row[2] if len(row) > 2 else ""
-            if selected is not None and i == selected:
-                s.fill(SEL_BG, (0, y, W, self.ROW_H))
-            s.blit(self.f.render(text, True, color), (6, y + 1), (0, 0, W - 12, self.ROW_H))
-            if rtext:
-                img = self.f.render(rtext, True, DIM if i != selected else FG)
-                s.fill(SEL_BG if selected == i else BG, (W - img.get_width() - 10, y, img.get_width() + 10, self.ROW_H))
-                s.blit(img, (W - img.get_width() - 6, y + 1))
-            y += self.ROW_H
-        if hint:
-            s.fill((24, 28, 40), (0, H - self.HINT_H, W, self.HINT_H))
-            s.blit(self.f_small.render(hint, True, HINT), (6, H - self.HINT_H + 1))
+        """rows: tntui.RowView, str, (text, color) or (text, color, right_text)."""
+        T.render(self.surf, title, rows, hint, selected, right, self.fonts)
         self.flush()
 
     def save(self, path: str) -> None:

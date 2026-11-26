@@ -10,7 +10,7 @@ from . import lcd as L
 from . import net, portal
 from . import settings as S
 from .keys import Key, Keyboard
-from .ui import BACK, SELECT, Busy, Confirm, Form, Menu, Message, Screen, TextInput, nav_key, wrap
+from .ui import BACK, SELECT, Busy, Confirm, Form, Menu, Message, Screen, Prompt, nav_key, wrap
 
 APP_TITLE = "TNT WiFi Share"
 
@@ -316,16 +316,16 @@ class WifiList(Menu):
             if "802.1X" in n["security"] or "EAP" in n["security"]:
                 app.push(Message(app, n["ssid"], "Enterprise (802.1X) Wi-Fi isn't supported yet.", L.WARN))
                 return
-            app.push(TextInput(app, n["ssid"][:24], f"Password for {n['ssid'][:22]}", "",
+            app.push(Prompt(app, n["ssid"][:24], f"Password for {n['ssid'][:22]}", "",
                                lambda pw: do_join(app, n["ssid"], pw), secret=True,
-                               help_text="Tab shows/hides the password."))
+                               help_text="Type the password, then OK to join."))
         else:
             do_join(app, n["ssid"], "")
 
     def hidden(self):
         app = self.app
-        app.push(TextInput(app, "Hidden network", "Network name (SSID)", "",
-                           lambda ssid: ssid and app.push(TextInput(
+        app.push(Prompt(app, "Hidden network", "Network name (SSID)", "",
+                           lambda ssid: ssid and app.push(Prompt(
                                app, ssid[:24], "Password (empty if open)", "",
                                lambda pw: do_join(app, ssid, pw, hidden=True), secret=True))))
 
@@ -446,7 +446,7 @@ class PortalPage(Menu):
     def edit(self, f):
         def done(v):
             f.value = v
-        self.app.push(TextInput(self.app, self.title, f.label or f.name, f.value, done,
+        self.app.push(Prompt(self.app, self.title, f.label or f.name, f.value, done,
                                 secret=True if f.kind == "password" else None,
                                 help_text="As asked by the guest Wi-Fi page."))
 

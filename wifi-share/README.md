@@ -21,17 +21,20 @@ Gets a standalone AV rack online from the M5Stack CardputerZero, all from its ke
 7. **Hotspot settings**: SSID, password, channel, Pi address.
 8. **Stop sharing**: back to the normal network.
 
-Keys (TNT standard, same in every TNT app):
+Keys and colors (TNT standard, same in every TNT app; the shared code is `tntshare/tntui.py`):
 
 | Key on the CardputerZero | Does |
 | --- | --- |
-| Fn+F / Fn+X (or plain F / X outside text fields) | Up / Down |
-| OK, or Fn+C (plain C) | Open / select / change |
-| Fn+Z (plain Z) | Back one level |
+| F / X (no Fn needed), or Fn+F / Fn+X | Up / Down |
+| OK, or C / Fn+C (Right) | Open, select, or start editing a field |
+| Z / Fn+Z (Left) | Back one level |
 | ESC/HOME, short press | Back one level; on the main page, quit (asks first only while sharing). Hold it to exit to HOME. |
 | 1-8 | Jump to a menu item |
 
-In text fields letters type normally: OK saves, ESC cancels, Fn+Z / Fn+C move the cursor, DEL deletes, Tab shows a password.
+The title bar is green and the highlighted row is blue. Editing happens right in the list: OK (or Right) on a
+field turns the row red and every key types, including F/X/Z/C. OK saves the field and gives the arrow letters
+back; ESC cancels the edit. Fn+Z / Fn+C move the cursor, DEL deletes. On On/Off and choice rows OK just flips
+the value. IP fields only take digits and dots.
 Dots, dashes and other symbols come from the Sym layer as printed on the keys (Sym+B = `.`, Sym+R = `-`, Sym+N = `/`).
 
 ## Safe by design
