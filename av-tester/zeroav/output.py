@@ -44,9 +44,9 @@ class HdmiOutput:
         if mode:
             size = mode.size
         if self.fullscreen_desktop:
-            self.window = Window("AV Tester", size=size, fullscreen_desktop=True)
+            self.window = Window("TNT AV Tester", size=size, fullscreen_desktop=True)
         else:
-            self.window = Window("AV Tester", size=size, fullscreen=True)
+            self.window = Window("TNT AV Tester", size=size, fullscreen=True)
         # Pick the exact refresh rate before the renderer starts.
         self.mode_set = bool(mode) and sdlmodes.set_mode(self.window.id, self.display, mode)
         try:

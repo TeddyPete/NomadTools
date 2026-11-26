@@ -1,4 +1,4 @@
-"""ZeroAV tester: HDMI test patterns and tones, run from the keyboard,
+"""TNT AV Tester: HDMI test patterns and tones, run from the keyboard,
 with status on the built-in LCD.
 
 Run on the device (from the console, not a desktop session):
@@ -16,7 +16,7 @@ import time
 
 KEYS_HELP = "</> pattern  T tone  M mode  E EDID  Q quit"
 EDID_HELP = "Up/Dn scroll  S save  E back"
-REPORT_DIR = os.path.expanduser("~/.local/share/zeroav/reports")
+REPORT_DIR = os.path.expanduser("~/.local/share/tnt-av-tester/reports")
 
 
 def parse_size(s: str) -> tuple[int, int]:
@@ -79,7 +79,7 @@ def save_edid_report(info, modes) -> str:
     name = (info.name or info.vendor_id or "display").replace(" ", "_").replace("/", "-") if info else "none"
     base = os.path.join(REPORT_DIR, f"edid-{stamp}-{name}")
     with open(base + ".txt", "w") as f:
-        f.write(f"AV Tester EDID report  {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write(f"TNT AV Tester EDID report  {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write(edid.text_report(info))
         if modes:
             f.write("\n== Modes this device can send ==\n")

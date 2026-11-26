@@ -1,19 +1,29 @@
 {
-  "package_name": "zeroav-tester",
-  "version": "0.3.0",
-  "app_name": "AV Tester",
-  "bin_name": "zeroav-tester",
+  "package_name": "tnt-av-tester",
+  "version": "0.3.1",
+  "app_name": "TNT AV Tester",
+  "bin_name": "tnt-av-tester",
   "description": "HDMI test patterns and audio test tones for AV installs",
   "store": {
-    "summary": "HDMI test patterns and audio tones for AV setup and troubleshooting",
-    "description": "Turns the CardputerZero into a pocket AV test generator. Sends color bars, crosshatch, safe-area, ramps, solids, checkerboards and a judder test box over HDMI, with 1 kHz and left/right channel ID tones. Controlled from the keyboard with status on the built-in screen. Lip-sync measurement, EDID reader and SPL meter are coming.",
-    "categories": ["Media", "Hardware & IoT"],
-    "screenshots": ["screenshots/lcd_0.png", "screenshots/lcd_1.png", "screenshots/lcd_2.png"],
+    "summary": "TNT AV Tester: HDMI patterns, tones and EDID reader for AV techs",
+    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Turns the CardputerZero into a pocket AV test generator: color bars, crosshatch, safe-area, ramps, solids, checkerboards and a judder test box over HDMI in every mode the display offers (exact refresh rates such as 59.94 and 23.98), 1 kHz and left/right channel ID tones, and a plain-English EDID reader (maker, model, modes, audio formats, HDR) on HDMI and the built-in screen. Lip-sync measurement and audio meters are coming.",
+    "categories": [
+      "Media",
+      "Hardware & IoT"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0.png",
+      "screenshots/lcd_1.png",
+      "screenshots/lcd_2.png"
+    ],
     "icon": "packaging/icon.png",
     "license": "MIT",
     "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
-    "author": { "github": "TeddyPete", "display_name": "Ted" },
-    "share_code": "ZAVT",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Tech Nomad Ted"
+    },
+    "share_code": "TNTA",
     "permissions": {
       "camera": false,
       "microphone": false,

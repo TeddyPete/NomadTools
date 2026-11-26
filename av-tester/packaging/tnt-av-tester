@@ -1,5 +1,5 @@
 #!/bin/sh
-# APPLaunch entry point for the ZeroAVTools AV tester.
+# APPLaunch entry point for the TNT AV Tester.
 # APPLaunch runs Exec without a shell, so environment setup lives here.
 #
 # Desktop handling: if the Pi desktop (lightdm) is running on HDMI, it owns
@@ -8,7 +8,7 @@
 # also brings the desktop back, because nothing is disabled permanently.
 # Pausing uses a polkit rule shipped with this package that lets the local
 # user stop/start lightdm.service only. Set ZEROAV_KEEP_DESKTOP=1 to skip.
-APP_DIR=/usr/share/APPLaunch/lib/zeroav-tester
+APP_DIR=/usr/share/APPLaunch/lib/tnt-av-tester
 cd "$APP_DIR" || exit 1
 export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
 [ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR="/run/user/$(id -u)"
@@ -21,12 +21,12 @@ paused=0
 if [ "${ZEROAV_KEEP_DESKTOP:-0}" != 1 ] && systemctl is-active --quiet "$DM" 2>/dev/null; then
   if systemctl --no-ask-password stop "$DM" 2>/dev/null; then
     paused=1
-    echo "zeroav-tester: desktop paused" >&2
+    echo "tnt-av-tester: desktop paused" >&2
     # let the compositor release HDMI
     i=0
     while [ $i -lt 20 ] && pgrep -x labwc >/dev/null 2>&1; do sleep 0.25; i=$((i + 1)); done
   else
-    echo "zeroav-tester: could not pause desktop; using a window on it" >&2
+    echo "tnt-av-tester: could not pause desktop; using a window on it" >&2
   fi
 fi
 
@@ -34,7 +34,7 @@ restore() {
   if [ "$paused" = 1 ]; then
     paused=0
     systemctl --no-ask-password start "$DM" 2>/dev/null \
-      && echo "zeroav-tester: desktop restored" >&2
+      && echo "tnt-av-tester: desktop restored" >&2
   fi
 }
 trap restore EXIT

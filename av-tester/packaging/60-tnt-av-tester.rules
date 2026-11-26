@@ -1,4 +1,4 @@
-// ZeroAVTools AV tester: let local users in the "video" group stop and
+// TNT AV Tester: let local users in the "video" group stop and
 // start the desktop (lightdm.service) without a password, so the tester can
 // pause the desktop while it drives HDMI and restore it on exit.
 // Nothing else is allowed: other units and other verbs are untouched.

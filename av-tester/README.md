@@ -1,4 +1,4 @@
-# AV tester
+# TNT AV Tester
 
 HDMI test patterns and audio test tones for the CardputerZero, run from the keyboard with
 status on the built-in screen. Lip-sync measurement, EDID reader, SPL meter, saved reports
@@ -6,35 +6,35 @@ and a phone/web page for reports come next.
 
 ## Install as a launcher app (on the CardputerZero)
 
-The app installs like a Store app: it appears on the HOME screen as **AV Tester**.
+The app installs like a Store app: it appears on the HOME screen as **TNT AV Tester**.
 
 ```bash
 git clone https://github.com/TeddyPete/ZeroAVTools.git
 cd ZeroAVTools/av-tester
 sudo apt install python3-pygame python3-numpy dpkg-dev
-./scripts/build_deb.sh                        # -> build/zeroav-tester_<ver>_all.deb
-sudo apt install ./build/zeroav-tester_*_all.deb
+./scripts/build_deb.sh                        # -> build/tnt-av-tester_<ver>_all.deb
+sudo apt install ./build/tnt-av-tester_*_all.deb
 ```
 
-Open **AV Tester** from HOME. Hold Esc for 2 s (or press Q) to return to the launcher.
+Open **TNT AV Tester** from HOME. Hold Esc for 2 s (or press Q) to return to the launcher.
 
-If the Pi desktop is running on HDMI, AV Tester pauses it while it runs so it can set HDMI
+If the Pi desktop is running on HDMI, TNT AV Tester pauses it while it runs so it can set HDMI
 resolution and refresh itself, then starts the desktop again when you quit. A reboot always
 brings the desktop back. To keep the desktop up and show patterns in a window on it instead,
 set `ZEROAV_KEEP_DESKTOP=1`. The package installs a small polkit rule
-(`/usr/share/polkit-1/rules.d/60-zeroav-tester.rules`) that lets local users in the `video`
+(`/usr/share/polkit-1/rules.d/60-tnt-av-tester.rules`) that lets local users in the `video`
 group stop and start `lightdm.service` only, with no password.
-Uninstall with `sudo apt remove zeroav-tester`.
+Uninstall with `sudo apt remove tnt-av-tester`.
 
 ## Publishing to the CardputerZero Store
 
 `app-builder.json` holds the Store listing (summary, category, screenshots, icon, license,
-share code `ZAVT`, permissions). To publish, use M5Stack's
+share code `TNTA`, permissions). To publish, use M5Stack's
 [AppBuilder](https://github.com/CardputerZero/AppBuilder) `czdev` tool from this folder:
 
 ```bash
 ./czdev login                                          # GitHub device login, once
-./czdev publish --deb build/zeroav-tester_0.1.0_all.deb  # opens a review PR
+./czdev publish --deb build/tnt-av-tester_<ver>_all.deb  # opens a review PR
 ```
 
 An M5Stack admin reviews and merges; then it shows in the Store.
@@ -75,7 +75,7 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 | `e` | Display EDID: maker, model, serial, build date, size, native mode, all modes, audio, HDR, color depth. Shown on HDMI and, scrollable, on the small screen |
 | `e` view: Up / Down | Scroll the small screen |
 | `e` view: Left / Right | Turn the HDMI page when it doesn't all fit |
-| `e` view: `s` | Save the EDID report (text plus raw `.bin`) to `~/.local/share/zeroav/reports/` |
+| `e` view: `s` | Save the EDID report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
 | `q` / Esc | Quit |
 
 ## Patterns

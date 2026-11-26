@@ -5,7 +5,7 @@ a pocket Raspberry Pi CM0 Linux handheld with HDMI out, a camera, a mic and a ke
 
 | Tool | Folder | Status |
 | --- | --- | --- |
-| AV tester: HDMI test patterns, tones, lip-sync meter | [`av-tester/`](av-tester/) | In progress |
+| TNT AV Tester: HDMI test patterns, tones, EDID reader, lip-sync meter | [`av-tester/`](av-tester/) | In progress |
 | Network tools | (planned) | Not started |
 
 Each tool lives in its own folder with its own README and install steps.
