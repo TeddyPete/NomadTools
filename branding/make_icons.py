@@ -41,6 +41,7 @@ FUSE = (235, 220, 190)
 SPARK = (255, 210, 60)
 SPARK_HOT = (255, 255, 220)
 WIFI_ARC = (255, 200, 60)
+STICK_END = (245, 215, 170)
 
 S = 8  # supersample factor
 
@@ -73,55 +74,59 @@ def _star(draw, cx, cy, r_out, r_in, points, fill):
 
 
 def _dynamite(draw, x0, y0, w, h, wifi=False):
-    """Three upright sticks in box (x0, y0, w, h), fuse and spark above.
-    wifi=True adds Wi-Fi arcs radiating out of the lit fuse."""
-    spark_h = h * 0.30
-    sy0 = y0 + spark_h          # top of sticks
-    sw = w / 3.0
-    gap = sw * 0.08
-    rad = sw * 0.22
+    """Classic bundle: three horizontal sticks stacked in box (x0, y0, w, h),
+    tied with two bands, fuse out of the right end of the middle stick and a
+    spark at its tip. wifi=True adds Wi-Fi arcs radiating out of the spark."""
+    body_w = w * 0.74
+    sh = h / 3.0                 # stick height
+    gap = sh * 0.06
+    cap = sh * 0.42              # depth of the rounded end caps
     for k in range(3):
-        lx = x0 + k * sw + gap / 2
-        rx = lx + sw - gap
-        # middle stick sits a little higher, like a bundle
-        top = sy0 + (0 if k == 1 else h * 0.05)
-        bot = y0 + h
-        draw.rounded_rectangle((lx, top, rx, bot), radius=rad, fill=STICK)
-        # shading: highlight stripe left, shadow right
-        hw = (rx - lx)
-        draw.rounded_rectangle((lx + hw * 0.14, top + rad * 0.6,
-                                lx + hw * 0.32, bot - rad * 0.6),
-                               radius=hw * 0.09, fill=STICK_HI)
-        draw.rectangle((rx - hw * 0.18, top + rad, rx - 1, bot - rad),
-                       fill=STICK_LO)
-    # two binding bands across the bundle
-    for frac in (0.22, 0.70):
-        by = sy0 + (y0 + h - sy0) * frac
-        bh = h * 0.07
-        draw.rectangle((x0, by, x0 + w, by + bh), fill=BAND)
-    # fuse: from top of middle stick curving up and right
-    fx, fy = x0 + w / 2, sy0
+        top = y0 + k * sh + gap / 2
+        bot = top + sh - gap
+        lx, rx = x0, x0 + body_w
+        draw.rounded_rectangle((lx, top, rx, bot), radius=(bot - top) / 2,
+                               fill=STICK)
+        th = bot - top
+        # highlight along the top, shadow along the bottom
+        draw.rounded_rectangle((lx + cap * 0.6, top + th * 0.14,
+                                rx - cap * 0.6, top + th * 0.32),
+                               radius=th * 0.09, fill=STICK_HI)
+        draw.rectangle((lx + cap * 0.6, bot - th * 0.20, rx - cap * 0.6,
+                        bot - th * 0.04), fill=STICK_LO)
+        # paper end showing on the right
+        draw.ellipse((rx - cap * 1.1, top + th * 0.06, rx - th * 0.04,
+                      bot - th * 0.06), fill=STICK_END)
+    # two binding bands around the bundle
+    for frac in (0.28, 0.66):
+        bx = x0 + body_w * frac
+        bw = body_w * 0.07
+        draw.rectangle((bx, y0 - h * 0.02, bx + bw, y0 + h + h * 0.02),
+                       fill=BAND)
+    # fuse: out of the middle stick's right end, curling up and right
+    fx, fy = x0 + body_w - cap * 0.55, y0 + h / 2
+    room_w = x0 + w - fx
     pts = []
     for i in range(41):
         t = i / 40
-        px = fx + w * 0.30 * t + w * 0.06 * math.sin(t * math.pi)
-        py = fy - spark_h * 0.62 * t - spark_h * 0.12 * math.sin(t * math.pi * 2)
+        px = fx + room_w * 0.50 * t
+        py = fy - h * 0.42 * t * t + h * 0.06 * math.sin(t * math.pi)
         pts.append((px, py))
-    draw.line(pts, fill=FUSE, width=int(w * 0.055), joint="curve")
+    draw.line(pts, fill=FUSE, width=int(h * 0.075), joint="curve")
     ex, ey = pts[-1]
-    # spark burst at the fuse end
-    _star(draw, ex, ey, spark_h * 0.46, spark_h * 0.18, 8, SPARK)
-    _star(draw, ex, ey, spark_h * 0.28, spark_h * 0.11, 8, SPARK_HOT)
-    for a, d in ((-150, 0.78), (-35, 0.85), (20, 0.70), (-95, 0.88)):
-        rr = spark_h * d
+    sp = h * 0.24
+    _star(draw, ex, ey, sp * 0.95, sp * 0.36, 8, SPARK)
+    _star(draw, ex, ey, sp * 0.55, sp * 0.22, 8, SPARK_HOT)
+    for a, d in ((-150, 1.35), (-40, 1.45), (25, 1.25), (-95, 1.5)):
+        rr = sp * d
         px = ex + rr * math.cos(math.radians(a))
         py = ey + rr * math.sin(math.radians(a))
-        dot = spark_h * 0.07
+        dot = sp * 0.13
         draw.ellipse((px - dot, py - dot, px + dot, py + dot), fill=SPARK)
     if wifi:
-        aim, half = 8, 38  # pointing out to the right
-        lw = w * 0.08
-        for r in (w * 0.28, w * 0.45, w * 0.62):
+        aim, half = -10, 36  # out to the right of the spark
+        lw = h * 0.09
+        for r in (h * 0.36, h * 0.56, h * 0.76):
             draw.arc((ex - r, ey - r, ex + r, ey + r), aim - half, aim + half,
                      fill=WIFI_ARC, width=int(lw))
 
@@ -141,10 +146,10 @@ def icon(short, colour, size, bars=False, wifi=False):
     # rows: TNT 22%, dynamite 50%, name 24% (plus small gaps)
     tnt_h = n * 0.20
     _text(d, "TNT", n / 2, pad, n - 2 * pad, tnt_h, TNT_TXT, stroke)
-    dyn_top = pad + tnt_h + n * 0.03
-    dyn_h = n * 0.47
-    dyn_w = n * 0.56
-    shift = n * (0.15 if wifi else 0.06)  # make room on the right for arcs
+    dyn_top = pad + tnt_h + n * 0.10
+    dyn_h = n * 0.38
+    dyn_w = n * (0.66 if wifi else 0.80)
+    shift = n * (0.12 if wifi else 0.0)  # make room on the right for arcs
     _dynamite(d, (n - dyn_w) / 2 - shift, dyn_top, dyn_w, dyn_h, wifi)
     name_top = dyn_top + dyn_h + n * 0.025
     _text(d, short, n / 2, name_top, n - 2 * pad, n - pad - name_top, colour,
