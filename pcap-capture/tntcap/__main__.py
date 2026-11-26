@@ -4,6 +4,8 @@
   python3 -m tntcap --status          print the capture state
   python3 -m tntcap --start [--preset dante] [--iface eth0] [--seconds 60] [--mb 100]
                                       start a capture with no UI
+  python3 -m tntcap --start --tap [eth1]   inline tap: bridge built-in + USB adapter
+  python3 -m tntcap --viewer          desktop live viewer (HDMI)
   python3 -m tntcap --stop            stop the running capture
   python3 -m tntcap --list            list saved captures
   python3 -m tntcap --presets         show the filter presets
@@ -19,6 +21,9 @@ import sys
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--supervise", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--autotap", metavar="IFACE", help=argparse.SUPPRESS)
+    ap.add_argument("--viewer", action="store_true", help="desktop live viewer window (HDMI)")
+    ap.add_argument("--tap", metavar="ADAPTER", nargs="?", const="", help="with --start: inline tap mode")
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--start", action="store_true")
     ap.add_argument("--stop", action="store_true")
@@ -37,6 +42,11 @@ def main(argv=None) -> int:
     from . import capture as C
     if a.supervise:
         return C.supervise()
+    if a.autotap:
+        return C.autotap(a.autotap)
+    if a.viewer:
+        from .viewer import main as viewer_main
+        return viewer_main()
     if a.status:
         print(json.dumps(C.read_state(), indent=1))
         return 0
@@ -67,6 +77,8 @@ def main(argv=None) -> int:
             cfg["duration"] = f"{a.seconds} s" if a.seconds else "No limit"
         if a.mb:
             cfg["size"] = f"{a.mb} MB"
+        if a.tap is not None:
+            cfg["capmode"], cfg["tap_adapter"] = "Inline tap", a.tap
         if a.headers:
             cfg["snap"] = "Headers only"
         try:

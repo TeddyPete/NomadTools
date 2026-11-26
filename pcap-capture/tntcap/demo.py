@@ -57,6 +57,13 @@ def render_screens(out_dir: str) -> None:
     app.pop()
     app.state = {}
     app.push(A.ShareScreen(app))
-    app.stack[-1].addrs = {"eth0": "192.168.51.24"}
-    shot()                                   # 5 share
+    app.stack[-1].addrs = {"wlan0": "192.168.51.24"}
+    shot()                                   # 5 share (QR)
     app.share.stop()
+    app.pop()
+    app.push(A.ModeMenu(app))
+    shot()                                   # 6 mode
+    app.pop()
+    from . import files as F
+    app.push(A.UsbFound(app, "/media/pi/STICK", [F.Saved("/x.pcap", 21_400_000, time.time(), {})] * 3))
+    shot()                                   # 7 usb stick found

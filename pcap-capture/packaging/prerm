@@ -7,4 +7,8 @@ for d in /run/user/*/tnt-packet-capture /tmp/tnt-packet-capture; do
   [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
 done
 sleep 1
+# take any inline-tap bridge down (gives the ports back to NetworkManager)
+for u in $(systemctl list-units --plain --no-legend 'tnt-packet-capture-tap@*' 2>/dev/null | awk '{print $1}'); do
+  systemctl stop "$u"
+done
 exit 0

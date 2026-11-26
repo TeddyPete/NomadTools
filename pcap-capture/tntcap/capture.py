@@ -136,13 +136,19 @@ def new_job(cfg: dict) -> dict:
     """Everything the supervisor needs, decided now (so later settings
     changes don't affect a running capture)."""
     iface = cfg.get("iface") or "eth0"
+    adapter = ""
+    if cfg.get("capmode") == "Inline tap":
+        from . import tap
+        adapter = cfg.get("tap_adapter") or tap.adapter_in_use() or (tap.adapters() or [""])[0]
+        iface = tap.BRIDGE
     preset = PRESET.get(cfg.get("preset", "all"), PRESET["all"])
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    bits = [stamp] + [b for b in (clean(cfg.get("tag", "")), preset[2], clean(iface)) if b]
+    bits = [stamp] + [b for b in (clean(cfg.get("tag", "")), preset[2], ("Tap" if adapter else clean(iface))) if b]
     base = "_".join(bits)
     ring = cfg.get("mode") == "Ring buffer"
     return {
         "iface": iface,
+        "tap": adapter,
         "filter": build_filter(cfg),
         "preset": preset[0],
         "preset_name": preset[1],
@@ -247,6 +253,9 @@ def start(cfg: dict) -> dict:
     if not shutil.which("tcpdump") and not os.path.exists("/usr/bin/tcpdump"):
         raise RuntimeError("tcpdump is not installed (sudo apt install tcpdump).")
     job = new_job(cfg)
+    if job.get("tap"):
+        from . import tap
+        tap.start(job["tap"])          # no-op if the bridge is already up
     if not os.path.exists(f"/sys/class/net/{job['iface']}"):
         raise RuntimeError(f"Interface {job['iface']} not found.")
     err = check_filter(job["filter"])
@@ -309,6 +318,22 @@ def job_files(job: dict) -> list[str]:
     return sorted(found, key=lambda p: (os.path.getmtime(p), p))
 
 
+SYNC_EVERY = 5   # seconds: at most this much capture is lost if the power is cut
+
+
+def sync_files(files: list[str]) -> None:
+    """Push what tcpdump wrote out of the page cache onto the SD card."""
+    for f in files[-1:]:
+        try:
+            fd = os.open(f, os.O_RDONLY)
+            try:
+                os.fdatasync(fd)
+            finally:
+                os.close(fd)
+        except OSError:
+            pass
+
+
 def supervise() -> int:
     st = read_state()
     job = st.get("job")
@@ -337,6 +362,7 @@ def supervise() -> int:
     write_state(st)
     limit = job["max_mb"] * 1_000_000
     last_ask = 0.0
+    last_sync = time.time()
     hist: list[tuple[float, int, int]] = []
 
     def read_err() -> str:
@@ -395,6 +421,11 @@ def supervise() -> int:
                 stop_reason["why"] = "size limit"
             elif free_mb(job["dir"]) < MIN_FREE_MB:
                 stop_reason["why"] = "disk almost full"
+            elif job.get("tap") and not os.path.exists(f"/sys/class/net/{job['tap']}"):
+                stop_reason["why"] = "USB adapter unplugged"
+        if now - last_sync >= SYNC_EVERY:
+            last_sync = now
+            sync_files(files)
         write_state(st)
         if stop_reason["why"]:
             break
@@ -453,10 +484,34 @@ def write_meta(pcap: str, job: dict, st: dict, parts: int) -> None:
         "started": st.get("started"), "ended": st.get("ended"), "seconds": round(st.get("elapsed", 0), 1),
         "packets": st.get("packets", 0) if parts == 1 else None, "drops": st.get("drops", 0),
         "reason": st.get("reason"), "snaplen": job["snaplen"] or "full", "promisc": job["promisc"],
-        "ring_parts": parts if job["ring"] else 0, "app": "TNT Packet Capture",
+        "ring_parts": parts if job["ring"] else 0, "tap": job.get("tap", ""), "app": "TNT Packet Capture",
     }
     try:
         with open(meta_path(pcap), "w") as f:
             json.dump(meta, f, indent=1)
     except OSError:
         pass
+
+
+def autotap(adapter: str) -> int:
+    """Called by the udev-started unit when a USB Ethernet adapter appears:
+    bridge it with the built-in port and start capturing, if Auto tap is on."""
+    from . import settings as S
+    from . import tap
+    cfg = S.load()
+    if not cfg.get("autotap"):
+        return 0
+    time.sleep(2)                       # let the adapter settle / NM notice it
+    if adapter == tap.builtin() or adapter not in tap.adapters():
+        return 0
+    if running():
+        return 0
+    cfg.update(capmode="Inline tap", tap_adapter=adapter)
+    try:
+        start(cfg)
+    except RuntimeError as e:
+        write_state({"running": False, "error": f"Auto tap: {e}", "reason": "auto tap failed",
+                     "job": {"iface": tap.BRIDGE, "tap": adapter}})
+        print(f"autotap: {e}", file=sys.stderr)
+        return 1
+    return 0

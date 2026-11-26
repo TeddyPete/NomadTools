@@ -9,7 +9,7 @@ import time
 from . import capture as C
 from . import files as F
 from . import lcd as L
-from . import netinfo, pcapread, web
+from . import netinfo, pcapread, qr, tap, viewer, web
 from . import settings as S
 from .keys import Keyboard
 from .ui import BACK, DOWN, SELECT, UP, Busy, Confirm, Form, Menu, Message, Prompt, Screen, nav_key, wrap
@@ -17,13 +17,18 @@ from .ui import BACK, DOWN, SELECT, UP, Busy, Confirm, Form, Menu, Message, Prom
 APP_TITLE = "TNT Packet Capture"
 
 HELP = (
-    "Plug the Ethernet port into a switch mirror (SPAN) port to see other devices' traffic. "
-    "On a normal port you only see broadcast, multicast and this device's own traffic.\n"
-    "Pick a Filter, then Start capture. Live view shows counters and what's on the wire.\n"
-    "Captures keep running if you leave the app, and always stop at their time/size limit "
-    "or when the card is nearly full.\n"
-    "Get files off: Share over network (open the address in a laptop browser), a USB drive, "
-    "or scp from ~/TNT-Captures. Open them in Wireshark.\n"
+    "Two modes:\n"
+    "Mirror port: plug the Ethernet port into a switch mirror (SPAN) port. On a normal port "
+    "you only see broadcast, multicast and this device's own traffic.\n"
+    "Inline tap: plug a USB Ethernet adapter in and put the CardputerZero in the cable "
+    "between two devices (built-in port to one, adapter to the other). It passes traffic "
+    "like a cable (100 Mb/s max, no IP) and records it. With Auto tap on, plugging the "
+    "adapter in starts it, even with the app closed. Unplugging the adapter stops it.\n"
+    "Captures keep running if you leave the app and stop at their limits. Files are saved "
+    "as they record (synced every 5 s), so a power cut loses only the last seconds.\n"
+    "Get files off: Share files shows a QR code for a phone or laptop browser (download or "
+    "delete there), or plug in a USB stick and copy. Open them in Wireshark.\n"
+    "With HDMI connected, a live packet viewer opens on the desktop.\n"
     "TheTechNomad.com"
 )
 
@@ -51,6 +56,10 @@ class App:
         self.follower = pcapread.Follower()
         self._follow_file = None
         self._wake = threading.Event()
+        self.drives: set = set(F.usb_drives())
+        self.usb_offered: set = set()
+        self.viewer_for = None          # capture file the viewer was opened for
+        self.viewer_at = 0.0
 
     # ---- stack ----
     def push(self, s: Screen) -> None:
@@ -99,6 +108,21 @@ class App:
         if self.capturing:
             self.push(LiveView(self))
             return
+        if self.cfg.get("capmode") == "Inline tap":
+            ad = self.cfg.get("tap_adapter") or tap.adapter_in_use() or (tap.adapters() or [""])[0]
+            err = tap.why_not(ad)
+            if err:
+                self.push(Message(self, "Inline tap", err, L.BAD))
+                return
+
+            def started_tap(job):
+                self.follower.reset()
+                self._follow_file = None
+                self.state = C.read_state()
+                self.push(LiveView(self))
+            self.run_task("Inline tap", "Bridging + starting",
+                          lambda: C.start(dict(self.cfg, tap_adapter=ad)), after=started_tap)
+            return
         iface = self.cfg["iface"]
         link = netinfo.link(iface)
 
@@ -138,6 +162,39 @@ class App:
         elif was:
             self._follow_file = None
         self.dirty = True
+        self._check_usb()
+        self._check_viewer()
+
+    def _check_usb(self) -> None:
+        """Offer to copy captures when a USB stick is plugged in (once per stick)."""
+        drives = set(F.usb_drives())
+        new = [d for d in drives if d not in self.usb_offered]
+        self.drives = drives
+        self.usb_offered &= drives            # forget sticks that were removed
+        if not new or not self.stack or isinstance(self.stack[-1], (Busy, UsbFound)):
+            return
+        if self.stack[-1].text_entry:
+            return
+        mnt = new[0]
+        self.usb_offered.add(mnt)
+        todo = F.not_on_stick(mnt)
+        if todo:
+            self.push(UsbFound(self, mnt, todo))
+
+    def _check_viewer(self) -> None:
+        """Open the desktop viewer once per capture when HDMI + desktop are up."""
+        if not self.cfg.get("viewer") or not self.capturing:
+            return
+        job = (self.state.get("job") or {}).get("file")
+        now = time.monotonic()
+        if job == self.viewer_for or now - self.viewer_at < 5:
+            return
+        self.viewer_at = now
+        try:
+            if viewer.launch():
+                self.viewer_for = job
+        except OSError:
+            pass
 
     # ---- main loop ----
     def run(self) -> None:
@@ -167,7 +224,13 @@ class App:
             return
         s = self.stack[-1]
         rows, sel = s.rows()
-        self.panel.draw(s.title, rows, s.hint, sel, s.right())
+        if hasattr(s, "overlay"):
+            from . import tntui as T
+            T.render(self.panel.surf, s.title, rows, s.hint, sel, s.right(), self.panel.fonts)
+            s.overlay(self.panel.surf)
+            self.panel.flush()
+        else:
+            self.panel.draw(s.title, rows, s.hint, sel, s.right())
 
 
 # ---------------------------------------------------------------------------
@@ -178,14 +241,17 @@ class Home(Menu):
         c = app.cfg
         items = [
             (lambda: "Stop capture" if app.capturing else "Start capture", self.start_stop,
-             lambda: hms(app.state.get("elapsed", 0)) if app.capturing else f"{c['iface']} {netinfo.link_text(c['iface'])}",
+             lambda: hms(app.state.get("elapsed", 0)) if app.capturing else ready_text(app),
              lambda: L.BAD if app.capturing else L.OK),
             ("Live view", lambda: app.push(LiveView(app)), lambda: "REC" if app.capturing else ""),
+            ("Mode", lambda: app.push(ModeMenu(app)),
+             lambda: ("Tap " + ("ON" if tap.bridge_up() else "")).strip() if c.get("capmode") == "Inline tap"
+             else "Mirror port"),
             ("Filter", lambda: app.push(FilterMenu(app)), lambda: C.PRESET[c["preset"]][2] +
              (" +" if c.get("host") or c.get("port") else "")),
             ("Settings", lambda: open_settings(app), lambda: limits_text(c)),
             ("Saved captures", lambda: app.push(FilesMenu(app)), lambda: str(len(F.listing()))),
-            ("Share over network", lambda: app.push(ShareScreen(app)), lambda: "ON" if app.share.on else ""),
+            ("Share files (QR)", lambda: app.push(ShareScreen(app)), lambda: "ON" if app.share.on else ""),
             ("Help", lambda: app.push(Message(app, "Help", HELP))),
         ]
         super().__init__(app, APP_TITLE, items, "↑↓ move  OK/→ open  ESC quit", numbered=True)
@@ -247,6 +313,7 @@ class FilterMenu(Menu):
                           (lambda k=key: L.OK if app.cfg["preset"] == k else L.FG)))
         items.append(("Host IP", self.host, lambda: app.cfg.get("host") or "any"))
         items.append(("Port", self.port, lambda: str(app.cfg.get("port") or "any")))
+        items.append(("Desktop view filter", self.view, lambda: (app.cfg.get("view_filter") or "none")[:12]))
         super().__init__(app, "Filter", items, "↑↓ move  OK pick  ESC back")
         self.sel = next((i for i, p in enumerate(C.PRESETS) if p[0] == app.cfg["preset"]), 0)
 
@@ -278,6 +345,15 @@ class FilterMenu(Menu):
         app.cfg["preset"] = key
         app.save_cfg()
         app.pop(self)
+
+    def view(self):
+        app = self.app
+
+        def done(v):
+            app.cfg["view_filter"] = v.strip()
+            app.save_cfg()
+        app.push(Prompt(app, "Desktop view filter", "Show", app.cfg.get("view_filter", ""), done,
+                        help_text="Words to show in the HDMI viewer, e.g. ptp !follow_up. Doesn't change the capture."))
 
     def host(self):
         app = self.app
@@ -319,6 +395,8 @@ def open_settings(app):
         ("host", "Host IP", "ip", "blank = any"),
         ("port", "Port", "number", "blank = any"),
         ("custom", "Custom filter", "text", "tcpdump syntax"),
+        ("autotap", "Auto tap on USB", "bool"),
+        ("viewer", "HDMI live viewer", "bool"),
     ]
 
     def validate(v):
@@ -365,7 +443,8 @@ class LiveView(Screen):
             return [("No capture yet.", L.DIM), "", ("OK starts one with the", L.DIM),
                     (f"'{C.PRESET[a.cfg['preset']][1]}' filter.", L.DIM)]
         if st.get("running"):
-            out.append((f"● REC {job.get('iface')}", L.BAD, hms(st.get("elapsed", 0))))
+            where = f"tap ⇄ {job['tap']}" if job.get("tap") else job.get("iface")
+            out.append((f"● REC {where}", L.BAD, hms(st.get("elapsed", 0))))
         else:
             why = st.get("error") or st.get("reason") or "stopped"
             out.append(("Stopped: " + why, L.BAD if st.get("error") else L.WARN))
@@ -446,7 +525,10 @@ class FilesMenu(Menu):
         self.items = [(s.label(), (lambda s=s: app.push(FileInfo(app, s, self))), F.nice_size(s.size))
                       for s in self.saved]
         if self.saved:
-            self.items.append(("Delete all captures", self.delete_all, "", L.BAD))
+            for mnt in F.usb_drives():
+                self.items.insert(0, (f"Copy all to USB {os.path.basename(mnt)[:10]}",
+                                      (lambda mnt=mnt: copy_all(app, mnt)), "", L.OK))
+            self.items.append(("Clear all captures", self.delete_all, "", L.BAD))
         else:
             self.items = [("No saved captures yet.", None, "", L.DIM)]
         self.sel = min(self.sel, len(self.items) - 1)
@@ -462,8 +544,15 @@ class FilesMenu(Menu):
             for s in self.saved:
                 F.delete(s)
             self.reload()
-        self.app.push(Confirm(self.app, "Delete all", f"Delete all {len(self.saved)} captures ({total})? "
-                                                      "This can't be undone.", yes, yes="OK delete", no="ESC keep"))
+        live = " The capture that is recording now is kept." if self.app.capturing else ""
+        self.app.push(Confirm(self.app, "\u26a0 Clear all captures",
+                              f"WARNING: this permanently deletes all {len(self.saved)} saved captures "
+                              f"({total}) from this device. Copy any you need first.{live}",
+                              lambda: self.app.push(Confirm(self.app, "\u26a0 Are you sure?",
+                                                            f"Delete {len(self.saved)} captures now? "
+                                                            "This can't be undone.", yes,
+                                                            yes="OK delete all", no="ESC keep")),
+                              yes="OK continue", no="ESC keep"))
 
 
 class FileInfo(Menu):
@@ -526,7 +615,8 @@ class FileInfo(Menu):
 
 
 class ShareScreen(Screen):
-    title = "Share over network"
+    """QR code + address of the download page (TNT file transfer standard)."""
+    title = "Share files"
 
     def __init__(self, app):
         super().__init__(app)
@@ -534,24 +624,51 @@ class ShareScreen(Screen):
             app.share.start()
         self.addrs = netinfo.addresses()
         self.t = time.monotonic()
+        self.pick = 0
 
     @property
     def hint(self):
-        return ("OK turn off" if self.app.share.on else "OK turn on") + "  ESC back"
+        more = "  \u2191\u2193 IP" if len(self.addrs) > 1 else ""
+        return ("OK turn off" if self.app.share.on else "OK turn on") + more + "  ESC back"
+
+    def url(self):
+        if not self.addrs:
+            return ""
+        # Wi-Fi first: in inline-tap mode the wired ports have no IP anyway
+        items = sorted(self.addrs.items(), key=lambda kv: (not kv[0].startswith("wl"), kv[0]))
+        ifc, ip = items[self.pick % len(items)]
+        return ifc, f"http://{ip}:{self.app.share.port}/"
 
     def rows(self):
         sh = self.app.share
         if not sh.on:
             return [("Sharing is OFF", L.WARN), "",
-                    ("OK shares saved captures as", L.DIM), ("a web page on this network.", L.DIM)], None
-        out = [("Open in a laptop browser:", L.FG)]
-        for ifc, ip in sorted(self.addrs.items()):
-            out.append((f"http://{ip}:{sh.port}", L.OK, ifc))
+                    ("OK puts your captures on a web", L.DIM), ("page for a phone or laptop.", L.DIM)], None
         if not self.addrs:
-            out.append(("No IP address yet", L.BAD))
-        out.append(("Same network as this device.", L.DIM))
-        out.append(("Stays on until you quit.", L.DIM))
-        return out, None
+            return [("No IP address yet.", L.BAD), "", ("Join Wi-Fi or plug in a", L.DIM),
+                    ("network cable.", L.DIM)], None
+        return [], None
+
+    def overlay(self, surf):
+        from . import tntui as T
+        if not self.app.share.on or not self.addrs:
+            return
+        ifc, url = self.url()
+        top = T.TITLE_H + 2
+        size = T.H - T.HINT_H - top - 2
+        px = qr.draw(surf, url, 4, top, size)
+        f = self.app.panel.fonts
+        x = px + 12
+        y = top + 2
+        lines = [("Scan or open:", T.FG, "small")]
+        host = url.split("//", 1)[1].rstrip("/")
+        ip, port = host.rsplit(":", 1)
+        lines += [(ip, T.OK, "row"), (":" + port + f"  {ifc}", T.OK, "row"),
+                  ("Download or delete", T.DIM, "small"), ("in the browser.", T.DIM, "small")]
+        for text, color, fk in lines:
+            img = f[fk].render(text, True, color)
+            surf.blit(img, (x, y), (0, 0, T.W - x - 2, img.get_height()))
+            y += img.get_height() + 1
 
     def key(self, k):
         if k.name == "enter":
@@ -559,6 +676,10 @@ class ShareScreen(Screen):
                 self.app.share.stop()
             elif not self.app.share.start():
                 self.app.push(Message(self.app, "Problem", self.app.share.error, L.BAD))
+        elif k.name in UP:
+            self.pick -= 1
+        elif k.name in DOWN:
+            self.pick += 1
         elif k.name in BACK:
             self.app.pop(self)
 
@@ -566,6 +687,113 @@ class ShareScreen(Screen):
         if time.monotonic() - self.t > 5:
             self.addrs = netinfo.addresses()
             self.t = time.monotonic()
+
+
+def copy_all(app, mnt):
+    def run():
+        n, skipped, size = F.copy_all(mnt)
+        msg = f"Copied {n} captures ({F.nice_size(size)}) to the USB stick, folder TNT-Captures."
+        if skipped:
+            msg += f" {skipped} were already there."
+        return msg + " Safe to unplug."
+    app.run_task("Copy to USB", "Copying", run)
+
+
+class UsbFound(Menu):
+    """Shown when a USB stick is plugged in and has captures missing."""
+
+    def __init__(self, app, mnt, todo):
+        size = F.nice_size(sum(s.size for s in todo))
+        self.mnt = mnt
+
+        def go():
+            app.pop(self)
+            copy_all(app, mnt)
+        super().__init__(app, "USB stick found", [
+            (f"Copy {len(todo)} captures ({size})", go, "", L.OK),
+            ("Not now", lambda: app.pop(self)),
+        ], "OK pick  ESC not now")
+
+
+def ready_text(app) -> str:
+    c = app.cfg
+    if c.get("capmode") == "Inline tap":
+        ads = tap.adapters()
+        return f"tap {ads[0]}" if ads else "no USB adapter"
+    return f"{c['iface']} {netinfo.link_text(c['iface'])}"
+
+
+class ModeMenu(Menu):
+    def __init__(self, app):
+        self.app = app
+        c = app.cfg
+
+        def pick(m):
+            if app.capturing:
+                app.push(Message(app, "Mode", "Stop the running capture first.", L.WARN))
+                return
+            c["capmode"] = m
+            app.save_cfg()
+            app.pop(self)
+
+        def toggle_auto():
+            c["autotap"] = not c.get("autotap")
+            app.save_cfg()
+        items = [
+            ("Mirror port", lambda: pick("Mirror port"), lambda: "\u2713" if c.get("capmode") != "Inline tap" else "",
+             lambda: L.OK if c.get("capmode") != "Inline tap" else L.FG),
+            ("Inline tap (USB adapter)", lambda: pick("Inline tap"),
+             lambda: "\u2713" if c.get("capmode") == "Inline tap" else "",
+             lambda: L.OK if c.get("capmode") == "Inline tap" else L.FG),
+            ("Tap status", lambda: app.push(TapStatus(app))),
+            ("Auto tap on plug-in", toggle_auto, lambda: "On" if c.get("autotap") else "Off"),
+        ]
+        super().__init__(app, "Mode", items, "\u2191\u2193 move  OK pick  ESC back")
+
+
+class TapStatus(Screen):
+    title = "Inline tap"
+
+    @property
+    def hint(self):
+        return ("OK bridge off" if tap.bridge_up() else "OK bridge on") + "  ESC back"
+
+    def rows(self):
+        st = tap.status()
+        out = []
+        if st["up"]:
+            out.append((f"Bridge ON ({tap.BRIDGE})", L.OK, "no IP"))
+        else:
+            out.append(("Bridge off", L.WARN))
+        b = st["builtin"]
+        for p in [b] + [a for a in st["adapters"]]:
+            carrier, speed = st["links"].get(p) or (netinfo.link(p)["up"], netinfo.link(p)["speed"])
+            kind = "built-in" if p == b else "USB"
+            out.append((f"{p} ({kind})", L.OK if carrier else L.BAD,
+                        (f"{speed} Mb/s" if speed else "link") if carrier else "no link"))
+        if not st["adapters"]:
+            out.append(("Plug in a USB Ethernet", L.DIM))
+            out.append(("adapter for inline tap.", L.DIM))
+        else:
+            out.append(("Max 100 Mb/s through it.", L.DIM))
+        return out, None
+
+    def key(self, k):
+        if k.name == "enter":
+            if tap.bridge_up():
+                if self.app.capturing and (self.app.state.get("job") or {}).get("tap"):
+                    self.app.push(Message(self.app, "Inline tap", "Stop the capture first.", L.WARN))
+                    return
+                self.app.run_task("Inline tap", "Removing bridge", lambda: tap.stop() or "Bridge off. "
+                                  "The two sides are no longer connected.")
+            else:
+                ads = tap.adapters()
+                ad = self.app.cfg.get("tap_adapter") or (ads[0] if ads else "")
+                self.app.run_task("Inline tap", "Bridging", lambda: tap.start(ad) or
+                                  f"Bridge on: built-in port \u21c4 {ad}. Traffic passes through. "
+                                  "Start capture to record it.")
+        elif k.name in BACK:
+            self.app.pop(self)
 
 
 def main_ui() -> int:

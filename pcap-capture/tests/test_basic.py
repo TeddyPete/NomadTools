@@ -86,7 +86,7 @@ def test_ui_capture_flow():
     r = pcapread.summarize(saved[0].path)
     assert r["packets"] == saved[0].meta["packets"], (r, saved[0].meta)
     # Saved captures -> file -> Delete -> confirm
-    press(app, "x", "x", "x", "x", "enter")
+    press(app, *["x"] * 5, "enter")
     assert isinstance(app.stack[-1], A.FilesMenu), app.stack
     press(app, "enter")
     assert isinstance(app.stack[-1], A.FileInfo)
@@ -128,7 +128,56 @@ def test_web():
         raise AssertionError("served a file outside the folder")
     except Exception as e:
         assert "404" in str(e), e
+    # delete through the page (POST), never outside the folder
+    import urllib.parse
+    from urllib.request import Request
+    os.makedirs(C.ROOT, exist_ok=True)
+    keep = os.path.join(TMP, "outside.pcap")
+    open(keep, "wb").write(b"x")
+    victim = os.path.join(C.ROOT, "20260101-000000_All_eth0.pcap")
+    open(victim, "wb").write(b"\xd4\xc3\xb2\xa1" + b"\0" * 20)
+    assert "20260101-000000_All_eth0.pcap" in urlopen(f"http://127.0.0.1:{sh.port}/").read().decode()
+    for name in ("../outside.pcap", os.path.basename(victim)):
+        body = urllib.parse.urlencode({"name": name}).encode()
+        urlopen(Request(f"http://127.0.0.1:{sh.port}/delete", data=body))
+    assert not os.path.exists(victim) and os.path.exists(keep)
     sh.stop()
+
+
+def test_qr():
+    from tntcap import qr
+    m = qr.matrix("http://192.168.51.24:8080/")
+    assert len(m) == 25
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return
+    n = len(m) + 8
+    img = np.full((n * 8, n * 8), 255, np.uint8)
+    for r, row in enumerate(m):
+        for c, v in enumerate(row):
+            if v:
+                img[(r + 4) * 8:(r + 5) * 8, (c + 4) * 8:(c + 5) * 8] = 0
+    assert cv2.QRCodeDetector().detectAndDecode(img)[0] == "http://192.168.51.24:8080/"
+
+
+def test_recover_ring_leftovers():
+    d = os.path.join(TMP, "rec")
+    os.makedirs(d)
+    for i in (0, 1, 2):
+        open(os.path.join(d, f"20260101-000000_All_eth0.pcap{i}"), "wb").write(b"x")
+        time.sleep(0.01)
+    F.recover(d)
+    assert sorted(os.listdir(d)) == [f"20260101-000000_All_eth0_part0{i}.pcap" for i in (1, 2, 3)]
+
+
+def test_tap_guards():
+    from tntcap import tap
+    assert tap.why_not("") != ""
+    assert tap.why_not(tap.builtin()) != ""
+    for k in ("up", "ports", "builtin", "adapters"):
+        assert k in tap.status()
 
 
 if __name__ == "__main__":

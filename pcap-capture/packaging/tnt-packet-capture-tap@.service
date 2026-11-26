@@ -1,0 +1,11 @@
+[Unit]
+Description=TNT Packet Capture inline tap (bridge built-in Ethernet + %I)
+# Unplugging the adapter stops this unit, which removes the bridge.
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/tnt-packet-capture/tap-helper up %I
+ExecStop=/usr/lib/tnt-packet-capture/tap-helper down %I

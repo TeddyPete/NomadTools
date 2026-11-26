@@ -19,6 +19,11 @@ DEFAULTS = {
     "mode": "Stop at limit",   # or "Ring buffer"
     "snap": "Full packets",    # or "Headers only"
     "promisc": True,
+    "capmode": "Mirror port",  # or "Inline tap"
+    "tap_adapter": "",         # "" = the first USB adapter found
+    "autotap": True,           # start the inline tap when a USB adapter is plugged in
+    "viewer": True,            # open the desktop live viewer on HDMI
+    "view_filter": "",         # filter for the desktop viewer's packet list
 }
 
 

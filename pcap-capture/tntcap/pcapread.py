@@ -207,3 +207,135 @@ def summarize(path: str, limit_bytes: int = 50_000_000) -> dict:
     return {"ok": True, "packets": n, "complete": os.path.getsize(path) <= limit_bytes + 24,
             "first": first, "last": last, "protos": fl.protos.most_common(8),
             "talkers": fl.talkers.most_common(5)}
+
+
+# ---- one-line packet descriptions (desktop viewer) --------------------------------
+
+PTP_TYPES = {0: "Sync", 1: "Delay_Req", 2: "Pdelay_Req", 3: "Pdelay_Resp", 8: "Follow_Up", 9: "Delay_Resp",
+             10: "Pdelay_Resp_FU", 11: "Announce", 12: "Signaling", 13: "Management"}
+DHCP_TYPES = {1: "Discover", 2: "Offer", 3: "Request", 4: "Decline", 5: "ACK", 6: "NAK", 7: "Release", 8: "Inform"}
+IGMP_TYPES = {0x11: "Query", 0x12: "v1 Report", 0x16: "v2 Report", 0x17: "Leave", 0x22: "v3 Report"}
+
+
+def _mac(b: bytes) -> str:
+    return ":".join(f"{x:02x}" for x in b)
+
+
+def _tcp_flags(f: int) -> str:
+    names = [(0x02, "SYN"), (0x10, "ACK"), (0x01, "FIN"), (0x04, "RST"), (0x08, "PSH")]
+    return ",".join(n for bit, n in names if f & bit)
+
+
+def describe(data: bytes, linktype: int) -> tuple[str, str, str, str]:
+    """(source, destination, protocol, info) for one packet."""
+    proto, _ = classify(data, linktype)
+    if linktype != 1 or len(data) < 14:
+        return "", "", proto, f"{len(data)} bytes"
+    dst_mac, src_mac = _mac(data[0:6]), _mac(data[6:12])
+    et, off = struct.unpack_from("!H", data, 12)[0], 14
+    vlan = ""
+    while et in (0x8100, 0x88A8) and len(data) >= off + 4:
+        vlan = f"VLAN {struct.unpack_from('!H', data, off)[0] & 0xFFF} "
+        et = struct.unpack_from("!H", data, off + 2)[0]
+        off += 4
+    l3 = data[off:]
+    if et == 0x0806 and len(l3) >= 28:
+        op = struct.unpack_from("!H", l3, 6)[0]
+        spa, tpa = socket.inet_ntoa(l3[14:18]), socket.inet_ntoa(l3[24:28])
+        info = f"Who has {tpa}? Tell {spa}" if op == 1 else f"{spa} is at {_mac(l3[8:14])}"
+        if op == 1 and spa == tpa:
+            info = f"Gratuitous ARP for {spa}"
+        return src_mac, dst_mac, "ARP", vlan + info
+    if et == 0x88F7 and len(l3) >= 34:
+        return src_mac, dst_mac, "PTP (L2)", vlan + f"{PTP_TYPES.get(l3[0] & 0x0F, 'type ' + str(l3[0] & 0x0F))} domain {l3[4]}"
+    if et != 0x0800 or len(l3) < 20:
+        return src_mac, dst_mac, proto, vlan + f"{len(data)} bytes"
+    ihl = (l3[0] & 0x0F) * 4
+    p = l3[9]
+    src, dst = socket.inet_ntoa(l3[12:16]), socket.inet_ntoa(l3[16:20])
+    l4 = l3[ihl:]
+    info = ""
+    if p == 2 and l4:
+        t = l4[0]
+        grp = socket.inet_ntoa(l4[4:8]) if len(l4) >= 8 else ""
+        info = f"{IGMP_TYPES.get(t, hex(t))} {grp if grp != '0.0.0.0' else '(general)'}"
+    elif p == 1 and len(l4) >= 2:
+        info = {0: "Echo reply", 8: "Echo request", 3: "Unreachable", 11: "TTL exceeded"}.get(l4[0], f"type {l4[0]}")
+    elif p == 6 and len(l4) >= 20:
+        sp, dp = struct.unpack_from("!HH", l4)
+        doff = (l4[12] >> 4) * 4
+        info = f"{sp} → {dp} [{_tcp_flags(l4[13])}] len {max(0, len(l4) - doff)}"
+    elif p == 17 and len(l4) >= 8:
+        sp, dp = struct.unpack_from("!HH", l4)
+        pay = l4[8:]
+        info = f"{sp} → {dp} len {len(pay)}"
+        if proto == "PTP" and len(pay) >= 34:
+            info = f"{PTP_TYPES.get(pay[0] & 0x0F, 'type ' + str(pay[0] & 0x0F))} domain {pay[4]}  ({sp}→{dp})"
+        elif proto == "DHCP" and len(pay) > 240:
+            i = 240
+            while i + 2 <= len(pay) and pay[i] != 255:
+                if pay[i] == 53 and i + 2 < len(pay):
+                    info = f"DHCP {DHCP_TYPES.get(pay[i + 2], pay[i + 2])}  xid {pay[4:8].hex()}"
+                    break
+                i += 2 + (pay[i + 1] if pay[i] else -1)
+        elif proto == "mDNS" and len(pay) >= 12:
+            qd, an = struct.unpack_from("!HH", pay, 4)
+            info = ("Response" if pay[2] & 0x80 else "Query") + f" q={qd} a={an}"
+    else:
+        info = f"IP proto {p}"
+    return src, dst, proto, vlan + info
+
+
+class Reader(Follower):
+    """Follower that also keeps the last N packets for a packet list."""
+
+    def __init__(self, keep: int = 4000):
+        super().__init__()
+        from collections import deque
+        self.keep = keep
+        self.rows = deque(maxlen=keep)
+        self.n = 0
+
+    def reset(self):
+        keep = self.keep
+        self.__init__(keep)
+
+    def poll(self, path: str | None) -> None:
+        if not path:
+            return
+        if path != self.path:
+            if not self._open(path):
+                return
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            return
+        if size < self.pos:
+            self.pos = 24
+        if size - self.pos > self.MAX_BYTES_PER_POLL * 3:
+            self.skipped = True
+            self._resync(path, size - self.MAX_BYTES_PER_POLL)
+        try:
+            with open(path, "rb") as f:
+                f.seek(self.pos)
+                buf = f.read(min(size - self.pos, self.MAX_BYTES_PER_POLL))
+        except OSError:
+            return
+        i = 0
+        fmt = self.swap + "IIII"
+        while i + 16 <= len(buf):
+            sec, frac, incl, orig = struct.unpack_from(fmt, buf, i)
+            if incl > 262144 or incl > orig + 65535:
+                break
+            if i + 16 + incl > len(buf):
+                break
+            data = buf[i + 16:i + 16 + incl]
+            src, dst, proto, info = describe(data, self.linktype)
+            self.protos[proto] += 1
+            if src and "." in src:
+                self.talkers[src] += 1
+            self.seen += 1
+            self.n += 1
+            self.rows.append((self.n, sec + frac / 1e6, src, dst, proto, orig, info, data))
+            i += 16 + incl
+        self.pos += i

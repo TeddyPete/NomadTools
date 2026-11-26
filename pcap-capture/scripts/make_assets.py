@@ -44,7 +44,7 @@ pygame.image.save(icon(100), "packaging/icon_100.png")
 tmp = tempfile.mkdtemp()
 render_screens(tmp)
 os.makedirs("screenshots", exist_ok=True)
-for n in range(6):
+for n in range(8):
     shutil.copy(os.path.join(tmp, f"lcd_{n}.png"), f"screenshots/lcd_{n}.png")
 shutil.rmtree(tmp)
 print("icon and screenshots written")

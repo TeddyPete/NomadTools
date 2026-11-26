@@ -39,17 +39,43 @@ def nice_size(n: float) -> str:
     return f"{n:.1f} GB"
 
 
-def listing(root: str = None) -> list[Saved]:
+def recover(root: str) -> None:
+    """Ring-buffer files left as name.pcapN by a power cut or crash: give
+    them a .pcap name (oldest first) so they show up and open in Wireshark."""
+    import re
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return
+    groups: dict = {}
+    for n in names:
+        m = re.fullmatch(r"(.+)\.pcap(\d+)", n)
+        if m:
+            groups.setdefault(m.group(1), []).append(os.path.join(root, n))
+    for base, paths in groups.items():
+        paths.sort(key=lambda p: (os.path.getmtime(p), p))
+        for i, p in enumerate(paths, 1):
+            dst = os.path.join(root, f"{base}_part{i:02d}.pcap")
+            if not os.path.exists(dst):
+                try:
+                    os.replace(p, dst)
+                except OSError:
+                    pass
+
+
+def listing(root: str = None, include_live: bool = False) -> list[Saved]:
     root = root or C.ROOT
     out = []
+    live = set((C.running() or {}).get("files") or [])
+    if not live:
+        recover(root)
     try:
         names = os.listdir(root)
     except OSError:
         return []
-    live = set((C.running() or {}).get("files") or [])
     for n in names:
         p = os.path.join(root, n)
-        if not n.endswith(".pcap") or p in live:
+        if not n.endswith(".pcap") or (p in live and not include_live):
             continue
         try:
             st = os.stat(p)
@@ -61,6 +87,8 @@ def listing(root: str = None) -> list[Saved]:
                 meta = json.load(f)
         except (OSError, ValueError):
             pass
+        if p in live:
+            meta = dict(meta, recording=True)
         out.append(Saved(p, st.st_size, st.st_mtime, meta))
     out.sort(key=lambda s: s.mtime, reverse=True)
     return out
@@ -108,3 +136,39 @@ def copy_to(s: Saved, mnt: str) -> str:
 
 def total_size(root: str = None) -> int:
     return sum(s.size for s in listing(root))
+
+
+def copy_all(mnt: str, progress=None) -> tuple[int, int, int]:
+    """Copy every saved capture not already on the stick (same name and size).
+    Returns (copied, skipped, bytes)."""
+    d = os.path.join(mnt, "TNT-Captures")
+    os.makedirs(d, exist_ok=True)
+    todo = []
+    skipped = 0
+    for s in listing():
+        dst = os.path.join(d, s.name)
+        if os.path.exists(dst) and os.path.getsize(dst) == s.size:
+            skipped += 1
+        else:
+            todo.append(s)
+    need = sum(s.size for s in todo)
+    if shutil.disk_usage(mnt).free < need + 1_000_000:
+        raise RuntimeError(f"Not enough space on the USB stick ({nice_size(need)} needed).")
+    done = 0
+    for i, s in enumerate(todo, 1):
+        if progress:
+            progress(f"{i}/{len(todo)} {s.label()}")
+        copy_to(s, mnt)
+        done += s.size
+    os.sync()
+    return len(todo), skipped, done
+
+
+def not_on_stick(mnt: str) -> list[Saved]:
+    d = os.path.join(mnt, "TNT-Captures")
+    out = []
+    for s in listing():
+        dst = os.path.join(d, s.name)
+        if not (os.path.exists(dst) and os.path.getsize(dst) == s.size):
+            out.append(s)
+    return out
