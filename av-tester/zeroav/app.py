@@ -153,8 +153,89 @@ def no_hdmi(lcd, detail: str) -> None:
     time.sleep(8)
 
 
+def selftest(out, modes, mode, patterns, edid_info) -> None:
+    """Stress the HDMI output without a keyboard: flip through every pattern
+    fast (like holding Space), the info overlay, EDID page, meter-style page,
+    lip-sync flashes and every mode, logging GPU memory (CMA) as it goes."""
+    import pygame
+    from . import edid
+    from .kms import cma_free_kb
+    low = [10 ** 9]
+
+    def note(what):
+        free = cma_free_kb()[0]
+        low[0] = min(low[0], free)
+        print(f"selftest {what}: CMA free {free // 1024} MB", file=sys.stderr, flush=True)
+
+    note("start")
+    t0, n = time.perf_counter(), 0
+    for rnd in range(3):
+        for i, p in enumerate(patterns):
+            for f in range(3):
+                out.frame(p, n, ["selftest", p.name, f"round {rnd + 1}"] if i % 2 else None)
+                n += 1
+        note(f"patterns round {rnd + 1}")
+    print(f"selftest fast pattern changes: {n} frames in {time.perf_counter() - t0:.1f} s",
+          file=sys.stderr, flush=True)
+    for p in patterns:
+        if p.animated:
+            t1 = time.perf_counter()
+            for f in range(120):
+                out.frame(p, f, None)
+            print(f"selftest {p.name}: {120 / (time.perf_counter() - t1):.1f} fps", file=sys.stderr, flush=True)
+    secs = edid.sections(edid_info) if edid_info else [("No display", ["none"])]
+    for pg in range(3):
+        out.text_page("Display EDID", secs, pg)
+    note("EDID page")
+    surf = pygame.Surface((960, 540))
+    for k in range(20):
+        surf.fill((k * 10 % 255, 40, 80))
+        out.surface_page(surf, ("selftest", k))
+    note("meter page")
+    for k in range(40):
+        out.solid(k % 6 < 3)
+    note("lip-sync flashes")
+    t1 = time.perf_counter()
+    for f in range(120):
+        out.frame(patterns[0], f, None)
+    print(f"selftest static pattern: {120 / (time.perf_counter() - t1):.2f} fps at {mode.label}",
+          file=sys.stderr, flush=True)
+    for m in modes:
+        try:
+            out.open(m)
+            out.frame(patterns[0], 0, None)
+            t1 = time.perf_counter()
+            for f in range(30):
+                out.frame(patterns[1], f, None)
+            note(f"mode {m.label} {30 / (time.perf_counter() - t1):.1f} fps")
+        except Exception as e:
+            print(f"selftest mode {m.label} FAILED: {e}", file=sys.stderr, flush=True)
+    out.open(mode)
+    note("end")
+    print(f"selftest done. Lowest CMA free: {low[0] // 1024} MB", file=sys.stderr, flush=True)
+
+
+def log_cma(what: str) -> None:
+    from .kms import cma_free_kb
+    free, total = cma_free_kb()
+    print(f"CMA free {free // 1024} of {total // 1024} MB ({what})", file=sys.stderr, flush=True)
+
+
 def run(args) -> None:
     os.environ.setdefault("SDL_VIDEODRIVER", "kmsdrm")
+    log_cma("start")
+    # Preferred HDMI path: plain KMS framebuffers, no GPU (see kms.py).
+    # SDL then only reads the keyboard ("evdev" driver). TNT_OUTPUT=gl
+    # forces the older GPU path.
+    kms = None
+    if os.environ["SDL_VIDEODRIVER"] == "kmsdrm" and os.environ.get("TNT_OUTPUT", "kms") == "kms":
+        try:
+            from .kms import KmsOutput
+            kms = KmsOutput()
+            os.environ["SDL_VIDEODRIVER"] = "evdev"
+        except Exception as e:
+            print(f"direct KMS output unavailable ({e}); using the GPU path", file=sys.stderr, flush=True)
+            kms = None
     import pygame
     from .audio import TonePlayer
     from .lcd import LcdPanel
@@ -171,8 +252,12 @@ def run(args) -> None:
         no_hdmi(lcd, f"Display error: {e}")
         return
     from . import edid, sdlmodes
-    disp = pick_hdmi_display(pygame)
-    driver = pygame.display.get_driver()
+    if kms is not None:
+        # a hidden 1x1 window gives keyboard events a focus target
+        from pygame._sdl2.video import Window as _W
+        _input_window = _W("TNT AV Tester input", size=(1, 1))
+    disp = 0 if kms is not None else pick_hdmi_display(pygame)
+    driver = "direct KMS" if kms is not None else pygame.display.get_driver()
     try:
         rates = pygame.display.get_desktop_refresh_rates()
         desk_hz = rates[disp] if rates else 0
@@ -180,7 +265,9 @@ def run(args) -> None:
         desk_hz = 0
     edid_info = edid.read()
     windowed = driver in ("wayland", "x11")
-    if windowed:
+    if kms is not None:
+        modes = kms.modes()
+    elif windowed:
         # The Pi desktop owns HDMI: fill its screen; it sets the mode.
         w, h = pygame.display.get_desktop_sizes()[disp]
         modes = [sdlmodes.Mode(w, h, float(desk_hz))]
@@ -206,14 +293,25 @@ def run(args) -> None:
 
     from .output import HdmiOutput
     try:
-        out = HdmiOutput(mode, fullscreen_desktop=windowed, display=disp)
+        if kms is not None:
+            kms.open(mode)
+            out = kms
+        else:
+            out = HdmiOutput(mode, fullscreen_desktop=windowed, display=disp)
     except Exception as e:
         no_hdmi(lcd, str(e))
         return
     size = out.size
-    print(f"GPU renderer: {'yes' if out.accelerated else 'NO (software)'}", file=sys.stderr, flush=True)
-    tones = TonePlayer(args.audio_device)
+    print(f"output: {getattr(out, 'kind', 'GPU' if out.accelerated else 'software renderer')}",
+          file=sys.stderr, flush=True)
+    log_cma(f"output open at {mode.label}")
+    cma_t = time.monotonic()
     patterns = all_patterns()
+    if args.selftest:
+        selftest(out, modes, mode, patterns, edid_info)
+        out.close()
+        return
+    tones = TonePlayer(args.audio_device)
     idx, frame, show_info = 0, 0, False
     edid_view, edid_scroll, edid_page, edid_msg = False, 0, 0, ""
     sync, sync_msg, sync_lcd_t = None, "", 0.0
@@ -443,11 +541,15 @@ def run(args) -> None:
                 refresh = mode.hz or desk_hz
                 print(f"mode {mode.label} ({'set' if out.mode_set else 'size only'})",
                       file=sys.stderr, flush=True)
+                log_cma(f"mode {mode.label}")
                 dropped, nominal = 0, 0.0
             dirty = True
             skip_gap = True  # a pattern or mode change rebuilds the texture
 
         nowm = time.monotonic()
+        if nowm - cma_t >= 30:
+            cma_t = nowm
+            log_cma("every 30 s")
         if nowm - plug_t >= 1.0:
             plug_t = nowm
             st = edid.hdmi_status()[1]
@@ -599,6 +701,8 @@ def main(argv=None) -> None:
                     help="ALSA device for tones (default: pipewire if present, else default)")
     ap.add_argument("--mic-device", default=os.environ.get("TNT_MIC", "default"),
                     help="ALSA capture device for the lip-sync test (default: default, i.e. PipeWire)")
+    ap.add_argument("--selftest", action="store_true",
+                    help="stress the HDMI output (patterns, pages, flashes, every mode), log GPU memory, exit")
     ap.add_argument("--render-dir", help="render all patterns to PNG files here and exit")
     args = ap.parse_args(argv)
     if args.render_dir:

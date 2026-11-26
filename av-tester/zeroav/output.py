@@ -136,72 +136,11 @@ class HdmiOutput:
         return self._put("overlay", ("ovl", tuple(lines), self.size), make)
 
     def _page_texture(self, title: str, sections: list[tuple[str, list[str]]], page: int) -> Texture:
-        """A full-screen text page (the EDID view), laid out in columns.
-        Sets self.pages to the page count when it doesn't all fit."""
         key = ("page", title, tuple((t, tuple(b)) for t, b in sections), page, self.size)
         slot = self._slots.get("full")
         if slot and slot[1] == key:
             return slot[0]
-        w, h = self.size
-        fh = max(14, h // 36)
-        font = pygame.font.Font(None, fh)
-        head = pygame.font.Font(None, int(fh * 1.25))
-        tfont = pygame.font.Font(None, int(fh * 1.8))
-        ncol = 3 if w >= 1200 else 2 if w >= 700 else 1
-        margin = w // 40
-        colw = (w - 2 * margin) // ncol - margin // 2
-        top = h // 40 + tfont.get_linesize() + fh // 2
-        bottom = h - h // 40 - fh
-        # flatten into (kind, text) rows wrapped to the column width
-        rows = []
-        for t, body in sections:
-            rows.append(("head", t))
-            for line in body:
-                cur = ""
-                for word in line.split(" "):
-                    trial = f"{cur} {word}" if cur else word
-                    if cur and font.size(trial)[0] > colw:
-                        rows.append(("text", cur))
-                        cur = "    " + word
-                    else:
-                        cur = trial
-                rows.append(("text", cur))
-            rows.append(("gap", ""))
-        # split rows into columns, then columns into pages
-        cols, col, y = [], [], top
-        for kind, text in rows:
-            lh = head.get_linesize() if kind == "head" else font.get_linesize()
-            if kind == "gap":
-                lh = fh // 2
-            if y + lh > bottom and col:
-                cols.append(col)
-                col, y = [], top
-                if kind == "gap":
-                    continue
-            col.append((kind, text))
-            y += lh
-        if col:
-            cols.append(col)
-        self.pages = max(1, -(-len(cols) // ncol))
-        page %= self.pages
-        surf = pygame.Surface(self.size)
-        surf.fill((8, 12, 24))
-        t = title + (f"   (page {page + 1}/{self.pages}, < > to turn)" if self.pages > 1 else "")
-        surf.blit(tfont.render(t, True, (255, 255, 255)), (margin, h // 40))
-        for c, colrows in enumerate(cols[page * ncol:(page + 1) * ncol]):
-            x, y = margin + c * (colw + margin // 2), top
-            for kind, text in colrows:
-                if kind == "head":
-                    surf.blit(head.render(text, True, (255, 210, 90)), (x, y))
-                    y += head.get_linesize()
-                elif kind == "gap":
-                    y += fh // 2
-                else:
-                    color = (255, 120, 120) if "too fast" in text else (230, 230, 230)
-                    surf.blit(font.render(text, True, color), (x, y))
-                    y += font.get_linesize()
-        surf.blit(font.render("E: back to patterns   S: save report", True, (140, 180, 255)),
-                  (margin, h - h // 40 - fh))
+        surf, self.pages = layout_text_page(self.size, title, sections, page)
         self.drop("small", "overlay")
         return self._put("full", key, lambda: surf)
 
@@ -253,3 +192,69 @@ class HdmiOutput:
         cell = w // 10
         r.draw_color = (255, 0, 0, 255)
         r.fill_rect(pygame.Rect((frame % 10) * cell, h - h // 20, cell, h // 20))
+
+
+def layout_text_page(size, title: str, sections: list[tuple[str, list[str]]], page: int):
+    """A full-screen text page (the EDID view) laid out in columns.
+    Returns (surface, number of pages)."""
+    w, h = size
+    fh = max(14, h // 36)
+    font = pygame.font.Font(None, fh)
+    head = pygame.font.Font(None, int(fh * 1.25))
+    tfont = pygame.font.Font(None, int(fh * 1.8))
+    ncol = 3 if w >= 1200 else 2 if w >= 700 else 1
+    margin = w // 40
+    colw = (w - 2 * margin) // ncol - margin // 2
+    top = h // 40 + tfont.get_linesize() + fh // 2
+    bottom = h - h // 40 - fh
+    # flatten into (kind, text) rows wrapped to the column width
+    rows = []
+    for t, body in sections:
+        rows.append(("head", t))
+        for line in body:
+            cur = ""
+            for word in line.split(" "):
+                trial = f"{cur} {word}" if cur else word
+                if cur and font.size(trial)[0] > colw:
+                    rows.append(("text", cur))
+                    cur = "    " + word
+                else:
+                    cur = trial
+            rows.append(("text", cur))
+        rows.append(("gap", ""))
+    # split rows into columns, then columns into pages
+    cols, col, y = [], [], top
+    for kind, text in rows:
+        lh = head.get_linesize() if kind == "head" else font.get_linesize()
+        if kind == "gap":
+            lh = fh // 2
+        if y + lh > bottom and col:
+            cols.append(col)
+            col, y = [], top
+            if kind == "gap":
+                continue
+        col.append((kind, text))
+        y += lh
+    if col:
+        cols.append(col)
+    pages = max(1, -(-len(cols) // ncol))
+    page %= pages
+    surf = pygame.Surface(size)
+    surf.fill((8, 12, 24))
+    t = title + (f"   (page {page + 1}/{pages}, < > to turn)" if pages > 1 else "")
+    surf.blit(tfont.render(t, True, (255, 255, 255)), (margin, h // 40))
+    for c, colrows in enumerate(cols[page * ncol:(page + 1) * ncol]):
+        x, y = margin + c * (colw + margin // 2), top
+        for kind, text in colrows:
+            if kind == "head":
+                surf.blit(head.render(text, True, (255, 210, 90)), (x, y))
+                y += head.get_linesize()
+            elif kind == "gap":
+                y += fh // 2
+            else:
+                color = (255, 120, 120) if "too fast" in text else (230, 230, 230)
+                surf.blit(font.render(text, True, color), (x, y))
+                y += font.get_linesize()
+    surf.blit(font.render("E: back to patterns   S: save report", True, (140, 180, 255)),
+              (margin, h - h // 40 - fh))
+    return surf, pages

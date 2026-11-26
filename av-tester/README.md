@@ -126,10 +126,17 @@ lines, why the app exited, and a Python or native (segfault) traceback if it cra
 
 ## GPU memory
 
-The CardputerZero's GPU memory pool (CMA) is 64 MB by default, and 1080p output uses most of it.
-The app keeps one full-screen texture at a time to stay inside it. For extra headroom, raise the
-pool to 128 MB (needs a reboot): in `/boot/firmware/config.txt` change
-`dtoverlay=vc4-kms-v3d,cma-64` to `dtoverlay=vc4-kms-v3d,cma-128`.
+The CardputerZero's GPU memory pool (CMA) is 64 MB. Drawing through the GPU (GL) at 1080p takes
+about 60 MB of it, so the app doesn't use the GPU for HDMI: it asks the kernel for two plain
+framebuffers (2 x 8 MB at 1080p), copies each pattern in with the CPU and flips between them on
+vblank. That leaves roughly 40 MB free. CMA free is logged to `app.log` at start, on each mode change
+and every 30 s. `TNT_OUTPUT=gl` switches back to the GPU path.
+
+Stress test (patterns flipped as fast as possible, overlay, EDID page, flashes, every mode):
+
+```bash
+/usr/share/APPLaunch/bin/tnt-av-tester --selftest; grep -E "selftest|CMA" ~/.local/share/tnt-av-tester/app.log | tail -40
+```
 
 ## Known limits
 
