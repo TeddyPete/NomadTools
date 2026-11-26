@@ -94,9 +94,15 @@ def run(args) -> None:
         no_hdmi(lcd, f"Display error: {e}")
         return
     disp = pick_hdmi_display(pygame)
-    modes = sorted(set(pygame.display.list_modes(display=disp) or []), reverse=True)
+    driver = pygame.display.get_driver()
+    if driver in ("wayland", "x11"):
+        # The Pi desktop owns HDMI: fill its screen; it sets the mode.
+        modes = [pygame.display.get_desktop_sizes()[disp]]
+    else:
+        modes = sorted(set(pygame.display.list_modes(display=disp) or []), reverse=True)
     mode_idx = 0
-    size = parse_size(args.size) if args.size else (modes[0] if modes else (1920, 1080))
+    size = parse_size(args.size) if args.size and driver == "kmsdrm" else (modes[0] if modes else (1920, 1080))
+    print(f"video driver {driver}, display {disp}, size {size[0]}x{size[1]}", file=sys.stderr, flush=True)
     if size in modes:
         mode_idx = modes.index(size)
 
