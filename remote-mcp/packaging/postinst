@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+case "$1" in
+  configure)
+    # validate the sudoers drop-in; remove it if sudo would reject it
+    if command -v visudo >/dev/null 2>&1 && ! visudo -cf /etc/sudoers.d/tnt-remote >/dev/null 2>&1; then
+      echo "tnt-remote: sudoers file failed validation, removing it" >&2
+      rm -f /etc/sudoers.d/tnt-remote
+    fi
+    [ -d /run/systemd/system ] && systemctl --global daemon-reload >/dev/null 2>&1 || true
+    # reload the running user manager of pi so the new unit is seen, and restart the server if it is on
+    if id pi >/dev/null 2>&1 && [ -S /run/user/$(id -u pi)/bus ]; then
+      su pi -s /bin/sh -c "XDG_RUNTIME_DIR=/run/user/$(id -u pi) systemctl --user daemon-reload; \
+        XDG_RUNTIME_DIR=/run/user/$(id -u pi) systemctl --user try-restart tnt-remote.service" >/dev/null 2>&1 || true
+    fi
+    ;;
+esac
+exit 0

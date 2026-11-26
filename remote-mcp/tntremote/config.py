@@ -1,0 +1,111 @@
+"""Paths and settings for TNT Remote.
+
+Everything lives in the pi user's home, so the server never needs root:
+
+  ~/.config/tnt-remote/settings.json   public URL, port, permission switches
+  ~/.config/tnt-remote/tunnel.token    Cloudflare tunnel token (mode 600)
+  ~/.local/state/tnt-remote/auth.json  OAuth clients and hashed tokens (600)
+  ~/.local/state/tnt-remote/audit.log  one line per tool call
+  ~/.local/lib/tnt-remote/cloudflared  tunnel program (downloaded, no root)
+  $XDG_RUNTIME_DIR/tnt-remote/         status.json, pairing.json, "active"
+"""
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+
+HOME = os.path.expanduser("~")
+CONF_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "tnt-remote")
+STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"), "tnt-remote")
+LIB_DIR = os.path.join(HOME, ".local", "lib", "tnt-remote")
+RUN_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "tnt-remote")
+
+SETTINGS = os.path.join(CONF_DIR, "settings.json")
+TOKEN_FILE = os.path.join(CONF_DIR, "tunnel.token")
+AUTH_FILE = os.path.join(STATE_DIR, "auth.json")
+AUDIT_LOG = os.path.join(STATE_DIR, "audit.log")
+TUNNEL_LOG = os.path.join(STATE_DIR, "cloudflared.log")
+STATUS_FILE = os.path.join(RUN_DIR, "status.json")
+PAIR_FILE = os.path.join(RUN_DIR, "pairing.json")
+ACTIVE_FLAG = os.path.join(RUN_DIR, "active")      # other TNT apps show a badge while it exists
+CLOUDFLARED = os.path.join(LIB_DIR, "cloudflared")
+
+SERVICE = "tnt-remote.service"
+
+DEFAULTS = {
+    "public_url": "",          # e.g. https://cp0.ted4ff.workers.dev  (no trailing slash)
+    "port": 8765,
+    "tunnel_protocol": "auto", # auto (QUIC, falls back to http2) | quic | http2
+    "allow_commands": True,    # run_command / background jobs
+    "allow_sudo": False,       # run_command sudo=true (root). Only switched on from the device menu.
+    "allow_writes": True,      # write/edit/move/delete files
+    "allow_net_tools": True,
+    "default_cwd": HOME,
+}
+
+
+def ensure_dirs() -> None:
+    for d in (CONF_DIR, STATE_DIR, LIB_DIR, RUN_DIR):
+        os.makedirs(d, mode=0o700, exist_ok=True)
+
+
+def load() -> dict:
+    cfg = dict(DEFAULTS)
+    try:
+        with open(SETTINGS) as f:
+            cfg.update(json.load(f))
+    except (OSError, ValueError):
+        pass
+    cfg["public_url"] = str(cfg.get("public_url") or "").rstrip("/")
+    return cfg
+
+
+def save(cfg: dict) -> None:
+    ensure_dirs()
+    write_json(SETTINGS, {k: cfg.get(k, v) for k, v in DEFAULTS.items()})
+
+
+def write_json(path: str, data, mode: int = 0o600) -> None:
+    """Atomic write, so a power cut never leaves half a file."""
+    d = os.path.dirname(path)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def read_json(path: str, default=None):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def tunnel_token() -> str:
+    try:
+        with open(TOKEN_FILE) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def set_tunnel_token(token: str) -> None:
+    ensure_dirs()
+    token = token.strip()
+    fd = os.open(TOKEN_FILE + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(token + "\n")
+    os.replace(TOKEN_FILE + ".tmp", TOKEN_FILE)

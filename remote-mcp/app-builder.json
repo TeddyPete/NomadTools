@@ -1,0 +1,40 @@
+{
+  "package_name": "tnt-remote",
+  "version": "0.1.0",
+  "app_name": "TNT Remote",
+  "bin_name": "tnt-remote",
+  "description": "Use this CardputerZero from Claude anywhere: commands, files, Net Tools",
+  "store": {
+    "summary": "TNT Remote: let Claude run commands and AV net tools on this device",
+    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Turns the CardputerZero into a remote MCP server that Claude (phone app, claude.ai or Claude Code) can use from anywhere the device has internet: run commands and long background jobs, read, write and edit files, install and run programs (with an Admin / sudo switch), take screenshots of the built-in screen, and run TNT AV Net Tools checks on the network it is plugged into (find AV gear, Dante, PTP, multicast, LLDP, DHCP and more). It connects out through a Cloudflare tunnel, so no ports are opened on the network. Claude signs in with OAuth plus a one-time pairing code shown on this screen. Turn remote access on or off, watch live activity, disconnect everyone and set permissions from the keyboard. While it is on, other TNT apps show a dot in their title bar.",
+    "categories": [
+      "Development",
+      "AI"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0.png",
+      "screenshots/lcd_1.png",
+      "screenshots/lcd_2.png",
+      "screenshots/lcd_3.png",
+      "screenshots/lcd_4.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Tech Nomad Ted"
+    },
+    "share_code": "TNTR",
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": true,
+      "additional_hardware": false,
+      "background_service": true,
+      "external_display": false
+    },
+    "locales": {}
+  }
+}
