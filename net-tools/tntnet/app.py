@@ -17,7 +17,7 @@ import pygame  # noqa: E402
 from . import keys, reports, store, util  # noqa: E402
 from .ui import DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.2.6"
+VERSION = "0.3.0"
 
 
 class App:
@@ -27,6 +27,8 @@ class App:
         self.quit = False
         pygame.font.init()
         self.r = Renderer(window)
+        from .share import Share
+        self.share = Share()
         self.kb = None
         path = keys.find_keyboard()
         if path:
@@ -211,6 +213,166 @@ def conflict_ip(app, ip):
 BRAND_ORDER = ["Crestron", "Extron", "Q-SYS", "Biamp", "Shure", "Netgear"]
 
 
+# ---------------------------------------------------------------- reports out
+
+class ShareScreen(Screen):
+    """QR code + address of the reports download page (TNT standard)."""
+    title = "Download reports"
+
+    def __init__(self, app):
+        self.app = app
+        if not app.share.on:
+            app.share.start()
+        self.pick = 0
+
+    def addrs(self):
+        out = [(i.name, i.ip) for i in util.interfaces() if i.ip and not i.ip.startswith("127.")]
+        return sorted(out, key=lambda a: (not a[0].startswith("wl"), a[0]))
+
+    def view(self, rows: int) -> View:
+        sh = self.app.share
+        if not sh.on:
+            return View(self.title, [Line("Sharing is OFF", (255, 190, 60)), Line(""),
+                                     Line("OK puts your reports on a", DIM), Line("web page for a phone/laptop.", DIM)],
+                        "OK turn on  Esc back")
+        a = self.addrs()
+        if not a:
+            return View(self.title, [Line("No IP address yet.", (255, 95, 95)),
+                                     Line("Join Wi-Fi or plug in a cable.", DIM)], "Esc back")
+        ifc, ip = a[self.pick % len(a)]
+        url = f"http://{ip}:{sh.port}/"
+        lines = [Line("Scan or open:", DIM), Line(ip, (110, 230, 120)), Line(f":{sh.port} {ifc}", (110, 230, 120)),
+                 Line("Tap a file to", DIM), Line("download it.", DIM)]
+        more = "  F/X IP" if len(a) > 1 else ""
+        return View(self.title, lines, "OK turn off" + more + "  Esc back", qr=url)
+
+    def on_key(self, k, app) -> None:
+        if k.name == "enter":
+            if app.share.on:
+                app.share.stop()
+            elif not app.share.start():
+                app.toast(app.share.error or "Couldn't start the web page.")
+        elif k.up:
+            self.pick -= 1
+        elif k.down:
+            self.pick += 1
+        elif k.nav in ("esc", "left"):
+            app.pop()
+
+
+def reports_out_menu(app):
+    from . import share
+    app.push(Menu("Download reports", [
+        ("Web page + QR code", lambda app: app.push(ShareScreen(app))),
+        ("Copy all to USB stick", lambda app: app.task("Copy to USB", share.copy_all)),
+    ]))
+
+
+# ---------------------------------------------------------------- Crestron NVX
+
+class Confirm(Screen):
+    """Asks before something changes customer gear. OK = do it, Esc = cancel."""
+
+    def __init__(self, title: str, lines: list, go):
+        self.title, self.lines, self.go = title, lines, go
+        self.hint = "OK = yes, do it   Esc = cancel"
+
+    def view(self, rows: int) -> View:
+        return View(self.title, [Line(t, (255, 190, 60) if i == 0 else (235, 235, 235))
+                                 for i, t in enumerate(self.lines)], self.hint)
+
+    def on_key(self, k, app) -> None:
+        if k.name == "enter":
+            app.pop()
+            self.go(app)
+        elif k.nav in ("esc", "left"):
+            app.pop()
+
+
+def nvx_menu(app):
+    from . import crestron_setup as cs
+
+    def find(app):
+        app.task("Find NVX", cs.scan, iface="")
+
+    def setup(app):
+        def go(v, app):
+            if not v["user"] or not v["password"]:
+                return app.toast("Enter a user name and password.")
+            if v["password"] != v["again"]:
+                return app.toast("The two passwords don't match.")
+            if len(v["password"]) < 8:
+                return app.toast("NVX needs a password of 8 or more characters.")
+            app.pop()
+            user, pw = v["user"], v["password"]
+            found = {}
+
+            def scan_task(out):
+                devs = cs.scan(out, "", True)
+                todo = [d for d in devs if d.get("state") == "needs setup"]
+                found["todo"] = todo
+                if todo:
+                    out.item(f">> Set up these {len(todo)} NVX (OK)", ("setup", todo), (255, 190, 60))
+                else:
+                    out.ok("Nothing to set up: every NVX already has an admin account.")
+
+            def picked(app, payload):
+                if not (isinstance(payload, tuple) and payload[0] == "setup"):
+                    return
+                todo = payload[1]
+                lines = [f"Create admin '{user}' on {len(todo)} NVX?",
+                         "This changes the devices.", ""] + [f"{d['ip']} {d['host'][:14]}" for d in todo]
+
+                def do(app):
+                    def run(out):
+                        done = []
+                        for d in todo:
+                            if out.stopped:
+                                break
+                            out.dim(f"{d['ip']}: creating admin account...")
+                            ok = cs.create_admin(d["ip"], user, pw, out.warn)
+                            out.replace_last(f"{d['ip']}: {'admin set, login checked' if ok else 'FAILED'}",
+                                             (110, 230, 120) if ok else (255, 95, 95))
+                            if ok:
+                                done.append(d)
+                        if done:
+                            out.head("Settings capture")
+                            cs.capture(out, app.cfg, done, user, pw, "NVX-setup")
+                    app.task("NVX setup", run)
+                app.push(Confirm("Set up NVX", lines, do))
+            app.task("NVX needing setup", scan_task, on_pick=picked)
+        app.push(Form("Set up new NVX", [
+            Field("user", "Admin user", "admin"),
+            Field("password", "Password", "", secret=True),
+            Field("again", "Password again", "", secret=True)], go,
+            "Typed here only, never saved. You confirm before anything changes."))
+
+    def capture(app, nvx_only=True):
+        what = "NVX" if nvx_only else "Crestron"
+
+        def go(v, app):
+            app.pop()
+
+            def run(out):
+                devs = cs.discover(out, "", nvx_only)
+                if not devs:
+                    return out.warn(f"No {what} devices found.")
+                out.replace_last(f"{len(devs)} {what} device(s). Logging in...", DIM)
+                cs.capture(out, app.cfg, devs, v["user"], v["password"], f"{what}-settings")
+            app.task(f"{what} settings capture", run)
+        app.push(Form(f"{what} settings capture", [
+            Field("user", "User", "admin"),
+            Field("password", "Password", "", secret=True)], go,
+            "Same login for every device. Not saved."))
+
+    app.push(Menu("Crestron NVX", [
+        ("Find NVX (needs setup?)", find),
+        ("Set up new NVX (password)", setup),
+        ("NVX settings capture (CSV)", capture),
+        ("All Crestron capture (CSV)", lambda app: capture(app, False)),
+    ]))
+
+
 def brand_menu(app, ip: str = ""):
     items = [(("Netgear AV Line" if b == "Netgear" else b), (lambda app, b=b: login_form(app, b, ip)))
              for b in BRAND_ORDER]
@@ -372,6 +534,7 @@ def site_menu(app):
 
     app.push(Menu("Site & reports", [
         (lambda: f"Site: {app.site or '(not set)'}", set_site),
+        ("Download reports (QR/USB)", reports_out_menu),
         ("Browse saved reports", browse),
         ("Where reports are saved", lambda app: app.toast(reports.ROOT)),
     ]))
@@ -441,6 +604,7 @@ def main_menu(app) -> Menu:
         ("Find AV gear", do_findav),
         ("AV discovery (Dante, NDI)", av_menu),
         ("Device login & info pull", lambda app: brand_menu(app)),
+        ("Crestron NVX setup/capture", nvx_menu),
         ("Terminal (SSH/Telnet/serial)", lambda app: terminal.setup(app)),
         ("Capture (sniffer, pcap)", capture_menu),
         ("Network checks", checks_menu),
@@ -494,7 +658,11 @@ def main() -> None:
     if a.shots:
         shots(a.shots)
         return
-    App(window=not a.no_window).run(a.keys)
+    app = App(window=not a.no_window)
+    try:
+        app.run(a.keys)
+    finally:
+        app.share.stop()
     pygame.quit()
 
 

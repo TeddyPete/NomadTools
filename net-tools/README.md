@@ -50,6 +50,27 @@ Watches the wired port (default `eth0`) for PTP and multicast:
 - IGMP querier present or missing, and which groups other devices joined
 - **Multicast flooding**: multicast reaching this port that it never asked for, in Mb/s per group
 
+## Crestron NVX setup and settings capture
+
+Main menu > Crestron NVX setup/capture:
+
+- **Find NVX** lists every NVX (Crestron autodiscovery) and whether it still needs its first admin
+  account. The check only looks at the factory login (user `Crestron`, blank password); it never
+  creates anything.
+- **Set up new NVX** asks for the admin user and password (typed on the keyboard, never saved),
+  lists the NVX that need setup, and only after you press OK on the confirmation screen creates the
+  account on each one, checks the new login works, then captures their settings.
+- **NVX settings capture** and **All Crestron capture** log in to every device with one login
+  (REST API over HTTPS, console as a fallback) and save a CSV (IP, hostname, model, Tx/Rx mode,
+  firmware, serial, MAC, DHCP, subnet, gateway, multicast address, stream URL, device ID, status)
+  plus the raw JSON to the site's reports.
+- A Crestron info pull now ends with the IP table as an online/offline list (offline entries are pinged).
+
+## Getting reports off the device
+
+Site & reports > Download reports: a web page with a QR code (download a file, or a whole site as a
+.zip) or copy everything to a USB stick (`TNT-Net-Reports/`). Same as TNT Packet Capture.
+
 ## Keys
 
 The CardputerZero's arrows are on the Fn layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right.

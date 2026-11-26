@@ -60,6 +60,7 @@ class View:
     hscroll: int = 0
     edit: str | None = None   # an input line shown above the hint (terminal)
     editing: bool = False     # highlight / input line shown red: keys type
+    qr: str | None = None     # draw this text as a QR code on the left
 
 
 # ---------------------------------------------------------------- screens
@@ -470,6 +471,12 @@ class Painter:
         lines = v.lines
         y = self.th + 1
         cols = self.cols()
+        xoff = self.pad
+        if v.qr:
+            from . import qr
+            px = qr.draw(surf, v.qr, 4, self.th + 3, H - self.th - self.hh - 6)
+            xoff = px + 10
+            cols = max(8, (W - xoff - self.pad) // self.cw)
         wrap = self.wrap and not wide and not v.hscroll
 
         def chunks(i):
@@ -505,7 +512,7 @@ class Painter:
             for part in chunks(i)[: rows - used]:
                 if i == v.cursor:
                     surf.fill(EDIT if v.editing else SEL, (0, y, W, self.lh))
-                surf.blit(self.f.render(part or " ", True, color), (self.pad, y))
+                surf.blit(self.f.render(part or " ", True, color), (xoff, y))
                 y += self.lh
                 used += 1
             i += 1
