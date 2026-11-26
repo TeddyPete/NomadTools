@@ -26,6 +26,13 @@ STATUS_HELP = "Up/Dn scroll  < back"
 ROOM_HELP = "OK next/save  Up/Dn field  Esc cancel"
 METER_HELP = "W A/Z  T tone  +/- cal  S save  < back"
 EDID_HELP = "Up/Dn scroll  > page  S save  < back"
+# The CardputerZero's Sym layer sends keypad/Japanese placeholder keys for the
+# symbols printed on the keycaps (Sym+B '.' arrives as KEY_HIRAGANA). SDL turns
+# those evdev codes into these scancodes; map them back to the printed symbol
+# for text fields. The Fn and Sym keys themselves (KEY_DVD, KEY_CD) type nothing.
+SYM_SCANCODES = {85: "~", 83: "`", 71: "_", 95: "-", 96: "+", 97: "=", 86: "[", 92: "]",
+                 93: "{", 94: "}", 89: ";", 90: ":", 91: "'", 98: '"', 99: "<", 148: ">",
+                 100: "\\", 135: "|", 146: ",", 147: ".", 138: "/", 136: "?"}
 PLAIN_ARROWS = {}     # filled in run() once pygame is imported: f x z c -> up down left right
 MENU = [("patterns", "Test patterns"), ("modes", "Video mode"), ("audio", "Audio output"),
         ("sync", "Lip-sync test"), ("meter", "Audio meter / RTA"), ("edid", "Display EDID"),
@@ -335,6 +342,7 @@ def run(args) -> None:
     meter, meter_msg, meter_t, meter_n = None, "", 0.0, 0
     status_view, status_scroll = False, 0
     room = None                     # dict while the room report form is open
+    pygame.key.set_repeat()   # no auto-repeat: a held Esc or OK must act once
     PLAIN_ARROWS.update({"f": pygame.K_UP, "x": pygame.K_DOWN, "z": pygame.K_LEFT, "c": pygame.K_RIGHT})
     screen, menu_sel = "menu", 0    # "menu", "patterns", or a picker: "modes" / "audio"
     pick_sel = 0
@@ -454,6 +462,8 @@ def run(args) -> None:
                         room = None
                 elif k == pygame.K_BACKSPACE:
                     room[f] = room[f][:-1]
+                elif getattr(ev, "scancode", None) in SYM_SCANCODES:
+                    room[f] += SYM_SCANCODES[ev.scancode]
                 elif ev.unicode and ev.unicode.isprintable():
                     room[f] += ev.unicode
                 dirty = True
