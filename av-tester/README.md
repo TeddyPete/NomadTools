@@ -17,6 +17,13 @@ sudo apt install ./build/zeroav-tester_*_all.deb
 ```
 
 Open **AV Tester** from HOME. Hold Esc for 2 s (or press Q) to return to the launcher.
+
+If the Pi desktop is running on HDMI, AV Tester pauses it while it runs so it can set HDMI
+resolution and refresh itself, then starts the desktop again when you quit. A reboot always
+brings the desktop back. To keep the desktop up and show patterns in a window on it instead,
+set `ZEROAV_KEEP_DESKTOP=1`. The package installs a small polkit rule
+(`/usr/share/polkit-1/rules.d/60-zeroav-tester.rules`) that lets local users in the `video`
+group stop and start `lightdm.service` only, with no password.
 Uninstall with `sudo apt remove zeroav-tester`.
 
 ## Publishing to the CardputerZero Store
