@@ -394,7 +394,7 @@ class LipSyncTest:
         self.mic.start()
         self.out.start()
         self.state = "warmup"
-        self.next_at = time.perf_counter() + 3.0   # camera exposure settles
+        self.next_at = time.perf_counter() + 12.0  # give up if not ready by then
         self.message = "Starting camera and mic..."
 
     def stop(self) -> None:
@@ -417,12 +417,17 @@ class LipSyncTest:
         if err and self.state in ("warmup", "running"):
             self.state, self.message = "error", err
             return False
-        if self.state == "warmup" and now >= self.next_at:
-            if self.cam.frames < 50:
-                self.state, self.message = "error", "Camera not delivering frames"
+        if self.state == "warmup":
+            # The camera takes 2.5-4 s to start; wait for a steady stream
+            # (and the mic), then let exposure settle for a moment.
+            ready = self.cam.frames >= 200 and self.mic.c is not None
+            if ready:
+                self.state = "running"
+                self.next_at = now + 0.5
+            elif now >= self.next_at:
+                self.state = "error"
+                self.message = "Camera not delivering frames" if self.cam.frames < 200 else "Mic not delivering sound"
                 return False
-            self.state = "running"
-            self.next_at = now + 0.5
         if self.state == "running":
             if self._pending is None and len(self.events) < self.count and now >= self.next_at:
                 self._pending = Event()
@@ -535,6 +540,9 @@ def probe(seconds: float = 5.0, mic_device: str = "default") -> None:
     cam.start()
     mic.start()
     t0 = time.perf_counter()
+    while cam.frames == 0 and time.perf_counter() - t0 < 10 and not cam.error:
+        time.sleep(0.05)
+    print(f"camera started after {time.perf_counter() - t0:.1f} s", flush=True)
     time.sleep(seconds)
     cam.stop()
     mic.stop()
