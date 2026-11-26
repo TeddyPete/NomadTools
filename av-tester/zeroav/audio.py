@@ -43,13 +43,18 @@ def block_for(mode: str, freq: float = 1000.0, dbfs: float = -20.0) -> bytes:
 
 
 def pick_device() -> str:
-    """On the stock CardputerZero image PipeWire owns the sound hardware, so
-    the 'pipewire' ALSA device is the one that works; elsewhere use default."""
+    """Test tones belong on the HDMI output under test. On the CardputerZero
+    the HDMI audio card (vc4hdmi) is free, while the ES8389 codec is held by
+    the launcher, so prefer HDMI, then PipeWire, then the ALSA default."""
     try:
-        names = subprocess.run(["aplay", "-L"], capture_output=True, text=True, timeout=5).stdout
+        names = [l.strip() for l in subprocess.run(
+            ["aplay", "-L"], capture_output=True, text=True, timeout=5).stdout.splitlines()]
     except (OSError, subprocess.SubprocessError):
         return "default"
-    return "pipewire" if any(l.strip() == "pipewire" for l in names.splitlines()) else "default"
+    for n in names:
+        if n.startswith("hdmi:CARD=vc4hdmi"):
+            return n
+    return "pipewire" if "pipewire" in names else "default"
 
 
 class TonePlayer:

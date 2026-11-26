@@ -1,6 +1,6 @@
 {
   "package_name": "zeroav-tester",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "app_name": "AV Tester",
   "bin_name": "zeroav-tester",
   "description": "HDMI test patterns and audio test tones for AV installs",

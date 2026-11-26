@@ -51,7 +51,7 @@ Stop the launcher first (`systemctl --user stop APPLaunch.service`), connect an 
 ```bash
 python3 -m zeroav.app                                  # display's preferred mode
 python3 -m zeroav.app --size 1280x720                  # pick a resolution
-python3 -m zeroav.app --audio-device pipewire         # tones through PipeWire (default when present)
+python3 -m zeroav.app --audio-device default          # pick a tone output (default: HDMI audio)
 ```
 
 ## Keys
