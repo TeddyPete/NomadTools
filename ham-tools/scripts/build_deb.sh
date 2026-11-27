@@ -51,6 +51,27 @@ Description: $NAME for the M5Stack CardputerZero
  and Ask Elmer Antenna Lab and keeps their settings. Runs as the normal
  user; settings live in ~/.config/$PKG/.
 CTL
+# The old apps' folders can outlive their packages when Python left __pycache__ in them
+# (dpkg does not remove files it did not install), and a stale folder still shows as an app.
+cat > "$ROOT/DEBIAN/postinst" <<'SH'
+#!/bin/sh
+set -e
+for old in askelmer-shack-tools askelmer-antenna-lab; do
+  d=/usr/share/APPLaunch/lib/$old
+  if [ -d "$d" ] && ! dpkg -S "$d" >/dev/null 2>&1; then rm -rf "$d"; fi
+done
+exit 0
+SH
+cat > "$ROOT/DEBIAN/postrm" <<SH
+#!/bin/sh
+set -e
+if [ "\$1" = remove ] || [ "\$1" = purge ]; then
+  find /usr/share/APPLaunch/lib/$PKG -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
+  rmdir --ignore-fail-on-non-empty -p /usr/share/APPLaunch/lib/$PKG/hamtools/lab 2>/dev/null || true
+fi
+exit 0
+SH
+chmod 755 "$ROOT/DEBIAN/postinst" "$ROOT/DEBIAN/postrm"
 mkdir -p build
 OUT="build/${PKG}_${VER}-${REV}_arm64.deb"
 dpkg-deb --root-owner-group --build "$ROOT" "$OUT" >/dev/null

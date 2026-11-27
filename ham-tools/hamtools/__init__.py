@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import shutil
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 APP_NAME = "Ask Elmer Ham Tools"
 PKG = "askelmer-ham-tools"
 # Packages this app replaces; their settings are carried over on first run.
