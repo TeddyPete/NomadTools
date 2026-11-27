@@ -1,6 +1,6 @@
 {
   "package_name": "askelmer-ham-exam",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "app_name": "Ask Elmer Ham Exam",
   "bin_name": "askelmer-ham-exam",
   "description": "Study for the US ham radio license exams with the official NCVEC pools",
@@ -25,7 +25,7 @@
     "author": {
       "github": "TeddyPete",
       "display_name": "TheTechNomad",
-      "website": "https://www.TheTechNomad.com"
+      "website": "https://askelmer.com"
     },
     "share_code": "AEHX",
     "permissions": {

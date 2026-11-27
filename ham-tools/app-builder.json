@@ -1,6 +1,6 @@
 {
   "package_name": "askelmer-ham-tools",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "app_name": "Ask Elmer Ham Tools",
   "bin_name": "askelmer-ham-tools",
   "description": "Ham radio tools: Antenna Lab (NEC2 modelling, 3D pattern), band check, RF math, greyline, propagation, satellites, POTA/SOTA",
@@ -32,7 +32,7 @@
     "author": {
       "github": "TeddyPete",
       "display_name": "TheTechNomad",
-      "website": "https://www.TheTechNomad.com"
+      "website": "https://askelmer.com"
     },
     "share_code": "AEHT",
     "permissions": {

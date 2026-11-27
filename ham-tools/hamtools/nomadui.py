@@ -709,8 +709,8 @@ def about_lines() -> list[str]:
     return out
 
 
-# QR code for WEBSITE_URL (29x29, level M), made with the Nomad qr.py so the
-# About screen needs no QR code library.
+# QR code for the About screen, made with the Nomad qr.py so no QR code
+# library is needed. Nomad apps: WEBSITE_URL. Ask Elmer apps: askelmer.com.
 _SITE_QR = [
     "11111110111011110011101111111",
     "10000010101001001100001000001",
@@ -744,12 +744,43 @@ _SITE_QR = [
 ]
 
 
+ASKELMER_URL = "https://askelmer.com"
+_ELMER_QR = [
+    "1111111001011000101111111",
+    "1000001001111101001000001",
+    "1011101010111010101011101",
+    "1011101010000110001011101",
+    "1011101010101100001011101",
+    "1000001010010111001000001",
+    "1111111010101010101111111",
+    "0000000011100010000000000",
+    "1011111001111111101111100",
+    "0011000011000100110100010",
+    "1001011100111011101101011",
+    "0010010010100011110000001",
+    "1000001010100001011010111",
+    "1100110011101100100101010",
+    "1011011110000111100111011",
+    "1001010100101101110110001",
+    "1011111100101010111110100",
+    "0000000010000001100011000",
+    "1111111000111000101010111",
+    "1000001011110010100011001",
+    "1011101010110001111110111",
+    "1011101011001111011011111",
+    "1011101011100110100001101",
+    "1000001000001101111111001",
+    "1111111010001010011111111",
+]
+QR, QR_URL, QR_LABEL = _ELMER_QR, ASKELMER_URL, "askelmer.com"
+
+
 def draw_site_qr(surf, x: int, y: int, cell: int) -> int:
     """The website QR code with a white quiet zone; returns its width."""
-    n, q = len(_SITE_QR), 2
+    n, q = len(QR), 2
     side = (n + 2 * q) * cell
     surf.fill((255, 255, 255), (x, y, side, side))
-    for r, row in enumerate(_SITE_QR):
+    for r, row in enumerate(QR):
         for c, bit in enumerate(row):
             if bit == "1":
                 surf.fill((0, 0, 0), (x + (c + q) * cell, y + (r + q) * cell, cell, cell))
@@ -785,8 +816,8 @@ class AboutView:
         surf.fill(BG)
         _about_title(surf, self.title, f)
         top, bottom = TITLE_H + 2, H - HINT_H
-        cell = 4 if (len(_SITE_QR) + 4) * 4 <= bottom - top - 2 else 3
-        side = (len(_SITE_QR) + 4) * cell
+        cell = 4 if (len(QR) + 4) * 4 <= bottom - top - 2 else 3
+        side = (len(QR) + 4) * cell
         qx = W - side - 4
         draw_site_qr(surf, qx, top + (bottom - top - side) // 2, cell)
         tw = qx - 12
@@ -814,4 +845,4 @@ class AboutView:
             surf.blit(img, (7, y))
             y += img.get_height() + (2 if size == "row" else 0)
         surf.fill(HINT_BG, (0, H - HINT_H, W, HINT_H))
-        surf.blit(f["small"].render("Scan for the website   ESC back", True, HINT_FG), (6, H - HINT_H + 1))
+        surf.blit(f["small"].render(f"Scan for {QR_LABEL}   ESC back", True, HINT_FG), (6, H - HINT_H + 1))
