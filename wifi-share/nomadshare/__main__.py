@@ -71,9 +71,9 @@ def headless(mode: str, seconds: int) -> int:
         while time.monotonic() < end and not stop["now"]:
             time.sleep(5)
             st = net.status()
-            print(f"{ts()} {st.get('mode')} wifi={st.get('wifi_state')}/{st.get('wifi_con')} {st.get('wifi_ip')} "
-                  f"eth={st.get('eth_state')}/{st.get('eth_con')} {st.get('eth_ip')} clients={len(st.get('clients', []))}",
-                  flush=True)
+            print(f"{ts()} {st.get('mode')}{' LOST' if st.get('lost') else ''} wifi={st.get('wifi_state')}/{st.get('wifi_con')} "
+                  f"{st.get('wifi_ip')} eth={st.get('eth_state')}/{st.get('eth_con')} {st.get('eth_ip')} "
+                  f"lan={st.get('lan')} {st.get('lan_ip')} clients={len(st.get('clients', []))}", flush=True)
     except Exception as e:
         print(f"{ts()} ERROR: {e}", flush=True)
     finally:
