@@ -45,6 +45,7 @@ ALLOWED_REDIRECTS = {
 # ChatGPT's per-connector form: https://chatgpt.com/connector/oauth/<callback id>
 _PREFIXES = ("https://chatgpt.com/connector/oauth/",)
 SCOPE = "device"
+KEY_PREFIX = "nab_"     # access keys: nab_<32 url-safe chars>
 
 
 def _h(s: str) -> str:
@@ -115,12 +116,14 @@ def check_pairing(code: str) -> tuple[bool, str]:
 # ---- clients and tokens -----------------------------------------------------------
 
 class Store:
-    """auth.json: {"clients": {id: {...}}, "access": {hash: {...}}, "refresh": {hash: {...}}}"""
+    """auth.json: {"clients": {id: {...}}, "access": {hash: {...}}, "refresh": {hash: {...}},
+    "keys": {hash: {"client": id}}}. Keys are access keys made on the device for apps that
+    can't do OAuth sign-in well (Codex chats, cloud agents, scripts); they don't expire."""
 
     def __init__(self, path: str = ""):
         self.path = path or C.AUTH_FILE
         self.lock = threading.RLock()
-        self.data = {"clients": {}, "access": {}, "refresh": {}}
+        self.data = {"clients": {}, "access": {}, "refresh": {}, "keys": {}}
         self.mtime = None
         self.codes: dict[str, dict] = {}     # authorization codes, memory only
         self._load()
@@ -133,7 +136,7 @@ class Store:
         if m == self.mtime and m is not None:
             return
         d = C.read_json(self.path) or {}
-        self.data = {k: dict(d.get(k) or {}) for k in ("clients", "access", "refresh")}
+        self.data = {k: dict(d.get(k) or {}) for k in ("clients", "access", "refresh", "keys")}
         self.mtime = m
 
     def _save(self) -> None:
@@ -158,7 +161,8 @@ class Store:
             self._load()
             if len(self.data["clients"]) >= MAX_CLIENTS:
                 # drop the oldest client that has no live refresh token
-                live = {v["client"] for v in self.data["refresh"].values()}
+                live = {v["client"] for v in self.data["refresh"].values()} | \
+                    {v["client"] for v in self.data["keys"].values()}
                 old = sorted((c for c in self.data["clients"].items() if c[0] not in live),
                              key=lambda c: c[1].get("created", 0))
                 if not old:
@@ -240,8 +244,8 @@ class Store:
             return None
         with self.lock:
             self._load()
-            a = self.data["access"].get(_h(token))
-            if not a or a["exp"] < time.time() or a["client"] not in self.data["clients"]:
+            a = self.data["access"].get(_h(token)) or self.data["keys"].get(_h(token))
+            if not a or a.get("exp", float("inf")) < time.time() or a["client"] not in self.data["clients"]:
                 return None
             c = self.data["clients"][a["client"]]
             now = int(time.time())
@@ -255,9 +259,23 @@ class Store:
         with self.lock:
             self._load()
             self.data["clients"].pop(cid, None)
-            for k in ("access", "refresh"):
+            for k in ("access", "refresh", "keys"):
                 self.data[k] = {h: v for h, v in self.data[k].items() if v.get("client") != cid}
             self._save()
+
+    def create_key(self, name: str) -> tuple[str, str]:
+        """A new access key for one app, shown once: (key, client id). Listed and revocable
+        like a paired app."""
+        key = KEY_PREFIX + secrets.token_urlsafe(24)
+        now = int(time.time())
+        with self.lock:
+            self._load()
+            cid = "key-" + secrets.token_urlsafe(12)
+            self.data["clients"][cid] = {"name": (name or "Access key")[:80], "kind": "key",
+                                         "created": now, "paired": now}
+            self.data["keys"][_h(key)] = {"client": cid, "scope": SCOPE}
+            self._save()
+        return key, cid
 
     def summary(self) -> list[dict]:
         """Connected clients for the device screen."""
@@ -267,15 +285,18 @@ class Store:
             for v in self.data["refresh"].values():
                 if v["exp"] > time.time():
                     live[v["client"]] = max(live.get(v["client"], 0), v["exp"])
+            for v in self.data["keys"].values():
+                live[v["client"]] = 1
             out = []
             for cid, c in self.data["clients"].items():
                 if cid in live:
                     out.append({"id": cid, "name": c.get("name", ""), "last_auth": c.get("last_auth", 0),
                                 "paired": c.get("paired") or c.get("created", 0),
-                                "last_used": max(c.get("last_used", 0), c.get("last_auth", 0))})
-            return sorted(out, key=lambda c: -c["last_auth"])
+                                "last_used": max(c.get("last_used", 0), c.get("last_auth", 0)),
+                                "kind": c.get("kind", "oauth")})
+            return sorted(out, key=lambda c: -max(c["last_auth"], c["paired"]))
 
 
 def revoke_all(path: str = "") -> None:
     """Forget every client and token (device menu: Disconnect everyone)."""
-    C.write_json(path or C.AUTH_FILE, {"clients": {}, "access": {}, "refresh": {}})
+    C.write_json(path or C.AUTH_FILE, {"clients": {}, "access": {}, "refresh": {}, "keys": {}})

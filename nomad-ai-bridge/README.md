@@ -29,22 +29,27 @@ No account? Pick **Quick test** instead. It works right away, but the address ch
 
 ## Add it to your AI app
 
-* **Claude**: go to Settings > Connectors > Add custom connector, paste the address, and click Connect.
-* **ChatGPT** (web):
-  1. Go to Settings > Apps & Connectors > Advanced and turn on **Developer mode**.
-  2. Choose **Create**. Name it *Nomad AI Bridge*, paste the address as the MCP server URL, and set Authentication to **OAuth**.
-  3. Tick that you trust it, then click Create.
-* **Codex** (app or CLI): add it as a Streamable HTTP server, or run `codex mcp add nomad --url <address>`, then `codex mcp login nomad`.
+On the device choose **Connect an AI app** (the setup wizard goes there by itself), then pick the app. There are two ways in. The device picks the right one for each app:
 
-The app then opens an **Allow** page. On the device, choose **Pair new connection** and type the code it shows on that page.
+* **Claude and ChatGPT: sign in with a pairing code.** They sign in with OAuth, so Claude's and ChatGPT's cloud can use it too.
+  * **Claude** (phone, desktop, claude.ai): Settings > Connectors > Add custom connector. Paste the connector address and click Connect.
+  * **ChatGPT** (web): Settings > Apps & Connectors > Advanced, turn on **Developer mode**. Choose **Create**, paste the address, set Authentication to **OAuth**, tick that you trust it, and click Create.
+  * When the **Allow** page opens, type the code the device shows. With the free ngrok plan your browser may first show an ngrok "You are about to visit" page; click **Visit Site**.
+* **Codex, Claude Code and other MCP apps: an access key.** No sign-in, so it works the first time in every chat, in the CLI and in cloud agents. The device makes a key for that app and shows a short address such as `192.168.1.10:8776/aibridge`. Open it on your computer (same Wi-Fi). Press **OK** on the device to let that computer see the key. The page then shows ready-to-copy setup:
+  * **Your private address** `https://<name>.ngrok-free.dev/k/<key>/mcp`. Paste it as the server URL in any app. For the **Codex app**: Settings > MCP servers > Add server, type Streamable HTTP, URL = the private address.
+  * **Codex CLI/IDE**: `codex mcp add nomad --url "<private address>"`.
+  * **Claude Code**: `claude mcp add --transport http --scope user nomad "<private address>"`.
+  * Apps that set headers can use the normal address with `Authorization: Bearer <key>` (or `X-Nomad-Key: <key>`).
+  * No computer on the same network? Press OK on the access key screen for a QR code of the private address.
 
-With the free ngrok plan, the first time a browser opens the Allow page (from Claude, ChatGPT or Codex) ngrok shows its own "You are about to visit <name>.ngrok-free.dev" page. That is normal: click **Visit Site** and the Allow page opens. The browser remembers it, and the AI apps' own MCP traffic never sees that page. The device's pairing screen reminds you of this.
+Every app, paired or keyed, is listed under **Connected apps** with when it was last used, and can be removed there. Removing a key stops it at once.
 
 ## Safety
 
 * Nomad AI Bridge only dials **out**, so it opens no ports on the network.
 * The token page only runs while setup step 3 is on the screen, and a pasted token is used only after you press OK on the device.
-* Every app has to be approved with a one-time code shown on the device's own screen. A code is valid for 10 minutes and one use.
+* Every app has to be approved at the device: with a one-time code shown on its screen (valid 10 minutes, one use), or with an access key that is only shown to a computer you OK on the device.
+* Treat an access key or private address like a password. Remove it under Connected apps if it leaks.
 * Tokens are stored only as hashes. Refresh tokens last 60 days and renew while the app is in use.
 * **Connected apps** lists which AI apps are signed in (Claude, ChatGPT, Codex...), when each was paired and last used. Pick one to disconnect just that app, or choose **Disconnect everyone**.
 * **Remote access Off** cuts everyone off at once.

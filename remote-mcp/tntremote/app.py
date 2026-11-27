@@ -26,8 +26,9 @@ HELP = (
     "It connects out through a tunnel (ngrok or Cloudflare), so no ports are opened on the "
     "network you plug into.\n"
     "To connect: Setup > Connector address shows the address (text and QR). Add it as a "
-    "custom connector / MCP server in your AI app, then choose Pair new connection here "
-    "and type the code on the Allow page.\n"
+    "custom connector / MCP server in your AI app, then choose Connect an AI app here: "
+    "Claude and ChatGPT sign in with a code on the Allow page; Codex, Claude Code and other "
+    "apps get an access key (a private address) shown on your computer.\n"
     "While it is on, the title bar (here and in TNT apps) shows an orange dot (red when Admin "
     "/ sudo is allowed). Turn Remote access Off to cut every AI app off at once; "
     "Disconnect everyone forgets all sign-ins.\n"
@@ -154,7 +155,7 @@ class Home(FormScreen):
 
     def __init__(self, app):
         fields = [T.Field("remote", "Remote access", "bool"),
-                  T.Field("pair", "Pair new connection", "action"),
+                  T.Field("pair", "Connect an AI app", "action"),
                   T.Field("status", "Status & activity", "action"),
                   T.Field("clients", "Connected apps", "action"),
                   T.Field("perms", "Permissions", "action"),
@@ -197,7 +198,7 @@ class Home(FormScreen):
                 app.toast("Could not switch: " + err)
             app.refresh(now=True)
         elif ev == "action:pair":
-            app.push(PairScreen(app))
+            app.push(AppPick(app))
         elif ev == "action:status":
             app.push(TextScreen(app, "Status", [], live=app.status_lines))
         elif ev == "action:clients":
@@ -320,7 +321,8 @@ class ClientsScreen(Screen):
         top = max(0, self.sel - (T.ROWS - 1))
         rows = []
         for i, c in enumerate(cl):
-            rows.append(T.RowView(c["name"] or c["id"][:12], "used " + ago(c["last_used"]) if c["last_used"] else "",
+            label = (c["name"] or c["id"][:12]) + (" (key)" if c.get("kind") == "key" else "")
+            rows.append(T.RowView(label, "used " + ago(c["last_used"]) if c["last_used"] else "",
                                   "selected" if i == self.sel else "normal"))
         if not cl:
             rows.append(T.RowView("No apps connected", "", "normal", T.DIM))
@@ -511,7 +513,7 @@ class ConnectorScreen(QRScreen):
 
     def __init__(self, app, wizard: bool = False):
         super().__init__(app, "Your connector address" if wizard else "Connector address", "", "",
-                         lambda: app.push(PairScreen(app, wizard)), "next: pair" if wizard else "pair an app")
+                         lambda: app.push(AppPick(app, wizard)), "next: your AI app" if wizard else "connect an app")
 
     def content(self):
         app = self.app
@@ -527,6 +529,166 @@ class ConnectorScreen(QRScreen):
             return "", f"Waiting for the tunnel... {st.get('tunnel', '')} {st.get('tunnel_detail', '')}".strip(), T.WARN
         extra = ("\nThis test address changes every time the device restarts." if cfg.get("tunnel_kind") == "quick" else "")
         return base + "/mcp", "Add as a custom connector (MCP server) in Claude, ChatGPT or Codex:\n" + base + "/mcp" + extra, T.FG
+
+
+def base_url(app) -> str:
+    """The public https address of this device right now ("" while the tunnel isn't up)."""
+    st, cfg = app.status, app.cfg
+    if cfg.get("tunnel_kind") == "cloudflare":
+        return cfg.get("public_url", "").rstrip("/")
+    if st.get("tunnel") == "connected" and st.get("tunnel_kind") == cfg.get("tunnel_kind"):
+        return (st.get("public_url") or "").rstrip("/")
+    return ""
+
+
+# Which AI app: (key, label, how it connects, steps shown before pairing)
+AI_APPS = [
+    ("claude", "Claude (app, web)", "pair",
+     "In Claude (phone, desktop or claude.ai): Settings > Connectors > Add custom connector. Paste the "
+     "connector address and click Connect. If ngrok shows 'You are about to visit', click Visit Site. "
+     "On the Allow page, type the code this device shows next. Works in Claude's cloud too."),
+    ("chatgpt", "ChatGPT", "pair",
+     "In ChatGPT on the web: Settings > Apps & Connectors > Advanced, turn on Developer mode. Then "
+     "Create: name it, paste the connector address, Authentication OAuth, tick trust, Create. "
+     "If ngrok shows 'You are about to visit', click Visit Site. On the Allow page, type the code "
+     "this device shows next."),
+    ("codex", "Codex (app, CLI, IDE)", "key", ""),
+    ("claudecode", "Claude Code", "key", ""),
+    ("other", "Other MCP app", "key", ""),
+]
+
+
+class AppPick(FormScreen):
+    """Which AI app? Claude and ChatGPT sign in with a pairing code; Codex, Claude Code and
+    other apps get an access key, which works the first time in chats and cloud agents too."""
+
+    def __init__(self, app, wizard: bool = False):
+        self.wizard = wizard
+        fields = [T.Field(k, label, "action") for k, label, _, _ in AI_APPS]
+        super().__init__(app, "Which AI app?", T.EditList(fields, {}))
+
+    def event(self, ev):
+        if not ev.startswith("action:"):
+            return
+        k = ev.split(":", 1)[1]
+        key, label, how, steps = next(a for a in AI_APPS if a[0] == k)
+        app = self.app
+        if how == "pair":
+            app.push(StepsScreen(app, label.split(" (")[0], steps, lambda: app.push(PairScreen(app, self.wizard))))
+        else:
+            app.push(KeyScreen(app, label.split(" (")[0], self.wizard))
+
+
+class StepsScreen(TextScreen):
+    """What to do in the AI app; OK goes on."""
+
+    def __init__(self, app, name: str, steps: str, on_ok):
+        super().__init__(app, name + ": steps", QRScreen._wrap(app.panel.fonts["row"], steps, T.W - 14))
+        self.on_ok = on_ok
+
+    def hint(self):
+        return "↑↓ read  OK show code  ESC back"
+
+    def key(self, k):
+        if k.name == "enter" or T.nav_name(k.name, k.char) == "right":
+            self.app.pop()
+            self.on_ok()
+        else:
+            super().key(k)
+
+
+class KeyScreen(QRScreen):
+    """Makes an access key for one app and hands it to the user's computer over the LAN
+    (after OK on the device), or as a QR code for a phone."""
+
+    def __init__(self, app, name: str, wizard: bool = False):
+        super().__init__(app, name + ": access key", "", "")
+        from .keyweb import KeyWeb
+        self.name, self.wizard = name, wizard
+        self.base = base_url(app)
+        self.akey = self.cid = ""
+        self.show_qr = False
+        self.web = None
+        self.mdns = control.mdns_name()
+        if self.base:
+            self.akey, self.cid = oauth.Store().create_key(name)
+            self.web = KeyWeb(name, self.base, self.akey)
+            self.web.start()
+
+    def shown(self) -> bool:
+        return bool(self.web and (self.web.seen or self.show_qr))
+
+    def used(self) -> dict | None:
+        return next((c for c in self.app.clients if c["id"] == self.cid and c.get("last_used")), None)
+
+    def content(self):
+        if not self.base:
+            return "", "The tunnel isn't connected yet, so there is no address to give out. " \
+                       "Check Setup, then try again.", T.WARN
+        c = self.used()
+        if c:
+            app = self.app
+            self.close(keep=True)
+            if self.wizard:
+                while len(app.stack) > 1:
+                    app.pop()
+            else:
+                app.pop()
+            app.push(PairedScreen(app, self.name))
+            return "", "", T.FG
+        w = self.web
+        if w.asking:
+            return "", f"Computer {w.asking} wants this key.\n{BIG}OK = show it\nESC = no, not that one", T.WARN
+        if self.show_qr:
+            return f"{self.base}/k/{self.akey}/mcp", "Scan to get the private address for " + self.name + \
+                ". Paste it as the MCP server URL. Waiting for " + self.name + " to connect...", T.FG
+        if w.seen:
+            return "", f"Shown on {w.allowed}. Paste it in {self.name} (the page says how).\n\n" \
+                       f"Waiting for {self.name} to connect... ESC = done", T.OK
+        ip = control.lan_ip()
+        if not w.httpd or not ip:
+            return "", "No local page right now. Press OK to show the key as a QR code instead.", T.WARN
+        text = "On your computer (same Wi-Fi) open:\n" + BIG + ip + "\n" + BIG + w.short("")
+        if self.mdns:
+            text += f"\n(or {self.mdns} in place of the IP)"
+        return w.url(ip), text, T.FG
+
+    def hint(self):
+        if not self.web:
+            return "ESC back"
+        if self.web.asking:
+            return "OK show it   ESC no"
+        if self.shown():
+            return "ESC done"
+        return "OK key as QR   ESC cancel"
+
+    def close(self, keep: bool) -> None:
+        if self.web:
+            self.web.stop()
+        if not keep and self.cid:
+            oauth.Store().revoke_client(self.cid)        # never handed out: don't leave it behind
+        self.cid = "" if not keep else self.cid
+
+    def key(self, k):
+        back = T.nav_name(k.name, k.char) in T.BACK
+        w = self.web
+        if w and w.asking:
+            if k.name == "enter" or T.nav_name(k.name, k.char) == "right":
+                w.allow()
+            elif back:
+                w.deny()
+            return
+        if k.name == "enter" and w and not self.shown():
+            self.show_qr = True
+            return
+        if back:
+            self.close(keep=self.shown())
+            self.app.refresh(now=True)
+            if self.wizard and self.shown():
+                while len(self.app.stack) > 1:
+                    self.app.pop()
+                return
+        super().key(k)
 
 
 class TunnelPick(FormScreen):

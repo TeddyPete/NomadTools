@@ -24,6 +24,14 @@ from . import __version__, brand, config as C, mcp, oauth
 MAX_BODY = 8 * 1024 * 1024
 
 
+
+def key_path(path: str) -> str:
+    """The access key in /k/<key>/mcp, else ""."""
+    parts = path.split("/")
+    if len(parts) == 4 and parts[1] == "k" and parts[3] == "mcp" and parts[2].startswith(oauth.KEY_PREFIX):
+        return parts[2]
+    return ""
+
 class Server:
     def __init__(self, cfg: dict):
         self.cfg = cfg
@@ -324,7 +332,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, self.asm())
         if path == "/authorize":
             return self.authorize_page(parse_qs(urlparse(self.path).query))
-        if path == "/mcp":
+        if path == "/mcp" or key_path(path):
             return self.send(405, b"", headers={"Allow": "POST"})
         if path in ("/", "/health"):
             return self.send(200, page(f"<p>{html.escape(brand.APP_NAME)} is running. Add <b>" + html.escape(self.base()) +
@@ -339,6 +347,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/mcp":
                 return self.mcp_post()
+            k = key_path(path)
+            if k:
+                return self.mcp_post(k)
             if path == "/register":
                 return self.register()
             if path == "/token":
@@ -444,11 +455,19 @@ class Handler(BaseHTTPRequestHandler):
         self.json(200, res, {"Pragma": "no-cache"})
 
     # MCP
-    def mcp_post(self):
+    def mcp_post(self, path_key: str = ""):
+        # who is calling: OAuth access token or access key as a Bearer token, an access key in
+        # X-Nomad-Key, or an access key in the address itself (https://<host>/k/<key>/mcp), which
+        # works in every app that only takes a URL (cloud agents, connectors without auth)
         auth = self.headers.get("Authorization", "")
-        tok = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+        tok = path_key or (auth[7:].strip() if auth.lower().startswith("bearer ") else "") or \
+            self.headers.get("X-Nomad-Key", "").strip()
         who = self.app.store.check_access(tok)
         if not who:
+            if path_key:
+                self.drain()
+                return self.json(401, {"error": "invalid_token",
+                                       "error_description": "this access key was removed on the device"})
             return self.challenge()
         origin = self.headers.get("Origin")
         if origin and urlparse(origin).hostname not in ("claude.ai", "claude.com", "chatgpt.com", "chat.openai.com",
