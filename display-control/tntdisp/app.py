@@ -425,7 +425,8 @@ def check_prompt(app):
 
         def done(r):
             app.push(CheckResult(app, ip, r, color, mark))
-        app.task("Check a display", f"Probing {ip}", lambda: check.check(ip), done)
+        known = next((d.mac for d in app.displays if d.host == ip and d.mac), "")
+        app.task("Check a display", f"Probing {ip}", lambda: check.check(ip, known), done)
     app.push(Prompt(app, "Check a display", "IP", "", go,
                     help_text="Tries PJLink, LG, Samsung, Sony and Roku control. Changes nothing on the display."))
 
@@ -451,8 +452,18 @@ class CheckResult(Screen):
         from . import check
         d = check.to_display(self.ip, self.r)
         known = any(x.host == self.ip for x in self.app.displays)
+        mac = self.r.get("mac")
         return [("Add", lambda: (self.app.pop(self), edit_display(self.app, d))) if d and not known else None,
-                None, None, None, ("Again", lambda: (self.app.pop(self), check_prompt(self.app)))]
+                ("Wake", lambda: self.wake(mac)) if mac and not self.r["kinds"] else None,
+                None, None, ("Again", lambda: (self.app.pop(self), check_prompt(self.app)))]
+
+    def wake(self, mac):
+        from . import wol
+        try:
+            self.app.push(Message(self.app, "Wake-on-LAN", wol.wake(mac, self.ip) +
+                                  ". Give the display 10-20 s, then check again.", L.OK))
+        except (ValueError, OSError) as e:
+            self.app.push(Message(self.app, "Wake-on-LAN", str(e), L.BAD))
 
     def key(self, k):
         if k.name in UP:

@@ -128,7 +128,7 @@ def mac_of(ip) -> str:
     return ""
 
 
-def check(ip: str) -> dict:
+def check(ip: str, known_mac: str = "") -> dict:
     """{"lines": [(state, text)], "kinds": [kind...], "mac": str, "reachable": bool}"""
     with cf.ThreadPoolExecutor(10) as ex:
         probes = {k: ex.submit(f, ip) for k, f in
@@ -144,13 +144,21 @@ def check(ip: str) -> dict:
         if state != NO:
             lines.append((state, text))
             kinds.append(kind)
-    mac = mac_of(ip)
-    reachable = bool(kinds or open_other or alive or mac)
-    if not kinds:
-        lines.append((NO, "No display control found." + ("" if reachable else " Nothing answers at this address.")))
+    seen_mac = mac_of(ip)
+    mac = seen_mac or known_mac
+    reachable = bool(kinds or open_other or alive or seen_mac)
+    if not kinds and reachable:
+        lines.append((NO, "Something is there, but no display control answers. Turn on the display's "
+                          "network control (PJLink, IP control, mobile apps) and check again."))
+    elif not kinds:
+        lines.append((NO, "Nothing answers at this address. A TV that is off (LG, Samsung, Sony) sleeps "
+                          "its network: turn it on and check again" + (", or wake it (key 5)." if mac else ".")))
     if open_other:
         lines.append((INFO, "Other ports: " + ", ".join(f"{p} {OTHER_PORTS[p]}" for p in sorted(open_other))))
-    lines.append((INFO, f"MAC {mac} (for Wake-on-LAN)" if mac else "MAC unknown (not on this subnet?)"))
+    if mac:
+        lines.append((INFO, f"MAC {mac} (for Wake-on-LAN)" + ("" if seen_mac else ", saved")))
+    else:
+        lines.append((INFO, "MAC unknown (device off, or not on this subnet)"))
     return {"lines": lines, "kinds": kinds, "mac": mac, "reachable": reachable}
 
 
