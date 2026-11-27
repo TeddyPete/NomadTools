@@ -149,6 +149,8 @@ def handle(msg, server, client: str) -> dict | None:
             return _ok(mid, {"content": content, "isError": not ok})
         if method in ("resources/list", "prompts/list"):
             return _ok(mid, {method.split("/")[0]: []})
+        if method == "resources/templates/list":
+            return _ok(mid, {"resourceTemplates": []})
         return _err(mid, -32601, f"method not found: {method}")
     except Exception as e:
         traceback.print_exc()
