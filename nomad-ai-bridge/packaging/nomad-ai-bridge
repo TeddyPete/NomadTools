@@ -8,4 +8,4 @@ export PYGAME_HIDE_SUPPORT_PROMPT=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
 export PATH="${PATH:-/usr/bin:/bin}:/usr/sbin:/sbin"
 [ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 cd "$APP_DIR" || exit 1
-exec python3 -m tntremote "$@"
+exec python3 -m nomadbridge "$@"

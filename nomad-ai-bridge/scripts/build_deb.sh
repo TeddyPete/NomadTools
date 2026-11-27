@@ -16,7 +16,7 @@ ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 chmod 755 "$ROOT"
 A="$ROOT/usr/share/APPLaunch"
-L="$A/lib/$PKG/tntremote"
+L="$A/lib/$PKG/nomadbridge"   # own module name, so ps does not look like TNT MCP Link
 install -d "$ROOT/DEBIAN" "$A/applications" "$A/bin" "$A/share/images" "$L" "$ROOT/usr/bin" \
   "$ROOT/usr/lib/$PKG" "$ROOT/usr/lib/systemd/user" "$ROOT/etc/sudoers.d"
 install -m 644 packaging/$PKG.desktop "$A/applications/$PKG.desktop"
@@ -51,7 +51,7 @@ Homepage: https://TheTechNomad.com
 Description: Nomad AI Bridge: let your AI connect to and control your CardputerZero
  By Tech Nomad Ted, TheTechNomad.com. Formerly Nomad MCP.
  An MCP server for Claude, ChatGPT and Codex: AI apps (Claude, ChatGPT
- developer mode, OpenAI Codex and other MCP clients) can use the
+ plugins, OpenAI Codex and other MCP clients) can use the
  CardputerZero from wherever it is plugged in: run commands, read and
  change files, install and run programs, and use TNT AV Net Tools.
  .

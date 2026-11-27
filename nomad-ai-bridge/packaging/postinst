@@ -7,6 +7,8 @@ case "$1" in
       echo "nomad-ai-bridge: sudoers file failed validation, removing it" >&2
       rm -f /etc/sudoers.d/nomad-ai-bridge
     fi
+    # 0.2.4 renamed the module from tntremote to nomadbridge; drop the old folder's leftovers
+    rm -rf /usr/share/APPLaunch/lib/nomad-ai-bridge/tntremote
     [ -d /run/systemd/system ] && systemctl --global daemon-reload >/dev/null 2>&1 || true
     M=/var/lib/nomad-ai-bridge
     if id pi >/dev/null 2>&1; then

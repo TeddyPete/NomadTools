@@ -53,7 +53,7 @@ def _run(module: str, func: str, kwargs: dict, timeout: int) -> str:
     env.update(SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy", PYGAME_HIDE_SUPPORT_PROMPT="1")
     env["PATH"] = env.get("PATH", "/usr/bin:/bin") + ":/usr/sbin:/sbin"
     try:
-        p = subprocess.run([sys.executable, "-m", "tntremote.netrun", module, func, json.dumps(kwargs)],
+        p = subprocess.run([sys.executable, "-m", __package__ + ".netrun", module, func, json.dumps(kwargs)],
                            cwd=NET_LIB, env=env, capture_output=True, text=True, timeout=timeout + 15)
     except subprocess.TimeoutExpired as e:
         out = (e.stdout or b"").decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
