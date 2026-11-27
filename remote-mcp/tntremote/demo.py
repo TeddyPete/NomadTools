@@ -13,12 +13,14 @@ def render_screens(out_dir: str) -> None:
     panel = L.Panel(headless=True)
     app = A.App(panel, None)
     app.refresh = lambda now=False: None
+    while len(app.stack) > 1:      # no first-run welcome in the store screenshots
+        app.pop()
     app.on = True
     app.cfg["tunnel_kind"] = "ngrok"
     app.clients = [{"id": "x", "name": "Claude", "last_auth": time.time() - 300},
                    {"id": "y", "name": "ChatGPT", "last_auth": time.time() - 900}]
     app.status = {"tunnel": "connected", "tunnel_detail": "ngrok", "tunnel_kind": "ngrok",
-                  "public_url": "https://tnt-demo-cp0.ngrok-free.dev", "recent": [
+                  "public_url": "https://your-name.ngrok-free.dev", "recent": [
         {"t": time.time() - 4, "text": "run_command"}, {"t": time.time() - 4, "text": "$ git pull && ./build.sh"},
         {"t": time.time() - 40, "text": "net_tool"}, {"t": time.time() - 41, "text": "net: find_av_gear"},
         {"t": time.time() - 300, "text": "paired: Claude"}]}

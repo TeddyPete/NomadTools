@@ -27,6 +27,25 @@ STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, 
 LIB_DIR = os.path.join(HOME, ".local", "lib", brand.STATE)
 RUN_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", brand.STATE)
 
+
+
+def _migrate_state() -> None:
+    """A renamed app (Nomad MCP -> Nomad AI Bridge) keeps its settings, sign-ins and ngrok:
+    move the old folders over once, when the new ones don't exist yet."""
+    old = getattr(brand, "OLD_STATE", "")
+    if not old:
+        return
+    for new in (CONF_DIR, STATE_DIR, LIB_DIR):
+        src = os.path.join(os.path.dirname(new), old)
+        if os.path.isdir(src) and not os.path.exists(new):
+            try:
+                os.rename(src, new)
+            except OSError:
+                pass
+
+
+_migrate_state()
+
 SETTINGS = os.path.join(CONF_DIR, "settings.json")
 TOKEN_FILE = os.path.join(CONF_DIR, "tunnel.token")
 AUTH_FILE = os.path.join(STATE_DIR, "auth.json")

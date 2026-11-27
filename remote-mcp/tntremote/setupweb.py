@@ -2,7 +2,7 @@
 
 The token is about 50 characters, too long to type on the small keyboard, so
 the ngrok setup screen shows a QR code (and short text) for
-http://<device ip>:<port>/<app name>, e.g. 192.168.1.10:8776/nomadmcp. The
+http://<device ip>:<port>/<app name>, e.g. 192.168.1.10:8776/aibridge. The
 phone (on the same Wi-Fi or LAN) opens it and pastes the token.
 
 The address is easy to guess, so the device itself is the gate:
@@ -24,7 +24,7 @@ from urllib.parse import parse_qs
 from . import brand, config as C
 
 PORT = brand.SETUP_PORT
-PATH = "".join(c for c in brand.CMD.lower() if c.isalnum())     # "nomadmcp"
+PATH = getattr(brand, "SETUP_PATH", "") or "".join(c for c in brand.CMD.lower() if c.isalnum())
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{app} setup</title><style>

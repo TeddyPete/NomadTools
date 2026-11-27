@@ -31,6 +31,7 @@ HELP = (
     "While it is on, the title bar (here and in TNT apps) shows an orange dot (red when Admin "
     "/ sudo is allowed). Turn Remote access Off to cut every AI app off at once; "
     "Disconnect everyone forgets all sign-ins.\n"
+    + (brand.CREDITS + "\n" if brand.CREDITS else "") +
     "TheTechNomad.com"
 )
 
@@ -607,16 +608,16 @@ def start_ngrok_wizard(app, again: bool = False) -> None:
 class WelcomeScreen(Screen):
     """First start with no tunnel set up: what the app does and how, then a
     pre-selected [ Start setup ] button. OK goes straight to the ngrok account step."""
-    title = "Welcome to " + brand.APP_NAME
+    title = brand.APP_NAME if len(brand.APP_NAME) > 12 else "Welcome to " + brand.APP_NAME
 
     ABOUT = (
-        "{app} lets AI apps (Claude, ChatGPT, Codex) use this CardputerZero from anywhere: "
+        "{app} lets your AI (Claude, ChatGPT, Codex) connect to and control this CardputerZero from anywhere: "
         "run commands, change files, install programs and run network checks.\n"
         "How: the device connects out through a secure ngrok tunnel, so no ports are opened "
         "on the network. Each AI app must be approved with a one-time code shown on this "
         "screen, and you can switch it off or disconnect everyone at any time.\n"
         "Setup takes a free ngrok account and your phone: 3 QR steps, then you pair your AI app."
-    )
+    ) + ("\n" + brand.CREDITS if brand.CREDITS else "")
 
     def __init__(self, app):
         super().__init__(app)

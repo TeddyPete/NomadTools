@@ -127,9 +127,9 @@ Removing the old package switches its service off. The new `preinst`/`postinst` 
 
 Memory use: about 24 MB for the stdlib server, about 38 MB for cloudflared, and about 30 MB for ngrok.
 
-## Nomad MCP
+## Nomad AI Bridge
 
-`../nomad-mcp/` is the public build of the same code: **Nomad MCP** (package `nomad-mcp`). It sets up ngrok first. Only `tntremote/brand.py` differs. It defines the app name, the folders, the systemd unit, the ports and the root helper, so the two apps can be installed side by side.
+`../nomad-ai-bridge/` is the public build of the same code: **Nomad AI Bridge** (package `nomad-ai-bridge`, formerly Nomad MCP). It sets up ngrok first. Only `tntremote/brand.py` differs. It defines the app name, the folders, the systemd unit, the ports and the root helper, so the two apps can be installed side by side.
 
 ## Files
 

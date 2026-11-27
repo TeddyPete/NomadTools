@@ -315,7 +315,7 @@ def remote_state() -> str:
     run = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
     try:
         state = ""
-        for name in ("tnt-remote", "nomad-mcp"):        # TNT MCP Link, Nomad MCP
+        for name in ("tnt-remote", "nomad-ai-bridge", "nomad-mcp"):   # TNT MCP Link, Nomad AI Bridge (was Nomad MCP)
             try:
                 with open(os.path.join(run, name, "active")) as fh:
                     state = "root" if "root" in fh.read() else (state or "on")

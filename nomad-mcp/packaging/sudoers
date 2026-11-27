@@ -1,4 +1,0 @@
-# Nomad MCP: the pi user may run the Nomad MCP root helper without a password.
-# The helper is used only while Admin (sudo) is switched on in the Nomad MCP app.
-# Remove the nomad-mcp package (or this file) to take it away.
-pi ALL=(root) NOPASSWD: /usr/lib/nomad-mcp/rootrun

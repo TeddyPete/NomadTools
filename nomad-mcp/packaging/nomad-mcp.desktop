@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=Nomad MCP
-Exec=bin/nomad-mcp
-Terminal=false
-Icon=share/images/nomad-mcp.png
-Type=Application

@@ -1,8 +1,8 @@
 #!/bin/sh
-# APPLaunch entry point for Nomad MCP (also /usr/bin/nomad-mcp for SSH use,
-# e.g. nomad-mcp --status). APPLaunch runs Exec without a shell, so the
+# APPLaunch entry point for Nomad AI Bridge (also /usr/bin/nomad-ai-bridge for SSH use,
+# e.g. nomad-ai-bridge --status). APPLaunch runs Exec without a shell, so the
 # environment is set up here.
-APP_DIR=/usr/share/APPLaunch/lib/nomad-mcp
+APP_DIR=/usr/share/APPLaunch/lib/nomad-ai-bridge
 export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
 export PYGAME_HIDE_SUPPORT_PROMPT=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
 export PATH="${PATH:-/usr/bin:/bin}:/usr/sbin:/sbin"
