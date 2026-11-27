@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import cmath
 import math
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from . import nec
@@ -53,16 +55,28 @@ def sweep_freqs(center: float, half: float, n: int) -> list:
     return [float(f"{lo + (hi - lo) * i / (n - 1):.9g}") for i in range(n)]
 
 
+WORKERS = max(1, min(4, os.cpu_count() or 1))
+
+
+def run_parallel(decks: list) -> list:
+    """Run several NEC2 decks at once (one nec2c process per core): real-ground
+    (Sommerfeld) runs cost about 0.3 s per frequency on the CardputerZero."""
+    if len(decks) == 1:
+        return [nec.run_deck(decks[0])]
+    with ThreadPoolExecutor(WORKERS) as ex:
+        return list(ex.map(nec.run_deck, decks))
+
+
 def design_sweep(t: Template, mhz: float, wide: bool = False) -> list:
     if wide:
         lo = max(1.5, mhz * 0.45)
         hi = min(30, max(mhz * 4.2, mhz + 2)) if mhz < 30 else mhz * 1.6
-        return sweep_freqs((lo + hi) / 2, (hi - lo) / (hi + lo), 81)
+        return sweep_freqs((lo + hi) / 2, (hi - lo) / (hi + lo), 49)
     half = t.span or 0.03
     b = find_band(mhz)
     if t.id != "mag-loop" and b:
         half = max(half, (b[3] - b[2]) / 2 / mhz * 1.35, max(b[3] - mhz, mhz - b[2]) / mhz * 1.1)
-    return sweep_freqs(mhz, min(half, 0.25), 41)
+    return sweep_freqs(mhz, min(half, 0.25), 25)
 
 
 @dataclass
@@ -90,13 +104,25 @@ class Result:
     secs: float = 0.0
 
 
-def impedance_at(model: nec.Model, mhz: float):
-    segs, _ = nec.segment_model(model, mhz)
-    res, _err = nec.parse_output(nec.run_deck(nec.build_deck(model, [mhz], segs)))
+def _z_of(report: str):
+    res, _err = nec.parse_output(report)
     if not res or not res[0].feeds:
         return None
     f = res[0].feeds[0]
     return f["zr"], f["zi"]
+
+
+def impedance_at(model: nec.Model, mhz: float):
+    return impedances([model], mhz)[0]
+
+
+def impedances(models: list, mhz: float) -> list:
+    """Feed impedance of several models at one frequency, run in parallel."""
+    decks = []
+    for m in models:
+        segs, _ = nec.segment_model(m, mhz)
+        decks.append(nec.build_deck(m, [mhz], segs))
+    return [_z_of(rep) for rep in run_parallel(decks)]
 
 
 def sweep_stats(points: list, design: float):
@@ -182,9 +208,14 @@ def run_design(t: Template, p: dict, mhz: float, ground: nec.Ground, material: s
     model = t.model(p, mhz, ground, material)
     freqs = design_sweep(t, mhz, wide)
     segs, r.warnings = nec.segment_model(model, max(freqs + [mhz]))
-    # 1) sweep: impedance only
-    res, errs = nec.parse_output(nec.run_deck(nec.build_deck(model, freqs, segs)))
-    r.errors += errs
+    # 1) sweep: impedance only, split across the cores
+    chunks = [freqs[i::WORKERS] for i in range(WORKERS)] if ground.kind == "real" else [freqs]
+    res = []
+    for rep in run_parallel([nec.build_deck(model, sorted(c), segs) for c in chunks if c]):
+        part, errs = nec.parse_output(rep)
+        res += part
+        r.errors += errs
+    res.sort(key=lambda fr: fr.mhz)
     for fr in res:
         if fr.feeds:
             f = fr.feeds[0]
@@ -261,9 +292,9 @@ def tune_swr(build, p: dict, key: str, mhz: float, device: str, lo=0.8, hi=1.25,
     best = None
     passes = 4
     for ps in range(passes):
-        nn = 17 if ps == 0 else 9
+        nn = 16 if ps == 0 else 8
         xs = [a * (b / a) ** (i / (nn - 1)) for i in range(nn)]
-        zs = [impedance_at(build({**p, key: x}), mhz) for x in xs]
+        zs = impedances([build({**p, key: x}) for x in xs], mhz)
         bi, bs = -1, float("inf")
         for i, z in enumerate(zs):
             if not z:
@@ -285,8 +316,8 @@ def tune_magloop(build, p: dict, mhz: float, device: str, progress=None):
     for i in range(4):
         lo, hi = (0.85, 1.15) if i == 0 else (0.985, 1.015)
         base = float(q["cap"])
-        xs = [base * lo * (hi / lo) ** (k / 16) for k in range(17)]
-        zs = [impedance_at(build({**q, "cap": x}), mhz) for x in xs]
+        xs = [base * lo * (hi / lo) ** (k / 15) for k in range(16)]
+        zs = impedances([build({**q, "cap": x}) for x in xs], mhz)
         ok = [(z[0], x) for x, z in zip(xs, zs) if z]
         if not ok:
             break
