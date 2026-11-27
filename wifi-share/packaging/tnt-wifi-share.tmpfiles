@@ -1,0 +1,3 @@
+# TNT WiFi Share: the app (netdev group) writes its sharing rules here; the
+# root helper reads and checks them. Lives in /run, so it is empty after boot.
+d /run/tnt-wifi-share-policy 2770 root netdev -
