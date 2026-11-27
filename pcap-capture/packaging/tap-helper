@@ -1,0 +1,79 @@
+#!/bin/sh
+# Nomad Packet Capture inline-tap helper (runs as root from
+# nomad-packet-capture-tap@<adapter>.service).
+#   tap-helper up <adapter>    bridge the built-in Ethernet port and <adapter>
+#   tap-helper down <adapter>  remove the bridge, give the ports back
+# The bridge has no IP (v4 or v6), no spanning tree, and forwards 802.1X
+# (EAPOL) and LLDP frames, so it behaves like a plain cable. Wi-Fi is never
+# touched.
+set -u
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+BR=br-nomad
+STATE=/run/nomad-packet-capture-tap.ports
+act=${1:-}; ad=${2:-}
+
+ok_name() { echo "$1" | grep -Eq '^[A-Za-z0-9_.-]{1,15}$'; }
+ok_name "$ad" || { echo "bad interface name" >&2; exit 2; }
+
+builtin() {
+  for d in /sys/class/net/*; do
+    n=$(basename "$d")
+    case "$(readlink -f "$d/device" 2>/dev/null)" in
+      */usb1/1-1/1-1.1/*) echo "$n"; return;;
+    esac
+  done
+  echo eth0
+}
+
+nm_managed() {  # iface yes|no
+  command -v nmcli >/dev/null 2>&1 && nmcli device set "$1" managed "$2" >/dev/null 2>&1 || true
+}
+
+v6() {  # iface 0|1
+  [ -e "/proc/sys/net/ipv6/conf/$1/disable_ipv6" ] && echo "$2" > "/proc/sys/net/ipv6/conf/$1/disable_ipv6" || true
+}
+
+case "$act" in
+  up)
+    bi=$(builtin)
+    [ "$ad" != "$bi" ] || { echo "adapter is the built-in port" >&2; exit 2; }
+    [ -e "/sys/class/net/$ad" ] && [ -e "/sys/class/net/$bi" ] || { echo "port missing" >&2; exit 1; }
+    for p in "$bi" "$ad"; do
+      [ -d "/sys/class/net/$p/wireless" ] && { echo "$p is Wi-Fi" >&2; exit 2; }
+      if ip route show default | grep -q "dev $p "; then
+        echo "$p carries the default route; refusing to bridge it" >&2; exit 3
+      fi
+    done
+    echo "$bi $ad" > "$STATE"
+    for p in "$bi" "$ad"; do nm_managed "$p" no; done
+    ip link show "$BR" >/dev/null 2>&1 || ip link add name "$BR" type bridge stp_state 0 forward_delay 0
+    v6 "$BR" 1
+    # forward 802.1X/EAPOL (bit 3) and LLDP (bit 14) like a cable would
+    echo 16392 > "/sys/class/net/$BR/bridge/group_fwd_mask" 2>/dev/null || true
+    echo 0 > "/sys/class/net/$BR/bridge/multicast_snooping" 2>/dev/null || true
+    for p in "$bi" "$ad"; do
+      v6 "$p" 1
+      ip addr flush dev "$p"
+      ip link set "$p" promisc on
+      ip link set "$p" master "$BR"
+      ip link set "$p" up
+    done
+    ip link set "$BR" up
+    exit 0
+    ;;
+  down)
+    ports=$(cat "$STATE" 2>/dev/null || true)
+    [ -n "$ports" ] || ports="$(builtin) $ad"
+    for p in $ports; do
+      [ -e "/sys/class/net/$p" ] || continue
+      ip link set "$p" nomaster 2>/dev/null || true
+      ip link set "$p" promisc off 2>/dev/null || true
+      v6 "$p" 0
+    done
+    ip link del "$BR" 2>/dev/null || true
+    for p in $ports; do [ -e "/sys/class/net/$p" ] && nm_managed "$p" yes; done
+    rm -f "$STATE"
+    exit 0
+    ;;
+  *) echo "usage: tap-helper up|down <adapter>" >&2; exit 2;;
+esac

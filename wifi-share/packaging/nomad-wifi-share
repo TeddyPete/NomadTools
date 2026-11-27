@@ -1,0 +1,32 @@
+#!/bin/sh
+# APPLaunch entry point for Nomad WiFi Share (also installed as
+# /usr/bin/nomad-wifi-share for use over SSH: nomad-wifi-share --status).
+# APPLaunch runs Exec without a shell, so environment setup lives here.
+APP_DIR=/usr/share/APPLaunch/lib/nomad-wifi-share
+export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export PYGAME_HIDE_SUPPORT_PROMPT=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+export PATH="${PATH:-/usr/bin:/bin}:/usr/sbin:/sbin"
+[ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+[ -z "$HOME" ] && export HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
+# Renamed from tnt-wifi-share (TNT brand): move the old settings and files over once.
+for p in .config/tnt-wifi-share:.config/nomad-wifi-share; do
+  o="$HOME/${p%%:*}"; n="$HOME/${p#*:}"
+  [ -e "$o" ] && [ ! -e "$n" ] && mv "$o" "$n"
+done
+cd "$APP_DIR" || exit 1
+
+# Command-line use: pass straight through.
+if [ $# -gt 0 ]; then
+  exec python3 -m nomadshare "$@"
+fi
+
+python3 -m nomadshare &
+child=$!
+# Forward a stop from the launcher to the app (it restores the network).
+trap 'kill -TERM "$child" 2>/dev/null' TERM INT HUP
+wait "$child"
+status=$?
+while kill -0 "$child" 2>/dev/null; do wait "$child"; status=$?; done
+# Safety net: if the app died without cleaning up, undo its changes now.
+python3 -m nomadshare --restore >/dev/null 2>&1
+exit $status

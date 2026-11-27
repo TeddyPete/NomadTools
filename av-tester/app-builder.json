@@ -1,0 +1,38 @@
+{
+  "package_name": "nomad-av-tester",
+  "version": "0.10.0",
+  "app_name": "Nomad AV Tester",
+  "bin_name": "nomad-av-tester",
+  "description": "HDMI test patterns and audio test tones for AV installs",
+  "store": {
+    "summary": "Nomad AV Tester: HDMI patterns, EDID, lip-sync, RTA for AV techs",
+    "description": "Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com. Turns the CardputerZero into a pocket AV test generator: color bars, crosshatch, safe-area, ramps, solids, checkerboards and a judder test box over HDMI in every mode the display offers (exact refresh rates such as 59.94 and 23.98), 1 kHz and left/right channel ID tones, and a plain-English EDID reader (maker, model, modes, audio formats, HDR) on HDMI and the built-in screen. Lip-sync tester: the screen flashes with a beep, the built-in camera (200 fps) and mic measure the A/V offset and suggest the delay fix. Audio: 1 kHz, L/R ID, pink noise, sweeps and polarity pulse out; mic level meter, SPL and 1/3-octave RTA in.",
+    "categories": [
+      "Media",
+      "Hardware & IoT"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0.png",
+      "screenshots/lcd_1.png",
+      "screenshots/lcd_2.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Tech Nomad Ted"
+    },
+    "share_code": "NMAV",
+    "permissions": {
+      "camera": true,
+      "microphone": true,
+      "imu": false,
+      "network": false,
+      "additional_hardware": false,
+      "background_service": false,
+      "external_display": true
+    },
+    "locales": {}
+  }
+}

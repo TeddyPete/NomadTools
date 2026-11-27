@@ -1,0 +1,21 @@
+#!/bin/sh
+# Give the capture/scan tools the network rights they need, so the app
+# itself never runs as root. Re-run when those packages are upgraded
+# (see the triggers file).
+set -e
+PATH="$PATH:/usr/sbin:/sbin"
+grant() {
+  bin=$(command -v "$1" 2>/dev/null || true)
+  [ -n "$bin" ] && [ -x "$bin" ] || return 0
+  bin=$(readlink -f "$bin")
+  setcap "$2" "$bin" 2>/dev/null || echo "nomad-net-tools: could not setcap $bin" >&2
+}
+case "$1" in
+  configure|triggered)
+    grant tcpdump  cap_net_raw,cap_net_admin=eip
+    grant arp-scan cap_net_raw=eip
+    grant arping   cap_net_raw=eip
+    grant ethtool  cap_net_admin=eip
+    ;;
+esac
+exit 0

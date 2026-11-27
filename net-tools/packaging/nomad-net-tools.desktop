@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nomad Net Tools
+Exec=bin/nomad-net-tools
+Terminal=false
+Icon=share/images/nomad-net-tools.png
+Type=Application

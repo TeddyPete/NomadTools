@@ -1,0 +1,17 @@
+#!/bin/sh
+# APPLaunch entry point for Nomad Display Control (also installed as
+# /usr/bin/nomad-display-control for use over SSH: nomad-display-control --list).
+# APPLaunch runs Exec without a shell, so environment setup lives here.
+APP_DIR=/usr/share/APPLaunch/lib/nomad-display-control
+export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export PYGAME_HIDE_SUPPORT_PROMPT=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+export PATH="${PATH:-/usr/bin:/bin}:/usr/sbin:/sbin"
+[ -z "$HOME" ] && export HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
+[ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+# Renamed from tnt-display-control (TNT brand): move the old settings and files over once.
+for p in .config/tnt-display-control:.config/nomad-display-control; do
+  o="$HOME/${p%%:*}"; n="$HOME/${p#*:}"
+  [ -e "$o" ] && [ ! -e "$n" ] && mv "$o" "$n"
+done
+cd "$APP_DIR" || exit 1
+exec python3 -m nomaddisp "$@"
