@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Builds the APPLaunch .deb: build/tnt-packet-capture_<ver>_all.deb
+# Builds the APPLaunch .deb: build/nomad-packet-capture_<ver>_all.deb
 # Needs: dpkg-deb, python3. Run from anywhere (use an LF checkout).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
-PKG=tnt-packet-capture
+PKG=nomad-packet-capture
 VER=$(python3 -c "import json;print(json.load(open('app-builder.json'))['version'])")
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 chmod 755 "$ROOT"
 A="$ROOT/usr/share/APPLaunch"
-install -d "$ROOT/DEBIAN" "$A/applications" "$A/bin" "$A/share/images" "$A/lib/$PKG/tntcap" "$ROOT/usr/bin" \
+install -d "$ROOT/DEBIAN" "$A/applications" "$A/bin" "$A/share/images" "$A/lib/$PKG/nomadcap" "$ROOT/usr/bin" \
   "$ROOT/usr/lib/$PKG" "$ROOT/usr/lib/systemd/system" "$ROOT/usr/lib/udev/rules.d" "$ROOT/usr/share/polkit-1/rules.d"
 install -m 644 packaging/$PKG.desktop "$A/applications/$PKG.desktop"
 install -m 755 packaging/$PKG "$A/bin/$PKG"
 ln -s /usr/share/APPLaunch/bin/$PKG "$ROOT/usr/bin/$PKG"
 install -m 644 packaging/icon_100.png "$A/share/images/$PKG.png"
-install -m 644 tntcap/*.py "$A/lib/$PKG/tntcap/"
-sed -i "s/^__version__ = .*/__version__ = \"$VER\"/" "$A/lib/$PKG/tntcap/__init__.py"
+install -m 644 nomadcap/*.py "$A/lib/$PKG/nomadcap/"
+sed -i "s/^__version__ = .*/__version__ = \"$VER\"/" "$A/lib/$PKG/nomadcap/__init__.py"
 install -m 755 packaging/tap-helper "$ROOT/usr/lib/$PKG/tap-helper"
-install -m 644 "packaging/tnt-packet-capture-tap@.service" "packaging/tnt-packet-capture-autotap@.service" \
+install -m 644 "packaging/nomad-packet-capture-tap@.service" "packaging/nomad-packet-capture-autotap@.service" \
   "$ROOT/usr/lib/systemd/system/"
 install -m 644 packaging/90-$PKG.rules "$ROOT/usr/lib/udev/rules.d/90-$PKG.rules"
 install -m 644 packaging/60-$PKG.rules "$ROOT/usr/share/polkit-1/rules.d/60-$PKG.rules"
@@ -32,13 +32,15 @@ Version: $VER
 Architecture: all
 Maintainer: TeddyPete <299527578+TeddyPete@users.noreply.github.com>
 Depends: python3, python3-pygame (>= 2.1), python3-numpy, tcpdump, libcap2-bin, iproute2
+Replaces: tnt-packet-capture
+Conflicts: tnt-packet-capture
 Recommends: polkitd, network-manager, fonts-dejavu-core
 Installed-Size: $SIZE
 Section: net
 Priority: optional
 Homepage: https://TheTechNomad.com
-Description: TNT Packet Capture for the M5Stack CardputerZero
- Part of the TNT (Tech Nomad Ted) tools, TheTechNomad.com.
+Description: Nomad Packet Capture for the M5Stack CardputerZero
+ Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com.
  Saves .pcap files for Wireshark from the Ethernet port (plug it into a
  switch mirror/SPAN port). AV filter presets (Dante, PTP, AES67, NDI,
  control systems, multicast), host/port filters, time and size limits or

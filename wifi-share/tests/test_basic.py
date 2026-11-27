@@ -9,8 +9,8 @@ import urllib.parse
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()
 os.environ["XDG_RUNTIME_DIR"] = tempfile.mkdtemp()
 
-from tntshare import keys, net, portal  # noqa: E402
-from tntshare import settings as S  # noqa: E402
+from nomadshare import keys, net, portal  # noqa: E402
+from nomadshare import settings as S  # noqa: E402
 
 
 class Terse(unittest.TestCase):
@@ -30,7 +30,7 @@ class Settings(unittest.TestCase):
 
     def test_defaults(self):
         c = S.load()
-        self.assertTrue(c["hs_ssid"].startswith("TNT-Share-"))
+        self.assertTrue(c["hs_ssid"].startswith("Nomad-Share-"))
         self.assertEqual(len(c["hs_password"]), 10)
         self.assertIsNone(S.check_hotspot(c["hs_ssid"], c["hs_password"]))
 
@@ -134,10 +134,10 @@ class Portal(unittest.TestCase):
 
 class UiFlow(unittest.TestCase):
     def test_form_edit_in_place_and_save(self):
-        from tntshare import app as A
-        from tntshare.keys import Key
-        from tntshare.demo import fake_app
-        from tntshare.ui import nav_key
+        from nomadshare import app as A
+        from nomadshare.keys import Key
+        from nomadshare.demo import fake_app
+        from nomadshare.ui import nav_key
         app = fake_app()
         app.stack = []
         A.edit_hotspot(app)
@@ -179,10 +179,10 @@ class UiFlow(unittest.TestCase):
             s.rows()
 
     def test_esc_with_changes_asks(self):
-        from tntshare import app as A
-        from tntshare.keys import Key
-        from tntshare.demo import fake_app
-        from tntshare.ui import Confirm
+        from nomadshare import app as A
+        from nomadshare.keys import Key
+        from nomadshare.demo import fake_app
+        from nomadshare.ui import Confirm
         app = fake_app()
         app.stack = [A.Home(app)]
         A.edit_ethernet(app)
@@ -199,10 +199,10 @@ class UiFlow(unittest.TestCase):
 
 class Nav(unittest.TestCase):
     def test_standard_keys(self):
-        from tntshare import app as A
-        from tntshare.keys import Key
-        from tntshare.demo import fake_app
-        from tntshare.ui import Prompt, nav_key
+        from nomadshare import app as A
+        from nomadshare.keys import Key
+        from nomadshare.demo import fake_app
+        from nomadshare.ui import Prompt, nav_key
         app = fake_app()
         app.status["mode"] = None
         home = A.Home(app)
@@ -279,7 +279,7 @@ class PowerFeatures(unittest.TestCase):
         p["forwards"].append(dict(proto="tcp", port=80, ip="1.2.3.4; flush ruleset", to_port=80))
         p["block"].append('00:11:22:33:44:55" accept; #')
         t, text = h.ruleset("eth0.20", p)
-        self.assertEqual(t, "tnt_share_eth0_20")
+        self.assertEqual(t, "nomad_share_eth0_20")
         self.assertIn('iifname "eth0.20" ether saddr @blocked drop', text)
         self.assertIn("tcp dport 8080 dnat to 192.168.50.12:80", text)
         self.assertIn("ip daddr 192.168.50.12 limit rate over 1250 kbytes/second", text)
@@ -289,7 +289,7 @@ class PowerFeatures(unittest.TestCase):
         d = h.dnsmasq_text(p)
         self.assertIn("dhcp-host=00:05:a6:1c:22:10,192.168.50.12,DSP-rack-1", d)
         self.assertIn("host-record=dsp1.av,192.168.50.12", d)
-        _, bridge = h.ruleset("tntbr0", {"nat": False})
+        _, bridge = h.ruleset("nomadbr0", {"nat": False})
         self.assertNotIn("masquerade", bridge)
         self.assertEqual(h.main(["x", "start", "eth0; rm -rf /"]), 2)
 
@@ -314,9 +314,9 @@ class PowerFeatures(unittest.TestCase):
         self.assertEqual((n[0]["switch"], n[0]["port"], n[0]["vlan"]), ("M4250", "Stage left", "20"))
 
     def test_device_edit_and_block(self):
-        from tntshare import extras as X
-        from tntshare.demo import fake_app
-        from tntshare.keys import Key
+        from nomadshare import extras as X
+        from nomadshare.demo import fake_app
+        from nomadshare.keys import Key
         app = fake_app()
         app.status["mode"] = None
         dev = X.Devices(app)
@@ -334,9 +334,9 @@ class PowerFeatures(unittest.TestCase):
         self.assertEqual((d["reserve"], d["ip"], d["down"]), (True, "192.168.50.15", "1 Mb/s"))
 
     def test_wizard(self):
-        from tntshare import extras as X
-        from tntshare.demo import fake_app
-        from tntshare.keys import Key
+        from nomadshare import extras as X
+        from nomadshare.demo import fake_app
+        from nomadshare.keys import Key
         app = fake_app()
         app.status["mode"] = None
         app.cfg["setup_done"] = False

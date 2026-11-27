@@ -31,8 +31,7 @@ def icon(size: int) -> pygame.Surface:
 
 
 pygame.init()
-pygame.image.save(icon(256), "packaging/icon.png")
-pygame.image.save(icon(100), "packaging/icon_100.png")
+# icon: branding/nomad_icons.py (Nomad 3D style), not drawn here
 tmp = tempfile.mkdtemp()
 render_all(tmp, (1920, 1080))
 os.makedirs("screenshots", exist_ok=True)

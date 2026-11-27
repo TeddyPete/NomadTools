@@ -1,11 +1,11 @@
 #!/usr/bin/python3 -I
-"""TNT WiFi Share root helper. Runs only from tnt-wifi-share-nat@<iface>.service,
+"""Nomad WiFi Share root helper. Runs only from nomad-wifi-share-nat@<iface>.service,
 which the app starts, reloads and stops through polkit (never at boot).
 
     net-helper start|apply|stop <iface>
 
 start  remember ip_forward and turn it on, then apply
-apply  read the app's rules for <iface> from /run/tnt-wifi-share-policy/<iface>.json
+apply  read the app's rules for <iface> from /run/nomad-wifi-share-policy/<iface>.json
        and load them:
          - NAT (masquerade) for devices on <iface>
          - blocked devices (by MAC address): no internet
@@ -13,7 +13,7 @@ apply  read the app's rules for <iface> from /run/tnt-wifi-share-policy/<iface>.
          - port forwards from the uplink to a device
          - DHCP reservations and local DNS names (a dnsmasq file that
            NetworkManager's shared-mode dnsmasq reads)
-stop   remove all of it; put ip_forward back when no TNT table is left
+stop   remove all of it; put ip_forward back when no nomad_share table is left
 
 Every value from the rules file is checked (MACs, IPv4 addresses, ports,
 numbers, host names) before use; anything else is skipped. Nothing is
@@ -26,10 +26,10 @@ import re
 import subprocess
 import sys
 
-RUN = "/run/tnt-wifi-share"
-POLICY_DIR = "/run/tnt-wifi-share-policy"
+RUN = "/run/nomad-wifi-share"
+POLICY_DIR = "/run/nomad-wifi-share-policy"
 DNSMASQ_DIR = "/etc/NetworkManager/dnsmasq-shared.d"
-DNSMASQ_CONF = os.path.join(DNSMASQ_DIR, "tnt-wifi-share-{}.conf")
+DNSMASQ_CONF = os.path.join(DNSMASQ_DIR, "nomad-wifi-share-{}.conf")
 IFACE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,15}$")
 MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,61}[A-Za-z0-9])?$")
@@ -79,7 +79,7 @@ def items(p, key):
 
 
 def ruleset(dev, p):
-    t = "tnt_share_" + re.sub(r"[^A-Za-z0-9_]", "_", dev)
+    t = "nomad_share_" + re.sub(r"[^A-Za-z0-9_]", "_", dev)
     q = '"' + dev + '"'
     blocked = sorted({m for m in (mac(x) for x in p.get("block", [])[:MAX_ITEMS] if isinstance(x, str)) if m})
     pre, fwd = [], []
@@ -126,7 +126,7 @@ def ruleset(dev, p):
 
 
 def dnsmasq_text(p):
-    out = ["# TNT WiFi Share: DHCP reservations and local names (removed when sharing stops)"]
+    out = ["# Nomad WiFi Share: DHCP reservations and local names (removed when sharing stops)"]
     for r in items(p, "reservations"):
         m, ip, n = mac(r.get("mac", "")), ip4(r.get("ip")), name(r.get("name", "")) if r.get("name") else None
         if m and ip:
@@ -163,7 +163,7 @@ def nft(text):
 
 def tables():
     r = subprocess.run(["nft", "list", "tables"], text=True, capture_output=True)
-    return [l for l in r.stdout.splitlines() if "tnt_share_" in l]
+    return [l for l in r.stdout.splitlines() if "nomad_share_" in l]
 
 
 def apply(dev):
@@ -193,7 +193,7 @@ def main(argv):
         return apply(dev)
     if action == "apply":
         return apply(dev)
-    t = "tnt_share_" + re.sub(r"[^A-Za-z0-9_]", "_", dev)
+    t = "nomad_share_" + re.sub(r"[^A-Za-z0-9_]", "_", dev)
     nft(f"table ip {t} {{}}\ndelete table ip {t}\n")
     write_dnsmasq(dev, "")
     if not tables() and os.path.exists(fwd_file):

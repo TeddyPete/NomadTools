@@ -1,7 +1,7 @@
-# TNT Packet Capture
+# Nomad Packet Capture
 
 Pocket packet capture for AV networks on the M5Stack CardputerZero.
-Part of the TNT (Tech Nomad Ted) tools, [TheTechNomad.com](https://TheTechNomad.com).
+Part of the Nomad tools by Tech Nomad Ted, [TheTechNomad.com](https://TheTechNomad.com).
 
 Two ways to see the traffic, both saving a `.pcap` you can open in Wireshark:
 
@@ -33,10 +33,10 @@ Two ways to see the traffic, both saving a `.pcap` you can open in Wireshark:
 - **Runs in the background:** a capture keeps going if you leave the app (you're asked
   first) and still stops at its limits. Open the app again to watch or stop it.
 - **Saved captures:** list, protocol summary, copy to a USB drive, delete.
-- **Getting files off (TNT standard):** *Share files* shows a QR code and address for a
+- **Getting files off (Nomad standard):** *Share files* shows a QR code and address for a
   web page (port 8080) that lists every capture, including one still recording, to
   download or delete from a phone or laptop browser. Plug in a USB stick and the app
-  offers to copy the captures that aren't on it yet (folder `TNT-Captures`); *Saved
+  offers to copy the captures that aren't on it yet (folder `Nomad-Captures`); *Saved
   captures* also has *Copy all to USB* and *Clear all captures* (asks twice).
 - **Power-loss safe:** tcpdump writes each packet as it arrives and the file is synced to
   the SD card every 5 s, so a power cut loses only the last few seconds. Ring-buffer
@@ -48,10 +48,10 @@ Two ways to see the traffic, both saving a `.pcap` you can open in Wireshark:
   filter*, e.g. `ptp !follow_up`). It is light enough for the CM0's 352 MB RAM; for full
   decoding open the file in Wireshark on a PC.
 
-Files are in `~/TNT-Captures/` named like `20261126-140312_Dante_eth0.pcap`, each with a
+Files are in `~/Nomad-Captures/` named like `20261126-140312_Dante_eth0.pcap`, each with a
 `.pcap.json` note (filter, port, length, packets, drops, why it stopped).
 
-## Keys (TNT standard)
+## Keys (Nomad standard)
 
 Up/Down (or plain F/X) move, OK or Right selects, Esc goes back and quits on the main
 page. In settings OK/Right starts editing a field (red), OK saves, Esc cancels.
@@ -60,14 +60,14 @@ Hold Esc to go to the launcher.
 ## Command line (over SSH)
 
 ```
-tnt-packet-capture --start --preset dante --seconds 300 --mb 200
-tnt-packet-capture --start --filter "host 192.168.1.50 and tcp port 41794"
-tnt-packet-capture --start --tap           # inline tap with the first USB adapter
-tnt-packet-capture --viewer                # open the desktop viewer
-tnt-packet-capture --status
-tnt-packet-capture --stop
-tnt-packet-capture --list
-tnt-packet-capture --presets
+nomad-packet-capture --start --preset dante --seconds 300 --mb 200
+nomad-packet-capture --start --filter "host 192.168.1.50 and tcp port 41794"
+nomad-packet-capture --start --tap           # inline tap with the first USB adapter
+nomad-packet-capture --viewer                # open the desktop viewer
+nomad-packet-capture --status
+nomad-packet-capture --stop
+nomad-packet-capture --list
+nomad-packet-capture --presets
 ```
 
 ## How it works
@@ -75,16 +75,16 @@ tnt-packet-capture --presets
 The app starts a small supervisor process that runs `tcpdump -w` straight to the file,
 so the screen can never slow the capture down. The supervisor asks tcpdump for counts
 once a second (SIGUSR1), enforces the limits, and writes a state file in
-`$XDG_RUNTIME_DIR/tnt-packet-capture/`. The live protocol breakdown reads the growing
+`$XDG_RUNTIME_DIR/nomad-packet-capture/`. The live protocol breakdown reads the growing
 file and skips ahead (marked "sample") when traffic is too fast to read it all.
 
-Inline tap: `/usr/lib/tnt-packet-capture/tap-helper` (root) makes the bridge `br-tnt`,
-run by `tnt-packet-capture-tap@<adapter>.service`, which is bound to the adapter so
+Inline tap: `/usr/lib/nomad-packet-capture/tap-helper` (root) makes the bridge `br-nomad`,
+run by `nomad-packet-capture-tap@<adapter>.service`, which is bound to the adapter so
 unplugging it takes the bridge down. A polkit rule lets the netdev group start/stop that
-unit only. A udev rule starts `tnt-packet-capture-autotap@<iface>.service` (as user pi)
+unit only. A udev rule starts `nomad-packet-capture-autotap@<iface>.service` (as user pi)
 for USB network adapters; it does nothing unless Auto tap is on.
 
-The package gives `/usr/bin/tcpdump` capture rights with `setcap` (the same as TNT AV
+The package gives `/usr/bin/tcpdump` capture rights with `setcap` (the same as Nomad AV
 Net Tools), so nothing runs as root. Note this lets any local user run tcpdump.
 
 ## Build
@@ -93,8 +93,8 @@ Net Tools), so nothing runs as root. Note this lets any local user run tcpdump.
 cd pcap-capture
 python3 tests/test_basic.py        # capture tests need root (or setcap tcpdump)
 python3 scripts/make_assets.py     # icon + store screenshots
-bash scripts/build_deb.sh          # build/tnt-packet-capture_<ver>_all.deb
-sudo apt install ./build/tnt-packet-capture_*_all.deb
+bash scripts/build_deb.sh          # build/nomad-packet-capture_<ver>_all.deb
+sudo apt install ./build/nomad-packet-capture_*_all.deb
 ```
 
-Store listing data is in `app-builder.json` (share code TNTP).
+Store listing data is in `app-builder.json` (share code NMPC).

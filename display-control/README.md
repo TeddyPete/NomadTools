@@ -1,9 +1,9 @@
-# TNT Display Control
+# Nomad Display Control
 
-Part of the TNT (Tech Nomad Ted) tools, [TheTechNomad.com](https://TheTechNomad.com).
+Part of the Nomad tools by Tech Nomad Ted, [TheTechNomad.com](https://TheTechNomad.com).
 A pocket network remote for projectors and TVs on the M5Stack CardputerZero.
 
-Package `tnt-display-control`, share code `TNTD`, Python package `tntdisp`
+Package `nomad-display-control`, share code `NMDC`, Python package `nomaddisp`
 (standard library + pygame/numpy for the LCD). Runs as the normal user.
 
 ## What it does
@@ -14,7 +14,7 @@ Package `tnt-display-control`, share code `TNTD`, Python package `tntdisp`
   picture/AV mute, picture mode, on-screen message, info, Wake-on-LAN.
 * **Rooms**: displays with the same Room name form a group: All on, All off
   (asks first), Mute, Unmute, with a per-display result list.
-* Saved list in `~/.config/tnt-display-control/displays.json` (mode 600).
+* Saved list in `~/.config/nomad-display-control/displays.json` (mode 600).
 
 | Type | Protocol | Power | Input | Volume | Mute | Extras |
 |---|---|---|---|---|---|---|
@@ -52,11 +52,11 @@ for HOME, Fn+H help. Number keys 4-8 (labels at the bottom):
 ## Command line (over SSH)
 
 ```
-tnt-display-control --scan [--save]
-tnt-display-control --list
-tnt-display-control --do "LG TV" status|on|off|inputs|input HDMI_2|vol +2|mute on|info|message Hi
-tnt-display-control --room Ballroom on|off|mute|unmute      # "all" = every display
-tnt-display-control --wol 30:34:db:6e:bc:84
+nomad-display-control --scan [--save]
+nomad-display-control --list
+nomad-display-control --do "LG TV" status|on|off|inputs|input HDMI_2|vol +2|mute on|info|message Hi
+nomad-display-control --room Ballroom on|off|mute|unmute      # "all" = every display
+nomad-display-control --wol 30:34:db:6e:bc:84
 ```
 
 ## Build and test
@@ -64,5 +64,5 @@ tnt-display-control --wol 30:34:db:6e:bc:84
 ```
 python3 -m unittest discover tests      # fake PJLink, Sony, Roku and LG servers
 python3 scripts/make_assets.py          # store screenshots
-bash scripts/build_deb.sh               # build/tnt-display-control_<ver>-1_arm64.deb
+bash scripts/build_deb.sh               # build/nomad-display-control_<ver>-1_arm64.deb
 ```

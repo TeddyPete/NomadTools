@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=TNT WiFi Share
-Exec=bin/tnt-wifi-share
-Terminal=false
-Icon=share/images/tnt-wifi-share.png
-Type=Application

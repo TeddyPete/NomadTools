@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Builds the APPLaunch .deb: build/tnt-av-net-tools_<ver>_all.deb
+# Builds the APPLaunch .deb: build/nomad-net-tools_<ver>_all.deb
 # Needs: dpkg-deb, python3. Run from anywhere.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
-PKG=tnt-av-net-tools
+PKG=nomad-net-tools
 VER=$(python3 -c "import json;print(json.load(open('app-builder.json'))['version'])")
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 chmod 755 "$ROOT"
 A="$ROOT/usr/share/APPLaunch"
-install -d "$ROOT/DEBIAN" "$A/applications" "$A/bin" "$A/share/images" "$A/lib/$PKG/tntnet"
+install -d "$ROOT/DEBIAN" "$A/applications" "$A/bin" "$A/share/images" "$A/lib/$PKG/nomadnet"
 install -m 644 packaging/$PKG.desktop "$A/applications/$PKG.desktop"
 install -m 755 packaging/$PKG "$A/bin/$PKG"
 install -m 644 packaging/icon_100.png "$A/share/images/$PKG.png"
-install -m 644 tntnet/*.py "$A/lib/$PKG/tntnet/"
+install -m 644 nomadnet/*.py "$A/lib/$PKG/nomadnet/"
 install -m 755 packaging/postinst packaging/postrm "$ROOT/DEBIAN/"
 install -m 644 packaging/triggers "$ROOT/DEBIAN/triggers"
 SIZE=$(du -sk "$ROOT/usr" | cut -f1)
@@ -24,13 +24,15 @@ Version: $VER
 Architecture: all
 Maintainer: TeddyPete <299527578+TeddyPete@users.noreply.github.com>
 Depends: python3, python3-pygame (>= 2.1), python3-numpy, python3-paramiko, python3-serial, tcpdump, arp-scan, iputils-ping, iputils-arping, traceroute, iw, ethtool, libcap2-bin, fonts-dejavu-core
+Replaces: tnt-av-net-tools
+Conflicts: tnt-av-net-tools
 Recommends: network-manager
 Installed-Size: $SIZE
 Section: net
 Priority: optional
 Homepage: https://TheTechNomad.com
-Description: TNT AV Net Tools for the M5Stack CardputerZero
- Part of the TNT (Tech Nomad Ted) tools, TheTechNomad.com.
+Description: Nomad Net Tools for the M5Stack CardputerZero
+ Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com.
  Network tools for AV techs: network basics, ping, traceroute, IP scan
  with MAC makers, Dante/NDI/AES67/mDNS discovery, PTP and multicast
  health, Find AV gear (Crestron, Extron, Q-SYS, Biamp, Shure, Netgear AV

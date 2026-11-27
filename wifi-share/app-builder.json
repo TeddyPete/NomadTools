@@ -1,12 +1,12 @@
 {
-  "package_name": "tnt-wifi-share",
-  "version": "0.5.0",
-  "app_name": "TNT WiFi Share",
-  "bin_name": "tnt-wifi-share",
+  "package_name": "nomad-wifi-share",
+  "version": "0.6.0",
+  "app_name": "Nomad WiFi Share",
+  "bin_name": "nomad-wifi-share",
   "description": "Share Wi-Fi to Ethernet, or Ethernet to a Wi-Fi hotspot",
   "store": {
-    "summary": "TNT WiFi Share: get AV racks online, hotspot, guest Wi-Fi login",
-    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Gets a standalone AV rack online from the CardputerZero: share Wi-Fi internet to the Ethernet port (NAT, with a DHCP server you can turn off for static networks), or turn a wired connection into a Wi-Fi hotspot (its own network, or bridged to the wired network). Log in to hotel and venue guest Wi-Fi pages right on the device. Devices list with maker names: rename, block, fixed IPs (DHCP reservations) and speed limits. Live dashboard with speed graph, link speed and gateway ping. Port forwards, local DNS names, 802.1Q VLAN tag, switch port and VLAN from LLDP, WireGuard VPN for the shared devices and a first-run setup wizard. Every setting is typed on the keyboard. Quitting restores your normal network.",
+    "summary": "Nomad WiFi Share: get AV racks online, hotspot, guest Wi-Fi login",
+    "description": "Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com. Gets a standalone AV rack online from the CardputerZero: share Wi-Fi internet to the Ethernet port (NAT, with a DHCP server you can turn off for static networks), or turn a wired connection into a Wi-Fi hotspot (its own network, or bridged to the wired network). Log in to hotel and venue guest Wi-Fi pages right on the device. Devices list with maker names: rename, block, fixed IPs (DHCP reservations) and speed limits. Live dashboard with speed graph, link speed and gateway ping. Port forwards, local DNS names, 802.1Q VLAN tag, switch port and VLAN from LLDP, WireGuard VPN for the shared devices and a first-run setup wizard. Every setting is typed on the keyboard. Quitting restores your normal network.",
     "categories": [
       "System Tools",
       "Radio & Comms"
@@ -26,7 +26,7 @@
       "github": "TeddyPete",
       "display_name": "Tech Nomad Ted"
     },
-    "share_code": "TNTW",
+    "share_code": "NMWF",
     "permissions": {
       "camera": false,
       "microphone": false,

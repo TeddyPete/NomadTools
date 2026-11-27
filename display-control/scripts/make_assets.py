@@ -10,7 +10,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()
 sys.path.insert(0, os.getcwd())
 
-from tntdisp.demo import render_screens  # noqa: E402
+from nomaddisp.demo import render_screens  # noqa: E402
 
 tmp = tempfile.mkdtemp()
 render_screens(tmp)

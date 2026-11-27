@@ -12,7 +12,7 @@ os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()
 sys.path.insert(0, os.getcwd())
 import pygame  # noqa: E402
 
-from tntshare.demo import render_screens  # noqa: E402
+from nomadshare.demo import render_screens  # noqa: E402
 
 
 def icon(size: int) -> pygame.Surface:
@@ -37,14 +37,13 @@ def icon(size: int) -> pygame.Surface:
     tab = pygame.Rect(cx - w // 6, jack.bottom - max(2, size // 40), w // 3, h // 3)
     pygame.draw.rect(s, (220, 220, 220), tab)
     font = pygame.font.Font(None, int(size * 0.26))
-    txt = font.render("TNT", True, (255, 255, 255))
+    txt = font.render("Nomad", True, (255, 255, 255))
     s.blit(txt, txt.get_rect(center=(cx, int(size * 0.13))))
     return s
 
 
 pygame.init()
-pygame.image.save(icon(256), "packaging/icon.png")
-pygame.image.save(icon(100), "packaging/icon_100.png")
+# icon: branding/nomad_icons.py (Nomad 3D style), not drawn here
 tmp = tempfile.mkdtemp()
 render_screens(tmp)
 os.makedirs("screenshots", exist_ok=True)

@@ -8,7 +8,7 @@ case "$1" in
     bin=$(command -v tcpdump 2>/dev/null || true)
     if [ -n "$bin" ]; then
       bin=$(readlink -f "$bin")
-      setcap cap_net_raw,cap_net_admin=eip "$bin" 2>/dev/null || echo "tnt-packet-capture: could not setcap $bin" >&2
+      setcap cap_net_raw,cap_net_admin=eip "$bin" 2>/dev/null || echo "nomad-packet-capture: could not setcap $bin" >&2
     fi
     if [ "$1" = configure ]; then
       [ -d /run/systemd/system ] && systemctl daemon-reload || true

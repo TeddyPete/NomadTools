@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=TNT Packet Capture
-Exec=bin/tnt-packet-capture
-Terminal=false
-Icon=share/images/tnt-packet-capture.png
-Type=Application

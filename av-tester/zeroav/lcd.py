@@ -15,8 +15,8 @@ import numpy as np
 import pygame
 
 PANEL_SIZES = {(320, 170), (170, 320)}
-# TNT colours: green title bar, blue highlight, red while editing a field
-TITLE_BG = (18, 120, 52)      # same as tntui.py
+# Nomad colours: green title bar, blue highlight, red while editing a field
+TITLE_BG = (18, 120, 52)      # same as nomadui.py
 HINT = (150, 200, 255)
 
 
@@ -53,7 +53,7 @@ class LcdPanel:
         self.font = pygame.font.Font(None, 22)
         self.font_small = pygame.font.Font(None, 19)
         self._pending = None
-        self.help = None              # tntui.HelpView shown over everything (Fn+H)
+        self.help = None              # nomadui.HelpView shown over everything (Fn+H)
         self._cv = threading.Condition()
         self._worker = None
 
@@ -132,14 +132,14 @@ class LcdPanel:
             s.blit(img, (6, y), (0, 0, 310, step))
             y += step
         if keys:
-            from . import tntui
-            tntui.draw_keybar(s, keys)
+            from . import nomadui
+            nomadui.draw_keybar(s, keys)
         else:
             self._hint(hint)
         self._flush([title, *lines, hint])
 
     def show_help(self, view) -> None:
-        """Fn+H: draw a tntui.HelpView over the whole panel until hide_help()."""
+        """Fn+H: draw a nomadui.HelpView over the whole panel until hide_help()."""
         self.help = view
         self.draw_async(view.render)
 
@@ -169,10 +169,10 @@ class LcdPanel:
 
     def show_list(self, title: str, items: list[str], sel: int, hint: str = "",
                   editing: bool = False, keys: list | None = None) -> None:
-        """Drawn with the shared TNT UI (tntui.py): green title, 6 rows (5
+        """Drawn with the shared Nomad UI (nomadui.py): green title, 6 rows (5
         with a 4..8 keybar), blue highlight, red row while a field is edited."""
-        from . import tntui
-        rows = tntui.ROWS_KEYS if keys else tntui.ROWS
+        from . import nomadui
+        rows = nomadui.ROWS_KEYS if keys else nomadui.ROWS
         top = max(0, min(sel - rows // 2, len(items) - rows))
         views = []
         for i in range(top, min(len(items), top + rows)):
@@ -180,9 +180,9 @@ class LcdPanel:
             if not sep:
                 label, value = items[i], ""
             state = ("editing" if editing else "selected") if i == sel else "normal"
-            views.append(tntui.RowView(label, value, state,
+            views.append(nomadui.RowView(label, value, state,
                                        cursor=len(value) if state == "editing" else None))
-        tntui.render(self.surf, title, views, hint, keys=keys)
+        nomadui.render(self.surf, title, views, hint, keys=keys)
         mark = ["> " + t if i == sel else "  " + t for i, t in enumerate(items)]
         self._flush([title, *mark, hint + (" [editing]" if editing else "")])
 

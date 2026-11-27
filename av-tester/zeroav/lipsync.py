@@ -40,7 +40,7 @@ BEEP_MS = 40
 FLASH_FRAMES = 3
 BIAS_MS = 12            # leave audio this much late after correcting
 IN_SYNC_MS = 8          # within this of the target counts as in sync
-CAL_PATH = os.path.expanduser("~/.config/tnt-av-tester/lipsync.json")
+CAL_PATH = os.path.expanduser("~/.config/nomad-av-tester/lipsync.json")
 WINDOW_S = (-0.1, 0.9)  # search window around each emitted flash/beep
 
 # ---------------------------------------------------------------- analysis
@@ -528,7 +528,7 @@ class LipSyncTest:
 
     def report(self) -> str:
         r = self.result()
-        out = [f"TNT AV Tester lip-sync report  {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
+        out = [f"Nomad AV Tester lip-sync report  {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
         if r:
             out += [f"Offset: {r[0]:+.1f} ms (+ = audio late), spread {r[1]:.1f} ms, {r[2]} flashes"]
             out += advice(r[0])

@@ -1,6 +1,6 @@
-# TNT WiFi Share
+# Nomad WiFi Share
 
-Part of the TNT (Tech Nomad Ted) tools, [TheTechNomad.com](https://TheTechNomad.com).
+Part of the Nomad tools by Tech Nomad Ted, [TheTechNomad.com](https://TheTechNomad.com).
 Gets a standalone AV rack online from the M5Stack CardputerZero, all from its keyboard and screen.
 
 ## Two modes
@@ -26,7 +26,7 @@ Gets a standalone AV rack online from the M5Stack CardputerZero, all from its ke
 
 Changes to devices, reservations, forwards, names and limits load straight into a running share. Reservations and names restart the Pi's DHCP server, which blips the shared side for a second.
 
-Keys and colors (TNT standard, same in every TNT app; the shared code is `tntshare/tntui.py`):
+Keys and colors (Nomad standard, same in every Nomad app; the shared code is `nomadshare/nomadui.py`):
 
 | Key on the CardputerZero | Does |
 | --- | --- |
@@ -44,35 +44,35 @@ Dots, dashes and other symbols come from the Sym layer as printed on the keys (S
 
 ## Safe by design
 
-- Every connection the app creates is in-memory only (`nmcli ... save no`), named `tnt-share-*`. **A reboot always brings back the normal network.**
+- Every connection the app creates is in-memory only (`nmcli ... save no`), named `nomad-share-*`. **A reboot always brings back the normal network.**
 - Before changing an interface the app records what was active on it. Quitting (Esc on the home screen, the launcher closing it, or a crash, via the launcher wrapper) removes the app's profiles, stops NAT and reconnects what was there before.
-- The app itself never runs as root. NAT, IP forwarding, device blocks, speed limits, port forwards, DHCP reservations and local names are loaded by one small root helper, `/usr/lib/tnt-wifi-share/net-helper`, run only by `tnt-wifi-share-nat@<iface>.service`. That unit is never enabled at boot. The app writes its rules to `/run/tnt-wifi-share-policy/` (group `netdev`) and the helper checks every value (MAC, IPv4, port, number, host name) before use. Rules only touch traffic on the shared side. `ip_forward` is put back to its old value and the dnsmasq file is removed when sharing stops.
+- The app itself never runs as root. NAT, IP forwarding, device blocks, speed limits, port forwards, DHCP reservations and local names are loaded by one small root helper, `/usr/lib/nomad-wifi-share/net-helper`, run only by `nomad-wifi-share-nat@<iface>.service`. That unit is never enabled at boot. The app writes its rules to `/run/nomad-wifi-share-policy/` (group `netdev`) and the helper checks every value (MAC, IPv4, port, number, host name) before use. Rules only touch traffic on the shared side. `ip_forward` is put back to its old value and the dnsmasq file is removed when sharing stops.
 - Bridge mode and VLAN profiles are in-memory too. A WireGuard config is imported only while the VPN is on, with autoconnect off, and deleted when it goes off or the app quits.
 - Joined Wi-Fi networks are saved like any other Wi-Fi network, so you don't retype guest passwords.
-- A polkit rule (`/usr/share/polkit-1/rules.d/60-tnt-wifi-share.rules`) lets `netdev` users manage NetworkManager and start, reload or stop the NAT unit without a password, and lets `video` users start the desktop to show a portal page. Nothing else is allowed.
+- A polkit rule (`/usr/share/polkit-1/rules.d/60-nomad-wifi-share.rules`) lets `netdev` users manage NetworkManager and start, reload or stop the NAT unit without a password, and lets `video` users start the desktop to show a portal page. Nothing else is allowed.
 
 Careful when working on the Pi remotely: the hotspot takes over the Wi-Fi radio, so an SSH session over Wi-Fi drops while it runs. Mode 1 takes over the Ethernet port.
 
 ## Command line (over SSH)
 
 ```bash
-tnt-wifi-share --status      # JSON status
-tnt-wifi-share --check       # internet / captive portal check
-tnt-wifi-share --restore     # undo anything the app changed
+nomad-wifi-share --status      # JSON status
+nomad-wifi-share --check       # internet / captive portal check
+nomad-wifi-share --restore     # undo anything the app changed
 # Start a mode without the UI and restore it automatically after N seconds:
-setsid nohup tnt-wifi-share --start hotspot --revert-after 90 > /tmp/tnt-share-test.log 2>&1 &
+setsid nohup nomad-wifi-share --start hotspot --revert-after 90 > /tmp/nomad-share-test.log 2>&1 &
 ```
 
 ## Build and install
 
 ```bash
 cd wifi-share
-./scripts/build_deb.sh                # -> build/tnt-wifi-share_<ver>-1_arm64.deb
-sudo apt install ./build/tnt-wifi-share_*_arm64.deb
+./scripts/build_deb.sh                # -> build/nomad-wifi-share_<ver>-1_arm64.deb
+sudo apt install ./build/nomad-wifi-share_*_arm64.deb
 ```
 
 Needs NetworkManager, `dnsmasq-base`, `nftables`, `iw` (all on the stock image) and `python3-pygame`.
-Settings are kept in `~/.config/tnt-wifi-share/settings.json`; the hotspot gets a random password on first run.
+Settings are kept in `~/.config/nomad-wifi-share/settings.json`; the hotspot gets a random password on first run.
 
 Tests (offline): `python3 -m unittest discover tests`. Store screenshots and icon: `python3 scripts/make_assets.py`.
 

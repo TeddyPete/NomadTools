@@ -26,16 +26,15 @@ def icon(size: int) -> pygame.Surface:
         pygame.draw.circle(s, (255, 255, 255), n, size * 0.06)
     pygame.draw.circle(s, (255, 214, 110), hub, size * 0.09)
     font = pygame.font.Font(None, int(size * 0.30))
-    txt = font.render("TNT NET", True, (255, 255, 255))
+    txt = font.render("Nomad NET", True, (255, 255, 255))
     s.blit(txt, txt.get_rect(center=(c, size * 0.84)))
     return s
 
 
 pygame.font.init()
-pygame.image.save(icon(256), "packaging/icon.png")
-pygame.image.save(icon(100), "packaging/icon_100.png")
+# icon: branding/nomad_icons.py (Nomad 3D style), not drawn here
 tmp = tempfile.mkdtemp()
-subprocess.run([sys.executable, "-m", "tntnet.app", "--shots", tmp], check=True)
+subprocess.run([sys.executable, "-m", "nomadnet.app", "--shots", tmp], check=True)
 os.makedirs("screenshots", exist_ok=True)
 for n in range(3):
     shutil.copy(os.path.join(tmp, f"lcd_{n}.png"), f"screenshots/lcd_{n}.png")

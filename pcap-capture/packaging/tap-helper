@@ -1,6 +1,6 @@
 #!/bin/sh
-# TNT Packet Capture inline-tap helper (runs as root from
-# tnt-packet-capture-tap@<adapter>.service).
+# Nomad Packet Capture inline-tap helper (runs as root from
+# nomad-packet-capture-tap@<adapter>.service).
 #   tap-helper up <adapter>    bridge the built-in Ethernet port and <adapter>
 #   tap-helper down <adapter>  remove the bridge, give the ports back
 # The bridge has no IP (v4 or v6), no spanning tree, and forwards 802.1X
@@ -8,8 +8,8 @@
 # touched.
 set -u
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
-BR=br-tnt
-STATE=/run/tnt-packet-capture-tap.ports
+BR=br-nomad
+STATE=/run/nomad-packet-capture-tap.ports
 act=${1:-}; ad=${2:-}
 
 ok_name() { echo "$1" | grep -Eq '^[A-Za-z0-9_.-]{1,15}$'; }

@@ -11,17 +11,17 @@ import threading
 import time
 
 TMP = tempfile.mkdtemp()
-os.environ.update(TNT_CAPTURE_DIR=os.path.join(TMP, "caps"), XDG_CONFIG_HOME=os.path.join(TMP, "cfg"),
+os.environ.update(NOMAD_CAPTURE_DIR=os.path.join(TMP, "caps"), XDG_CONFIG_HOME=os.path.join(TMP, "cfg"),
                   XDG_RUNTIME_DIR=os.path.join(TMP, "rt"), SDL_VIDEODRIVER="dummy")
 os.makedirs(os.environ["XDG_RUNTIME_DIR"])
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tntcap import app as A  # noqa: E402
-from tntcap import capture as C  # noqa: E402
-from tntcap import files as F  # noqa: E402
-from tntcap import lcd as L  # noqa: E402
-from tntcap import pcapread  # noqa: E402
-from tntcap.keys import Key  # noqa: E402
+from nomadcap import app as A  # noqa: E402
+from nomadcap import capture as C  # noqa: E402
+from nomadcap import files as F  # noqa: E402
+from nomadcap import lcd as L  # noqa: E402
+from nomadcap import pcapread  # noqa: E402
+from nomadcap.keys import Key  # noqa: E402
 
 
 def test_filters():
@@ -118,11 +118,11 @@ def test_size_limit():
 def test_web():
     from urllib.request import urlopen
 
-    from tntcap import web
+    from nomadcap import web
     sh = web.Share(port=18080)
     assert sh.start()
     html = urlopen(f"http://127.0.0.1:{sh.port}/").read().decode()
-    assert "TNT Packet Capture" in html
+    assert "Nomad Packet Capture" in html
     try:
         urlopen(f"http://127.0.0.1:{sh.port}/../../etc/passwd")
         raise AssertionError("served a file outside the folder")
@@ -145,7 +145,7 @@ def test_web():
 
 
 def test_qr():
-    from tntcap import qr
+    from nomadcap import qr
     m = qr.matrix("http://192.168.51.24:8080/")
     assert len(m) == 25
     try:
@@ -173,7 +173,7 @@ def test_recover_ring_leftovers():
 
 
 def test_tap_guards():
-    from tntcap import tap
+    from nomadcap import tap
     assert tap.why_not("") != ""
     assert tap.why_not(tap.builtin()) != ""
     for k in ("up", "ports", "builtin", "adapters"):

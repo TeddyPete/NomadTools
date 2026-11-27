@@ -50,16 +50,16 @@ class HdmiOutput:
         if mode:
             size = mode.size
         if self.fullscreen_desktop:
-            self.window = Window("TNT AV Tester", size=size, fullscreen_desktop=True)
+            self.window = Window("Nomad AV Tester", size=size, fullscreen_desktop=True)
         else:
-            self.window = Window("TNT AV Tester", size=size, fullscreen=True)
+            self.window = Window("Nomad AV Tester", size=size, fullscreen=True)
         # Pick the exact refresh rate before the renderer starts.
         self.mode_set = bool(mode) and sdlmodes.set_mode(self.window.id, self.display, mode)
         # On the Pi desktop (windowed), the GPU driver can crash outright
         # when a second client renders with GL, so use software rendering
-        # there. Direct HDMI (kmsdrm) uses the GPU. TNT_RENDER=gpu|software
+        # there. Direct HDMI (kmsdrm) uses the GPU. NOMAD_RENDER=gpu|software
         # overrides.
-        want = os.environ.get("TNT_RENDER", "software" if self.fullscreen_desktop else "gpu")
+        want = os.environ.get("NOMAD_RENDER", "software" if self.fullscreen_desktop else "gpu")
         self.renderer = None
         if want != "software":
             try:

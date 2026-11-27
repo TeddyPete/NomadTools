@@ -15,7 +15,7 @@ import numpy as np
 
 from .lipsync import RATE, Mic
 
-CAL_PATH = os.path.expanduser("~/.config/tnt-av-tester/spl.json")
+CAL_PATH = os.path.expanduser("~/.config/nomad-av-tester/spl.json")
 NFFT = 8192                      # 170 ms at 48 kHz
 # ISO 1/3-octave centres, 25 Hz .. 20 kHz
 BANDS = [25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000,
@@ -127,7 +127,7 @@ class Meter:
                 f"  max {self.spl(self.max_db) if self.cal is not None else f'{self.max_db:.1f}'}"]
 
     def report(self) -> str:
-        out = [f"TNT AV Tester audio report  {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
+        out = [f"Nomad AV Tester audio report  {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
         out += self.lines()
         out += ["", f"SPL calibration offset: {'none' if self.cal is None else f'{self.cal:+.1f} dB'}", "",
                 "1/3-octave band levels (dBFS, current / max hold):"]

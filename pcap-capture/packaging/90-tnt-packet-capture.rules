@@ -1,4 +1,0 @@
-# TNT Packet Capture: when a USB Ethernet adapter appears, let the app decide
-# whether to start the inline tap (only if "Auto tap" is on in its settings).
-ACTION=="add", SUBSYSTEM=="net", ENV{DEVTYPE}!="wlan", ENV{ID_BUS}=="usb", KERNEL!="br-*", \
-  TAG+="systemd", ENV{SYSTEMD_WANTS}+="tnt-packet-capture-autotap@%k.service"

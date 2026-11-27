@@ -1,0 +1,13 @@
+# Nomad WiFi Share: NAT, forwarding and the app's sharing rules for interface %i.
+# Started, reloaded (rules changed) and stopped by the app only; never
+# enabled, so nothing of it survives a reboot.
+[Unit]
+Description=Nomad WiFi Share NAT on %i
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/nomad-wifi-share/net-helper start %i
+ExecReload=/usr/lib/nomad-wifi-share/net-helper apply %i
+ExecStop=/usr/lib/nomad-wifi-share/net-helper stop %i

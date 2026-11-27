@@ -1,10 +1,10 @@
-# TNT AV Net Tools
+# Nomad Net Tools
 
 Network tools for AV techs on the [M5Stack CardputerZero](https://docs.m5stack.com/en/CardputerZero).
-Part of the TNT (Tech Nomad Ted) tools, [TheTechNomad.com](https://TheTechNomad.com).
+Part of the Nomad tools by Tech Nomad Ted, [TheTechNomad.com](https://TheTechNomad.com).
 
 Everything runs from the keyboard with results on the built-in screen. When the Pi desktop is
-running on HDMI, the same results also show, larger and wider, in a **TNT AV Net Tools** window
+running on HDMI, the same results also show, larger and wider, in a **Nomad Net Tools** window
 on the desktop.
 
 ## Install
@@ -15,10 +15,10 @@ From the M5Stack app store, or build the package yourself on the device:
 git clone https://github.com/TeddyPete/ZeroAVTools.git
 cd ZeroAVTools/net-tools
 ./scripts/build_deb.sh
-sudo apt install ./build/tnt-av-net-tools_*_all.deb
+sudo apt install ./build/nomad-net-tools_*_all.deb
 ```
 
-The app appears on the home screen as **TNT AV Net Tools**. `apt` pulls in tcpdump, arp-scan,
+The app appears on the home screen as **Nomad Net Tools**. `apt` pulls in tcpdump, arp-scan,
 traceroute, iw, ethtool, paramiko and pyserial.
 
 **Rights, not root.** The app runs as the normal user. On install, the package gives tcpdump,
@@ -38,7 +38,7 @@ so capture and scans work without sudo. Removing the package takes those back.
 | Terminal | Hercules-style SSH / Telnet / TCP / UDP / serial (USB-RS232: baud, data bits, parity, stop bits). ASCII or HEX view and send, CR/LF/CRLF/none, Ctrl+C etc., saved command strings per device, log to the site report |
 | Capture | Control-protocol sniffer: Crestron CIP joins, Crestron console, Q-SYS QRC/ECP, Extron SIS, PJLink (decoded). pcap capture to the site folder for Wireshark. Use a switch **mirror (SPAN) port**; inline bridging is not built |
 | Network checks | DHCP rogue server check (sends a DISCOVER, lists every server that offers), IP conflict check (arping + duplicate scan), LLDP/CDP (switch, port, VLAN, PoE), link/cable errors (speed/duplex, error counters while pinging the gateway, TDR cable test where the chip supports it), control-port check |
-| Site & reports | Set the site name. **S** on any result saves it to `~/TNT-Net-Reports/<site>/`. Browse saved reports on the device |
+| Site & reports | Set the site name. **S** on any result saves it to `~/Nomad-Net-Reports/<site>/`. Browse saved reports on the device |
 
 ### Dante health
 
@@ -69,7 +69,7 @@ Main menu > Crestron NVX setup/capture:
 ## Getting reports off the device
 
 Site & reports > Download reports: a web page with a QR code (download a file, or a whole site as a
-.zip) or copy everything to a USB stick (`TNT-Net-Reports/`). Same as TNT Packet Capture.
+.zip) or copy everything to a USB stick (`Nomad-Net-Reports/`). Same as Nomad Packet Capture.
 
 ## Keys
 
@@ -95,7 +95,7 @@ window has focus.
 ## Logins
 
 Logins are typed on the keyboard and are **not saved** unless you set *Save this login* to Yes on
-the login form. Saved logins are kept in `~/.config/tnt-av-net-tools/logins.json` (owner-only).
+the login form. Saved logins are kept in `~/.config/nomad-net-tools/logins.json` (owner-only).
 *Settings → Forget all saved logins* clears them.
 
 ## Notes
@@ -104,4 +104,4 @@ the login form. Saved logins are kept in `~/.config/tnt-av-net-tools/logins.json
   surface crashes in the vc4 GPU driver on this device.
 - Over Wi-Fi, many access points hide devices from ARP scans; plug into Ethernet for full lists.
   PTP, multicast and LLDP checks are meant for the built-in Ethernet port.
-- Run `python3 -m tntnet.app` from `net-tools/` to try it on a Linux PC (keys come from the window).
+- Run `python3 -m nomadnet.app` from `net-tools/` to try it on a Linux PC (keys come from the window).

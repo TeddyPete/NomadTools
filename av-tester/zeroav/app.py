@@ -1,4 +1,4 @@
-"""TNT AV Tester: HDMI test patterns and tones, run from the keyboard,
+"""Nomad AV Tester: HDMI test patterns and tones, run from the keyboard,
 with status on the built-in LCD.
 
 Run on the device (from the console, not a desktop session):
@@ -14,7 +14,7 @@ import signal
 import sys
 import time
 
-# Navigation follows the TNT standard (CardputerZero arrows are on the Fn
+# Navigation follows the Nomad standard (CardputerZero arrows are on the Fn
 # layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right; OK is Enter):
 #   Up/Down move, Right or OK select, Left back one level,
 #   Esc back one level and quit from the main menu.
@@ -47,7 +47,7 @@ SOFT = {"menu": ["Pattern", "Lip-sync", "Meter", "EDID", "Tone"],
         "meter": ["A/Z", "Tone", "Reset", "Save"],
         "edid": ["Page", "Save"]}
 HELP_TEXT = {
-    "menu": "TNT AV Tester: test patterns, tones and checks for displays and audio over HDMI. "
+    "menu": "Nomad AV Tester: test patterns, tones and checks for displays and audio over HDMI. "
             "Up/Down picks a tool, OK opens it. TheTechNomad.com",
     "patterns": "Test patterns on the HDMI output. Up/Down or 4/5 step through them, 6 jumps to "
                 "the next group, OK or 7 shows frame rate and dropped frames, 8 cycles the tone. "
@@ -68,11 +68,11 @@ HELP_TEXT = {
 AUDIO_MODES = [(None, "Off"), ("tone", "1 kHz tone, both"), ("lr", "1 kHz L then R"),
                ("left", "1 kHz left only"), ("right", "1 kHz right only"), ("pink", "Pink noise"),
                ("sweep", "Log sweep 20 Hz-20 kHz"), ("polarity", "Polarity pulse")]
-REPORT_DIR = os.path.expanduser("~/.local/share/tnt-av-tester/reports")
+REPORT_DIR = os.path.expanduser("~/.local/share/nomad-av-tester/reports")
 
 
 class _HelpKey:
-    """A pygame key as the name/char key object tntui.HelpView expects."""
+    """A pygame key as the name/char key object nomadui.HelpView expects."""
 
     def __init__(self, pygame, k, ch):
         names = {pygame.K_UP: "up", pygame.K_DOWN: "down", pygame.K_LEFT: "left", pygame.K_RIGHT: "right",
@@ -144,7 +144,7 @@ def save_edid_report(info, modes) -> str:
     name = (info.name or info.vendor_id or "display").replace(" ", "_").replace("/", "-") if info else "none"
     base = os.path.join(REPORT_DIR, f"edid-{stamp}-{name}")
     with open(base + ".txt", "w") as f:
-        f.write(f"TNT AV Tester EDID report  {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write(f"Nomad AV Tester EDID report  {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write(edid.text_report(info))
         if modes:
             f.write("\n== Modes this device can send ==\n")
@@ -177,7 +177,7 @@ def save_room_report(room, edid_info, mode, fps, dropped, plug_log, last) -> str
     name = room["name"].strip() or "room"
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:40]
     path = os.path.join(REPORT_DIR, f"room-{safe}-{time.strftime('%Y%m%d-%H%M%S')}.txt")
-    out = [f"TNT AV Tester room report: {name}", time.strftime("%Y-%m-%d %H:%M:%S"), "",
+    out = [f"Nomad AV Tester room report: {name}", time.strftime("%Y-%m-%d %H:%M:%S"), "",
            "Notes: " + (room["notes"].strip() or "-"), "", "== Link =="]
     out += ["  " + l for l in link_lines(edid_info, mode, mode.size, fps, dropped, plug_log, "")]
     out += ["", last.get("sync") or "== Lip-sync ==\n  not measured in this session", "",
@@ -290,10 +290,10 @@ def run(args) -> None:
     os.environ.setdefault("SDL_VIDEODRIVER", "kmsdrm")
     log_cma("start")
     # Preferred HDMI path: plain KMS framebuffers, no GPU (see kms.py).
-    # SDL then only reads the keyboard ("evdev" driver). TNT_OUTPUT=gl
+    # SDL then only reads the keyboard ("evdev" driver). NOMAD_OUTPUT=gl
     # forces the older GPU path.
     kms = None
-    if os.environ["SDL_VIDEODRIVER"] == "kmsdrm" and os.environ.get("TNT_OUTPUT", "kms") == "kms":
+    if os.environ["SDL_VIDEODRIVER"] == "kmsdrm" and os.environ.get("NOMAD_OUTPUT", "kms") == "kms":
         try:
             from .kms import KmsOutput
             kms = KmsOutput()
@@ -320,7 +320,7 @@ def run(args) -> None:
     if kms is not None:
         # a hidden 1x1 window gives keyboard events a focus target
         from pygame._sdl2.video import Window as _W
-        _input_window = _W("TNT AV Tester input", size=(1, 1))
+        _input_window = _W("Nomad AV Tester input", size=(1, 1))
     disp = 0 if kms is not None else pick_hdmi_display(pygame)
     driver = "direct KMS" if kms is not None else pygame.display.get_driver()
     try:
@@ -383,7 +383,7 @@ def run(args) -> None:
     meter, meter_msg, meter_t, meter_n = None, "", 0.0, 0
     status_view, status_scroll = False, 0
     room = None                     # dict while the room report form is open
-    help_view = None                # tntui.HelpView while Fn+H help is shown
+    help_view = None                # nomadui.HelpView while Fn+H help is shown
     pygame.key.set_repeat()   # no auto-repeat: a held Esc or OK must act once
     PLAIN_ARROWS.update({"f": pygame.K_UP, "x": pygame.K_DOWN, "z": pygame.K_LEFT, "c": pygame.K_RIGHT})
     screen, menu_sel = "menu", 0    # "menu", "patterns", or a picker: "modes" / "audio"
@@ -438,11 +438,11 @@ def run(args) -> None:
                 skip_gap = True
                 continue
             if k in (pygame.K_HELP, pygame.K_F1):  # Fn+H: show this screen's help
-                from . import tntui
-                titles = {"menu": "TNT AV Tester", "patterns": "Test patterns", "sync": "Lip-sync",
+                from . import nomadui
+                titles = {"menu": "Nomad AV Tester", "patterns": "Test patterns", "sync": "Lip-sync",
                           "meter": "Audio meter", "edid": "Display EDID", "link": "HDMI link",
                           "room": "Room report", "modes": "Video mode", "audio": "Audio output"}
-                help_view = tntui.HelpView(titles.get(where, ""), HELP_TEXT.get(where, ""), SOFT.get(where))
+                help_view = nomadui.HelpView(titles.get(where, ""), HELP_TEXT.get(where, ""), SOFT.get(where))
                 lcd.show_help(help_view)
                 skip_gap = True
                 continue
@@ -784,8 +784,8 @@ def run(args) -> None:
                     for i, ln in enumerate(lines):
                         s.blit(lcd.font_small.render(ln, True, (230, 230, 230)), (6, 25 + i * 15))
                     draw_rta(s, (2, 58, 316, 80), bands, hold, font=None)
-                    from . import tntui
-                    tntui.draw_keybar(s, SOFT["meter"])
+                    from . import nomadui
+                    nomadui.draw_keybar(s, SOFT["meter"])
 
                 lcd.draw_async(draw)
             else:
@@ -866,7 +866,7 @@ def run(args) -> None:
             if screen == "menu":
                 vals = {"patterns": pat.name, "modes": mode.label, "audio": tones.mode or "off"}
                 items = [label + (f": {vals[key]}" if key in vals else "") for key, label in MENU]
-                sel, title, hint = menu_sel, banner or "TNT AV Tester", MENU_HELP
+                sel, title, hint = menu_sel, banner or "Nomad AV Tester", MENU_HELP
             else:
                 names = ([m.label for m in modes] if screen == "modes"
                          else [label for _, label in AUDIO_MODES])
@@ -891,7 +891,7 @@ def main(argv=None) -> None:
     ap.add_argument("--mode", help="start in this exact mode, e.g. 1920x1080p50 or 1920x1080p59.94")
     ap.add_argument("--audio-device", default=os.environ.get("ZEROAV_AUDIO"),
                     help="ALSA device for tones (default: pipewire if present, else default)")
-    ap.add_argument("--mic-device", default=os.environ.get("TNT_MIC", "default"),
+    ap.add_argument("--mic-device", default=os.environ.get("NOMAD_MIC", "default"),
                     help="ALSA capture device for the lip-sync test (default: default, i.e. PipeWire)")
     ap.add_argument("--selftest", action="store_true",
                     help="stress the HDMI output (patterns, pages, flashes, every mode), log GPU memory, exit")
@@ -918,7 +918,7 @@ def main(argv=None) -> None:
             pygame.init()
             msg = traceback.format_exc().strip().splitlines()[-1]
             LcdPanel().show("App error", ["Sorry, the app hit an error:", msg[:40], msg[40:80],
-                                          "Log: ~/.local/share/", "tnt-av-tester/app.log"], "Closing in 8 s")
+                                          "Log: ~/.local/share/", "nomad-av-tester/app.log"], "Closing in 8 s")
             time.sleep(8)
         except Exception:
             pass

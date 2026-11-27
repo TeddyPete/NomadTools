@@ -1,12 +1,12 @@
 {
-  "package_name": "tnt-display-control",
-  "version": "0.1.0",
-  "app_name": "TNT Display Control",
-  "bin_name": "tnt-display-control",
+  "package_name": "nomad-display-control",
+  "version": "0.2.0",
+  "app_name": "Nomad Display Control",
+  "bin_name": "nomad-display-control",
   "description": "Control projectors and TVs over the network",
   "store": {
-    "summary": "TNT Display Control: power, input and volume for projectors and TVs over the network",
-    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. A pocket network remote for AV techs. Find displays scans the network (SSDP, PJLink search and a port sweep) and adds them to a saved list. Turn displays on and off, pick inputs, change volume and mute, and read status, lamp hours and errors. Works with PJLink class 1 and 2 projectors and panels (with password), LG webOS TVs (volume, inputs, screen off, on-screen message), Sony Bravia IP control (pre-shared key, picture mode, picture off), Samsung Tizen TVs and Roku TVs. Rooms switch every display in a room on or off at once. Power on by Wake-on-LAN for TVs that sleep their network. Keys 4-8: On, Off, Vol-, Vol+, Mute. Fn+H shows help.",
+    "summary": "Nomad Display Control: power, input and volume for projectors and TVs over the network",
+    "description": "Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com. A pocket network remote for AV techs. Find displays scans the network (SSDP, PJLink search and a port sweep) and adds them to a saved list. Turn displays on and off, pick inputs, change volume and mute, and read status, lamp hours and errors. Works with PJLink class 1 and 2 projectors and panels (with password), LG webOS TVs (volume, inputs, screen off, on-screen message), Sony Bravia IP control (pre-shared key, picture mode, picture off), Samsung Tizen TVs and Roku TVs. Rooms switch every display in a room on or off at once. Power on by Wake-on-LAN for TVs that sleep their network. Keys 4-8: On, Off, Vol-, Vol+, Mute. Fn+H shows help.",
     "categories": [
       "Hardware & IoT",
       "System Tools"
@@ -25,7 +25,7 @@
       "github": "TeddyPete",
       "display_name": "Tech Nomad Ted"
     },
-    "share_code": "TNTD",
+    "share_code": "NMDC",
     "permissions": {
       "camera": false,
       "microphone": false,

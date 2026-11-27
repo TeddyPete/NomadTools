@@ -9,11 +9,11 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()
 os.environ["XDG_RUNTIME_DIR"] = tempfile.mkdtemp()
-os.environ["TNT_CAPTURE_DIR"] = tempfile.mkdtemp()
+os.environ["NOMAD_CAPTURE_DIR"] = tempfile.mkdtemp()
 sys.path.insert(0, os.getcwd())
 import pygame  # noqa: E402
 
-from tntcap.demo import render_screens  # noqa: E402
+from nomadcap.demo import render_screens  # noqa: E402
 
 
 def icon(size: int) -> pygame.Surface:
@@ -30,7 +30,7 @@ def icon(size: int) -> pygame.Surface:
     pygame.draw.circle(s, (220, 40, 40), (int(80 * u), int(58 * u)), int(13 * u))
     pygame.draw.circle(s, (255, 255, 255), (int(80 * u), int(58 * u)), int(13 * u), max(1, int(2 * u)))
     font = pygame.font.Font(None, int(size * 0.26))
-    txt = font.render("TNT", True, (255, 255, 255))
+    txt = font.render("Nomad", True, (255, 255, 255))
     s.blit(txt, txt.get_rect(center=(size // 2, int(size * 0.15))))
     font2 = pygame.font.Font(None, int(size * 0.22))
     txt = font2.render("PCAP", True, (110, 220, 120))
@@ -39,8 +39,7 @@ def icon(size: int) -> pygame.Surface:
 
 
 pygame.init()
-pygame.image.save(icon(256), "packaging/icon.png")
-pygame.image.save(icon(100), "packaging/icon_100.png")
+# icon: branding/nomad_icons.py (Nomad 3D style), not drawn here
 tmp = tempfile.mkdtemp()
 render_screens(tmp)
 os.makedirs("screenshots", exist_ok=True)

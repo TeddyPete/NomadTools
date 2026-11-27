@@ -1,11 +1,11 @@
 #!/bin/sh
-# Take back tcpdump's capture rights on removal, unless TNT AV Net Tools
+# Take back tcpdump's capture rights on removal, unless Nomad Net Tools
 # (which needs them too) is still installed.
 set -e
 PATH="$PATH:/usr/sbin:/sbin"
 case "$1" in
   remove|purge)
-    if ! dpkg-query -W -f='${Status}' tnt-av-net-tools 2>/dev/null | grep -q "install ok installed"; then
+    if ! dpkg-query -W -f='${Status}\n' nomad-net-tools tnt-av-net-tools 2>/dev/null | grep -q "install ok installed"; then
       bin=$(command -v tcpdump 2>/dev/null || true)
       [ -n "$bin" ] && setcap -r "$(readlink -f "$bin")" 2>/dev/null || true
     fi

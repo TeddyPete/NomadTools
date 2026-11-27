@@ -1,4 +1,4 @@
-# TNT AV Tester
+# Nomad AV Tester
 
 HDMI test patterns and audio test tones for the CardputerZero, run from the keyboard with
 status on the built-in screen. Lip-sync measurement, EDID reader, SPL meter, saved reports
@@ -6,35 +6,35 @@ and a phone/web page for reports come next.
 
 ## Install as a launcher app (on the CardputerZero)
 
-The app installs like a Store app: it appears on the HOME screen as **TNT AV Tester**.
+The app installs like a Store app: it appears on the HOME screen as **Nomad AV Tester**.
 
 ```bash
 git clone https://github.com/TeddyPete/ZeroAVTools.git
 cd ZeroAVTools/av-tester
 sudo apt install python3-pygame python3-numpy dpkg-dev
-./scripts/build_deb.sh                        # -> build/tnt-av-tester_<ver>_all.deb
-sudo apt install ./build/tnt-av-tester_*_all.deb
+./scripts/build_deb.sh                        # -> build/nomad-av-tester_<ver>_all.deb
+sudo apt install ./build/nomad-av-tester_*_all.deb
 ```
 
-Open **TNT AV Tester** from HOME. Esc from the main menu (or Q anywhere) quits; holding Esc for 2 s goes HOME.
+Open **Nomad AV Tester** from HOME. Esc from the main menu (or Q anywhere) quits; holding Esc for 2 s goes HOME.
 
-If the Pi desktop is running on HDMI, TNT AV Tester pauses it while it runs so it can set HDMI
+If the Pi desktop is running on HDMI, Nomad AV Tester pauses it while it runs so it can set HDMI
 resolution and refresh itself, then starts the desktop again when you quit. A reboot always
 brings the desktop back. To keep the desktop up and show patterns in a window on it instead,
 set `ZEROAV_KEEP_DESKTOP=1`. The package installs a small polkit rule
-(`/usr/share/polkit-1/rules.d/60-tnt-av-tester.rules`) that lets local users in the `video`
+(`/usr/share/polkit-1/rules.d/60-nomad-av-tester.rules`) that lets local users in the `video`
 group stop and start `lightdm.service` only, with no password.
-Uninstall with `sudo apt remove tnt-av-tester`.
+Uninstall with `sudo apt remove nomad-av-tester`.
 
 ## Publishing to the CardputerZero Store
 
 `app-builder.json` holds the Store listing (summary, category, screenshots, icon, license,
-share code `TNTA`, permissions). To publish, use M5Stack's
+share code `NMAV`, permissions). To publish, use M5Stack's
 [AppBuilder](https://github.com/CardputerZero/AppBuilder) `czdev` tool from this folder:
 
 ```bash
 ./czdev login                                          # GitHub device login, once
-./czdev publish --deb build/tnt-av-tester_<ver>_all.deb  # opens a review PR
+./czdev publish --deb build/nomad-av-tester_<ver>_all.deb  # opens a review PR
 ```
 
 An M5Stack admin reviews and merges; then it shows in the Store.
@@ -63,7 +63,7 @@ python3 -m zeroav.app --audio-device default          # pick a tone output (defa
 
 ## Keys
 
-TNT apps share one way of getting around, and the same colours: green title bar, blue for the highlighted row, red for a field being edited. On the CardputerZero the arrows are on the Fn layer
+Nomad apps share one way of getting around, and the same colours: green title bar, blue for the highlighted row, red for a field being edited. On the CardputerZero the arrows are on the Fn layer
 (Fn+F up, Fn+X down, Fn+Z left, Fn+C right); plain F, X, Z and C work as arrows too, except while
 typing in a text field. OK is Enter.
 
@@ -86,7 +86,7 @@ These shortcuts also work from the main menu and the pattern screen:
 | `t` | Next audio output (HDMI): off, 1 kHz both, L/R alternating, left only, right only, pink noise, 20 Hz-20 kHz log sweep (10 s), polarity pulse |
 | `+` / `-` | Tone level, 2 dB steps (starts at -20 dBFS) |
 | `m` | Next HDMI mode, with exact refresh (1080p60, 1080p59.94, 1080p50, 1080p23.98, ...) |
-| `e` | Display EDID: maker, model, serial, build date, size, native mode, all modes, audio, HDR, color depth. Up/Down scroll the small screen, Right turns the HDMI page, `s` saves the report (text plus raw `.bin`) to `~/.local/share/tnt-av-tester/reports/` |
+| `e` | Display EDID: maker, model, serial, build date, size, native mode, all modes, audio, HDR, color depth. Up/Down scroll the small screen, Right turns the HDMI page, `s` saves the report (text plus raw `.bin`) to `~/.local/share/nomad-av-tester/reports/` |
 | `l` | Lip-sync test (see below) |
 | `h` | HDMI link status: connected or not, display, mode being sent, fps, dropped frames, hot-plug log |
 | `n` | Room report: a small form with Room, Notes and Save report. Move with F/X, press OK (or Right) to edit a field: it turns red and keys type, OK keeps the text, Esc undoes it. OK on Save report saves EDID, link, latest lip-sync and audio results in one file |
@@ -101,7 +101,7 @@ small screen. Play pink noise with `t` to check a room or EQ; the RTA reads flat
 - `w` switches A and Z (flat) weighting. `r` resets max and Leq. `s` saves a report.
 - SPL needs a one-time calibration: with a calibrator or a reference meter next to the
   CardputerZero, press `+` / `-` until the SPL matches. It is saved in
-  `~/.config/tnt-av-tester/spl.json`. Until then SPL reads "uncal" and levels are dBFS.
+  `~/.config/nomad-av-tester/spl.json`. Until then SPL reads "uncal" and levels are dBFS.
 - Polarity pulse: a sharp positive-going pulse twice a second, for a polarity checker.
 
 ## Lip-sync test
@@ -112,9 +112,9 @@ each one and the small screen shows the offset (+ = audio late), ATSC and EBU R3
 fix. The fix leaves audio about 12 ms late, since late audio is far less noticeable than early audio.
 
 - `0` (zero) after a run on a system you trust to be in sync stores that run as the zero point
-  (`~/.config/tnt-av-tester/lipsync.json`). Do this once; it removes the camera and audio delays
+  (`~/.config/nomad-av-tester/lipsync.json`). Do this once; it removes the camera and audio delays
   inside the CardputerZero itself. Until then results show "not calibrated".
-- `s` saves a report with every flash to `~/.local/share/tnt-av-tester/reports/`.
+- `s` saves a report with every flash to `~/.local/share/nomad-av-tester/reports/`.
 - `python3 -m zeroav.lipsync` checks the camera frame rate and mic level without HDMI.
 
 ## Patterns
@@ -132,7 +132,7 @@ python3 -m zeroav.app --render-dir out --size 1920x1080
 
 ## Logs
 
-Every run appends to `~/.local/share/tnt-av-tester/app.log`: keys pressed, mode changes, frame-rate
+Every run appends to `~/.local/share/nomad-av-tester/app.log`: keys pressed, mode changes, frame-rate
 lines, why the app exited, and a Python or native (segfault) traceback if it crashed.
 
 ## GPU memory
@@ -141,12 +141,12 @@ The CardputerZero's GPU memory pool (CMA) is 64 MB. Drawing through the GPU (GL)
 about 60 MB of it, so the app doesn't use the GPU for HDMI: it asks the kernel for two plain
 framebuffers (2 x 8 MB at 1080p), copies each pattern in with the CPU and flips between them on
 vblank. That leaves roughly 40 MB free. CMA free is logged to `app.log` at start, on each mode change
-and every 30 s. `TNT_OUTPUT=gl` switches back to the GPU path.
+and every 30 s. `NOMAD_OUTPUT=gl` switches back to the GPU path.
 
 Stress test (patterns flipped as fast as possible, overlay, EDID page, flashes, every mode):
 
 ```bash
-/usr/share/APPLaunch/bin/tnt-av-tester --selftest; grep -E "selftest|CMA" ~/.local/share/tnt-av-tester/app.log | tail -40
+/usr/share/APPLaunch/bin/nomad-av-tester --selftest; grep -E "selftest|CMA" ~/.local/share/nomad-av-tester/app.log | tail -40
 ```
 
 ## Known limits
