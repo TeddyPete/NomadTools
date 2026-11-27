@@ -58,9 +58,10 @@ class Panel:
         return self.f.size(s)[0]
 
     def draw(self, title: str, rows: list, hint: str = "", selected: int | None = None,
-             right: str = "") -> None:
-        """rows: tntui.RowView, str, (text, color) or (text, color, right_text)."""
-        T.render(self.surf, title, rows, hint, selected, right, self.fonts)
+             right: str = "", keys: list | None = None) -> None:
+        """rows: tntui.RowView, str, (text, color) or (text, color, right_text).
+        keys: labels for number keys 4..8 (drawn as a keybar instead of the hint)."""
+        T.render(self.surf, title, rows, hint, selected, right, self.fonts, keys)
         self.flush()
 
     def save(self, path: str) -> None:

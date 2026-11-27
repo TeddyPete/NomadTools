@@ -53,7 +53,8 @@ class Key:
 LIST_ARROWS = {"f": "up", ";": "up", "x": "down", ".": "down", "z": "left", "c": "right"}
 
 NAMED = {1: "esc", 14: "bksp", 15: "tab", 28: "enter", 96: "enter", 103: "up", 108: "down",
-         105: "left", 106: "right", 104: "pgup", 109: "pgdn", 102: "home", 107: "end", 111: "del"}
+         105: "left", 106: "right", 104: "pgup", 109: "pgdn", 102: "home", 107: "end", 111: "del",
+         138: "help"}   # 138 KEY_HELP = Fn+H: show / hide help (official key spec)
 # evdev code -> (normal, shifted)
 CHARS = {
     2: "1!", 3: "2@", 4: "3#", 5: "4$", 6: "5%", 7: "6^", 8: "7&", 9: "8*", 10: "9(", 11: "0)",
@@ -186,7 +187,7 @@ def from_pygame(ev) -> Key | None:
              pygame.K_RETURN: "enter", pygame.K_KP_ENTER: "enter", pygame.K_UP: "up",
              pygame.K_DOWN: "down", pygame.K_LEFT: "left", pygame.K_RIGHT: "right",
              pygame.K_PAGEUP: "pgup", pygame.K_PAGEDOWN: "pgdn", pygame.K_HOME: "home",
-             pygame.K_END: "end", pygame.K_DELETE: "del"}
+             pygame.K_END: "end", pygame.K_DELETE: "del", pygame.K_HELP: "help", pygame.K_F1: "help"}
     ctrl = bool(ev.mod & pygame.KMOD_CTRL)
     if ev.key in names:
         return Key(names[ev.key], "", ctrl)

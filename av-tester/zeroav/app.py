@@ -38,10 +38,50 @@ PLAIN_ARROWS = {}     # filled in run() once pygame is imported: f x z c -> up d
 MENU = [("patterns", "Test patterns"), ("modes", "Video mode"), ("audio", "Audio output"),
         ("sync", "Lip-sync test"), ("meter", "Audio meter / RTA"), ("edid", "Display EDID"),
         ("link", "HDMI link status"), ("room", "Room report")]
+# Number keys 4..8 under the screen (official CardputerZero key spec): labels
+# drawn at the bottom of the LCD, and what each key does on each screen as
+# (pygame key, typed char) fed through the normal key handling below.
+SOFT = {"menu": ["Pattern", "Lip-sync", "Meter", "EDID", "Tone"],
+        "patterns": ["Prev", "Next", "Group", "Info", "Tone"],
+        "sync": ["Start", "Zero", "Save"],
+        "meter": ["A/Z", "Tone", "Reset", "Save"],
+        "edid": ["Page", "Save"]}
+HELP_TEXT = {
+    "menu": "TNT AV Tester: test patterns, tones and checks for displays and audio over HDMI. "
+            "Up/Down picks a tool, OK opens it. TheTechNomad.com",
+    "patterns": "Test patterns on the HDMI output. Up/Down or 4/5 step through them, 6 jumps to "
+                "the next group, OK or 7 shows frame rate and dropped frames, 8 cycles the tone. "
+                "+ / - change the tone level, M changes the video mode.",
+    "sync": "Lip-sync: the screen flashes white with a click. Aim the camera at the display and "
+            "put the mic near the speakers. + means audio is late: add video delay or remove "
+            "audio delay in the DSP, then test again. 5 makes the current result the zero point.",
+    "meter": "Audio meter and 1/3-octave RTA from the mic. 4 switches A / Z weighting, 5 cycles the "
+             "test tone, 6 resets max and Leq, 7 saves a report. + / - calibrate SPL by 1 dB.",
+    "edid": "What the connected display says it can do (EDID). Up/Down scroll, 4 or OK shows the "
+            "next page on HDMI, 5 saves a report with the raw bytes.",
+    "link": "HDMI link: mode, measured frame rate, dropped frames and hot-plug history.",
+    "room": "Room report: type a room name and notes, then Save report. It collects the EDID, "
+            "the latest lip-sync and audio results.",
+    "modes": "Pick the HDMI video mode. OK switches to it.",
+    "audio": "Pick a test signal for the HDMI and headphone audio. OK plays it.",
+}
 AUDIO_MODES = [(None, "Off"), ("tone", "1 kHz tone, both"), ("lr", "1 kHz L then R"),
                ("left", "1 kHz left only"), ("right", "1 kHz right only"), ("pink", "Pink noise"),
                ("sweep", "Log sweep 20 Hz-20 kHz"), ("polarity", "Polarity pulse")]
 REPORT_DIR = os.path.expanduser("~/.local/share/tnt-av-tester/reports")
+
+
+class _HelpKey:
+    """A pygame key as the name/char key object tntui.HelpView expects."""
+
+    def __init__(self, pygame, k, ch):
+        names = {pygame.K_UP: "up", pygame.K_DOWN: "down", pygame.K_LEFT: "left", pygame.K_RIGHT: "right",
+                 pygame.K_ESCAPE: "esc", pygame.K_RETURN: "enter", pygame.K_KP_ENTER: "enter",
+                 pygame.K_PAGEUP: "pageup", pygame.K_PAGEDOWN: "pagedown", pygame.K_HELP: "help",
+                 pygame.K_F1: "help", pygame.K_BACKSPACE: "backspace"}
+        self.name = names.get(k, ch)
+        self.char = "" if k in names else ch
+        self.ctrl = False
 
 
 def parse_size(s: str) -> tuple[int, int]:
@@ -343,6 +383,7 @@ def run(args) -> None:
     meter, meter_msg, meter_t, meter_n = None, "", 0.0, 0
     status_view, status_scroll = False, 0
     room = None                     # dict while the room report form is open
+    help_view = None                # tntui.HelpView while Fn+H help is shown
     pygame.key.set_repeat()   # no auto-repeat: a held Esc or OK must act once
     PLAIN_ARROWS.update({"f": pygame.K_UP, "x": pygame.K_DOWN, "z": pygame.K_LEFT, "c": pygame.K_RIGHT})
     screen, menu_sel = "menu", 0    # "menu", "patterns", or a picker: "modes" / "audio"
@@ -384,6 +425,42 @@ def run(args) -> None:
             typing = room is not None and room["edit"] is not None
             if not typing and ch in PLAIN_ARROWS and len(ch) == 1:
                 k, ch = PLAIN_ARROWS[ch], ""     # plain F/X/Z/C work as arrows too
+            where = ("edid" if edid_view else "sync" if sync is not None else "room" if room is not None
+                     else "link" if status_view else "meter" if meter is not None else screen)
+            if help_view is not None:            # Fn+H help is open: scroll or close it
+                if help_view.handle(_HelpKey(pygame, k, ch)) == "close":
+                    help_view = None
+                    lcd.hide_help()
+                    sync_lcd_t = 0.0
+                else:
+                    lcd.show_help(help_view)
+                dirty = True
+                skip_gap = True
+                continue
+            if k in (pygame.K_HELP, pygame.K_F1):  # Fn+H: show this screen's help
+                from . import tntui
+                titles = {"menu": "TNT AV Tester", "patterns": "Test patterns", "sync": "Lip-sync",
+                          "meter": "Audio meter", "edid": "Display EDID", "link": "HDMI link",
+                          "room": "Room report", "modes": "Video mode", "audio": "Audio output"}
+                help_view = tntui.HelpView(titles.get(where, ""), HELP_TEXT.get(where, ""), SOFT.get(where))
+                lcd.show_help(help_view)
+                skip_gap = True
+                continue
+            if not typing and len(ch) == 1 and ch in "45678" and where in SOFT:
+                i = "45678".index(ch)
+                if i >= len(SOFT[where]):
+                    continue                     # no action on this key here
+                if where == "menu" and i == 0:
+                    screen = "patterns"
+                    dirty = True
+                    skip_gap = True
+                    continue
+                k, ch = {"menu": [None, (None, "l"), (None, "a"), (None, "e"), (None, "t")],
+                         "patterns": [(pygame.K_UP, ""), (pygame.K_DOWN, ""), (None, "g"), (None, "i"),
+                                      (None, "t")],
+                         "sync": [(pygame.K_SPACE, ""), (None, "0"), (None, "s")],
+                         "meter": [(None, "w"), (None, "t"), (None, "r"), (None, "s")],
+                         "edid": [(pygame.K_RETURN, ""), (None, "s")]}[where][i]
             up, down = k == pygame.K_UP, k == pygame.K_DOWN
             back = k in (pygame.K_ESCAPE, pygame.K_LEFT)
             select = k in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT)
@@ -609,6 +686,10 @@ def run(args) -> None:
                 idx = (idx - 1) % len(patterns)
             elif screen == "patterns" and k in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 show_info = not show_info
+            elif screen == "patterns" and ch == "g":     # key 6: first pattern of the next group
+                cats = list(dict.fromkeys(p.category for p in patterns))
+                nxt = cats[(cats.index(patterns[idx].category) + 1) % len(cats)]
+                idx = next(i for i, p in enumerate(patterns) if p.category == nxt)
             elif ch.isdigit() and ch != "0":
                 cats = list(dict.fromkeys(p.category for p in patterns))
                 c = int(ch) - 1
@@ -692,6 +773,8 @@ def run(args) -> None:
                 out.surface_page(ms, ('meter', meter_n))
                 bands, hold = meter.bands.copy(), meter.hold.copy()
                 lines = meter.lines()[:2]
+                if meter_msg:
+                    lines = lines[:1] + [meter_msg]
                 msg, wt = meter_msg, meter.weighting
 
                 def draw(s, bands=bands, hold=hold, lines=lines, msg=msg, wt=wt):
@@ -700,8 +783,9 @@ def run(args) -> None:
                     s.blit(lcd.font.render(f"Audio in  {wt}   {tones.mode or ''}", True, (255, 255, 255)), (6, 3))
                     for i, ln in enumerate(lines):
                         s.blit(lcd.font_small.render(ln, True, (230, 230, 230)), (6, 25 + i * 15))
-                    draw_rta(s, (2, 58, 316, 92), bands, hold, font=None)
-                    s.blit(lcd.font_small.render(msg or METER_HELP, True, (150, 200, 255)), (4, 154))
+                    draw_rta(s, (2, 58, 316, 80), bands, hold, font=None)
+                    from . import tntui
+                    tntui.draw_keybar(s, SOFT["meter"])
 
                 lcd.draw_async(draw)
             else:
@@ -719,7 +803,7 @@ def run(args) -> None:
                 lines = sync.lcd_lines()
                 if sync_msg:
                     lines = lines[:4] + [sync_msg]
-                lcd.show_async("Lip-sync test", lines, SYNC_HELP)
+                lcd.show_async("Lip-sync test", lines, SYNC_HELP, small=True, keys=SOFT["sync"])
                 sync_lcd_t, dirty = now, False
             frame += 1
             continue
@@ -732,9 +816,11 @@ def run(args) -> None:
                 rows = lcd.ROWS_SMALL
                 edid_scroll = min(edid_scroll, max(0, len(lines) - rows))
                 title = (edid_info.name or edid_info.vendor or "Display") if edid_info else "No display"
-                lcd.show_async(f"EDID: {title}", lines[edid_scroll:edid_scroll + rows],
-                               edid_msg or f"{edid_scroll + 1}-{min(len(lines), edid_scroll + rows)}"
-                               f"/{len(lines)}  {EDID_HELP}", small=True)
+                rows = lcd.ROWS_SMALL_KEYS - (1 if edid_msg else 0)
+                edid_scroll = min(edid_scroll, max(0, len(lines) - rows))
+                pos = f"{edid_scroll + 1}-{min(len(lines), edid_scroll + rows)}/{len(lines)}"
+                lcd.show_async(f"EDID {pos} {title}", lines[edid_scroll:edid_scroll + rows]
+                               + ([edid_msg] if edid_msg else []), EDID_HELP, small=True, keys=SOFT["edid"])
                 dirty = False
             clock.tick(30)
             frame += 1
@@ -789,12 +875,13 @@ def run(args) -> None:
                 items = [n + ("  *" if i == cur else "") for i, n in enumerate(names)]
                 sel, hint = pick_sel, PICK_HELP
                 title = "Video mode" if screen == "modes" else f"Audio out {tones.dbfs:.0f} dBFS"
-            lcd.show_list_async(title, items, sel, hint)
+            lcd.show_list_async(title, items, sel, hint, keys=SOFT.get(screen))
             dirty = False
         if dirty and room is None and not status_view:
             tone = tones.mode or "off"
             lcd.show_async(banner or pat.name, status_lines(mode if size == mode.size else size, refresh, fps_measured, idx, len(patterns),
-                                                  pat.category, tone, tones.dbfs, dropped), KEYS_HELP)
+                                                  pat.category, tone, tones.dbfs, dropped), KEYS_HELP,
+                           keys=SOFT["patterns"])
             dirty = False
 
 

@@ -17,7 +17,7 @@ import pygame  # noqa: E402
 from . import keys, reports, store, util  # noqa: E402
 from .ui import DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 class App:
@@ -64,6 +64,17 @@ class App:
         choices = ["auto"] + names
         return Field("iface", "Interface", pref if pref in names else "auto", choices=choices)
 
+    def dispatch(self, k) -> None:
+        """One key: Fn+H help, number keys 4..8, then the screen itself."""
+        from .ui import HelpScreen
+        top = self.stack[-1]
+        if k.name == "help" and not isinstance(top, HelpScreen):
+            self.push(HelpScreen(top, self))
+            return
+        if top.soft(k, self):
+            return
+        top.on_key(k, self)
+
     # ---- loop
     def run(self, script: str = "") -> None:
         """script: comma-separated keys fed in for remote testing, e.g.
@@ -79,7 +90,7 @@ class App:
                 st = steps.pop(0)
                 next_step = time.monotonic() + (2.0 if st == "wait" else 0.6)
                 if st.startswith("shot:"):
-                    self.r.render(self.stack[-1], self.site, force=True)
+                    self.r.render(self.stack[-1], self.site, force=True, keys=self.stack[-1].keybar(self))
                     self.r.save_lcd(f"/tmp/{st[5:]}.png")
                 elif st == "quit":
                     self.quit = True
@@ -102,9 +113,9 @@ class App:
                     self.quit = True
                     break
                 if self.stack:
-                    self.stack[-1].on_key(k, self)
+                    self.dispatch(k)
             if self.stack:
-                self.r.render(self.stack[-1], self.site)
+                self.r.render(self.stack[-1], self.site, keys=self.stack[-1].keybar(self))
         for s in self.stack:
             s.close()
         if self.kb:
@@ -610,7 +621,13 @@ def main_menu(app) -> Menu:
         ("Network checks", checks_menu),
         (lambda: f"Site & reports [{app.site or 'no site'}]", site_menu),
         ("Settings / about", settings_menu),
-    ], "F/X move  OK open  Esc quit")
+    ], "F/X move  OK open  Esc quit",
+        softkeys=[("Find all", do_findall), ("Ping", do_ping), ("AV gear", do_findav),
+                  ("Term", lambda app: terminal.setup(app)), ("Reports", site_menu)],
+        help="AV network tools. Find all devices lists everything on the network with "
+             "this device's own IP, gateway and DNS. Find AV gear looks for Crestron, "
+             "Extron, Q-SYS, Biamp, Shure and Netgear AV switches. Results show on HDMI "
+             "too when a display is connected. TheTechNomad.com")
 
 
 def shots(out_dir: str) -> None:
@@ -621,7 +638,7 @@ def shots(out_dir: str) -> None:
     app.cfg["site"] = "Demo Site"
     os.makedirs(out_dir, exist_ok=True)
     m = main_menu(app)
-    app.r.render(m, "Demo Site", force=True)
+    app.r.render(m, "Demo Site", force=True, keys=m.keybar(app))
     app.r.save_lcd(os.path.join(out_dir, "lcd_0.png"))
 
     samples = [
@@ -643,7 +660,7 @@ def shots(out_dir: str) -> None:
         for text, color in lines:
             t.out.line(text, color or (235, 235, 235))
         t.cur = 0
-        app.r.render(t, "Demo Site", force=True)
+        app.r.render(t, "Demo Site", force=True, keys=t.keybar(app))
         app.r.save_lcd(os.path.join(out_dir, f"lcd_{n}.png"))
     print("screenshots in", out_dir)
 

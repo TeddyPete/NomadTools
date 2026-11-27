@@ -14,6 +14,7 @@ from .keys import Key
 
 # TNT key standard and look live in tntui.py (shared by all TNT apps).
 from .tntui import BACK, DOWN, HINT_MENU, NAV_LETTERS, SELECT, UP, EditList, Field, nav_name  # noqa: E402,F401
+from . import tntui as T  # noqa: E402
 
 
 def nav_key(k: Key) -> Key:
@@ -26,9 +27,36 @@ class Screen:
     title = ""
     text_entry = False  # True: letters type text, F/X/Z/C don't navigate
     hint = "\u2190/ESC back"
+    help = ""           # Fn+H text for this screen (the standard key list is added)
 
     def __init__(self, app):
         self.app = app
+
+    def softkeys(self) -> list:
+        """Actions on number keys 4..8: up to 5 (label, fn) or None. Their
+        labels are drawn at the bottom of the screen (official key spec)."""
+        return []
+
+    def keybar(self) -> list | None:
+        sk = self.softkeys()
+        if not sk or not any(sk):
+            return None
+        return [(s[0]() if callable(s[0]) else s[0]) if s else None for s in sk]
+
+    @property
+    def nrows(self) -> int:
+        return T.ROWS_KEYS if self.keybar() else T.ROWS
+
+    def soft(self, k) -> bool:
+        """Run the action for number key 4..8. True when the key was used."""
+        i = T.soft_index(k.char)
+        if i is None or k.ctrl:
+            return False
+        sk = self.softkeys()
+        if i < len(sk) and sk[i] and sk[i][1]:
+            sk[i][1]()
+            return True
+        return False
 
     def rows(self) -> tuple[list, int | None]:
         return [], None
@@ -67,7 +95,7 @@ class Menu(Screen):
 
     def rows(self):
         rows = self.labels()
-        n = L.Panel.ROWS
+        n = self.nrows
         if self.sel < self.top:
             self.top = self.sel
         if self.sel >= self.top + n:
@@ -82,9 +110,9 @@ class Menu(Screen):
         elif k.name in DOWN:
             self.sel = (self.sel + 1) % len(self.items)
         elif k.name == "pageup":
-            self.sel = max(0, self.sel - L.Panel.ROWS)
+            self.sel = max(0, self.sel - self.nrows)
         elif k.name == "pagedown":
-            self.sel = min(len(self.items) - 1, self.sel + L.Panel.ROWS)
+            self.sel = min(len(self.items) - 1, self.sel + self.nrows)
         elif k.name in SELECT:
             act = self.items[self.sel][1]
             if act:
@@ -104,16 +132,16 @@ class Message(Screen):
         self.title, self.color, self.then = title, color, then
         self.lines = wrap(app.panel, text)
         self.top = 0
-        self.hint = "OK close" + ("  \u2191\u2193 scroll" if len(self.lines) > L.Panel.ROWS else "")
+        self.hint = "OK close" + ("  \u2191\u2193 scroll" if len(self.lines) > self.nrows else "")
 
     def rows(self):
-        return [(l, self.color) for l in self.lines[self.top:self.top + L.Panel.ROWS]], None
+        return [(l, self.color) for l in self.lines[self.top:self.top + self.nrows]], None
 
     def key(self, k):
         if k.name in UP:
             self.top = max(0, self.top - 1)
         elif k.name in DOWN:
-            self.top = min(max(0, len(self.lines) - L.Panel.ROWS), self.top + 1)
+            self.top = min(max(0, len(self.lines) - self.nrows), self.top + 1)
         elif k.name in SELECT | BACK or k.char == " ":
             self.app.pop()
             if self.then:

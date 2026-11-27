@@ -53,14 +53,16 @@ class LcdPanel:
         self.font = pygame.font.Font(None, 22)
         self.font_small = pygame.font.Font(None, 19)
         self._pending = None
+        self.help = None              # tntui.HelpView shown over everything (Fn+H)
         self._cv = threading.Condition()
         self._worker = None
 
-    def show_async(self, title: str, lines: list[str], hint: str = "", small: bool = False) -> None:
+    def show_async(self, title: str, lines: list[str], hint: str = "", small: bool = False,
+                   keys: list | None = None) -> None:
         """Queue a status update and return at once. A background thread
         draws it, so the HDMI render loop never waits on the LCD."""
         with self._cv:
-            self._pending = (title, list(lines), hint, small)
+            self._pending = (title, list(lines), hint, small, keys)
             if self._worker is None:
                 self._worker = threading.Thread(target=self._run, daemon=True)
                 self._worker.start()
@@ -81,6 +83,12 @@ class LcdPanel:
                 while self._pending is None:
                     self._cv.wait()
                 job, self._pending = self._pending, None
+            hv = self.help
+            if hv is not None:
+                hv.render(self.surf)
+                if self.dev:
+                    self._flush([])
+                continue
             if job[0] == "fn":
                 job[1](self.surf)
                 if self.dev:
@@ -106,20 +114,37 @@ class LcdPanel:
 
     # lines that fit on the panel in normal and small text
     ROWS, ROWS_SMALL = 5, 7
+    ROWS_KEYS, ROWS_SMALL_KEYS = 4, 6     # above the 4..8 keybar
 
-    def show(self, title: str, lines: list[str], hint: str = "", small: bool = False) -> None:
+    def show(self, title: str, lines: list[str], hint: str = "", small: bool = False,
+             keys: list | None = None) -> None:
+        """keys: labels for number keys 4..8, drawn as a keybar instead of the hint."""
         s = self.surf
         s.fill((0, 0, 0))
         self._title(title)
         y = 34 if small else 36
         font, step, rows = (self.font_small, 16, self.ROWS_SMALL) if small else (self.font, 22, self.ROWS)
+        if keys:
+            rows = self.ROWS_SMALL_KEYS if small else self.ROWS_KEYS
         for line in lines[:rows]:
             color = (255, 220, 120) if line.startswith("-- ") else (230, 230, 230)
             img = font.render(line, True, color)
             s.blit(img, (6, y), (0, 0, 310, step))
             y += step
-        self._hint(hint)
+        if keys:
+            from . import tntui
+            tntui.draw_keybar(s, keys)
+        else:
+            self._hint(hint)
         self._flush([title, *lines, hint])
+
+    def show_help(self, view) -> None:
+        """Fn+H: draw a tntui.HelpView over the whole panel until hide_help()."""
+        self.help = view
+        self.draw_async(view.render)
+
+    def hide_help(self) -> None:
+        self.help = None
 
     def _title(self, title: str) -> None:
         self.surf.fill(TITLE_BG, (0, 0, 320, 30))
@@ -138,16 +163,16 @@ class LcdPanel:
             self.surf.blit(img, (6, 150))
 
     def show_list_async(self, title: str, items: list[str], sel: int, hint: str = "",
-                        editing: bool = False) -> None:
+                        editing: bool = False, keys: list | None = None) -> None:
         """A menu or form: the selected row is blue, or red while it is being edited."""
-        self.draw_async(lambda s: self.show_list(title, items, sel, hint, editing))
+        self.draw_async(lambda s: self.show_list(title, items, sel, hint, editing, keys))
 
     def show_list(self, title: str, items: list[str], sel: int, hint: str = "",
-                  editing: bool = False) -> None:
-        """Drawn with the shared TNT UI (tntui.py): green title, 6 rows,
-        blue highlight, red row while a field is being edited."""
+                  editing: bool = False, keys: list | None = None) -> None:
+        """Drawn with the shared TNT UI (tntui.py): green title, 6 rows (5
+        with a 4..8 keybar), blue highlight, red row while a field is edited."""
         from . import tntui
-        rows = tntui.ROWS
+        rows = tntui.ROWS_KEYS if keys else tntui.ROWS
         top = max(0, min(sel - rows // 2, len(items) - rows))
         views = []
         for i in range(top, min(len(items), top + rows)):
@@ -157,7 +182,7 @@ class LcdPanel:
             state = ("editing" if editing else "selected") if i == sel else "normal"
             views.append(tntui.RowView(label, value, state,
                                        cursor=len(value) if state == "editing" else None))
-        tntui.render(self.surf, title, views, hint)
+        tntui.render(self.surf, title, views, hint, keys=keys)
         mark = ["> " + t if i == sel else "  " + t for i, t in enumerate(items)]
         self._flush([title, *mark, hint + (" [editing]" if editing else "")])
 

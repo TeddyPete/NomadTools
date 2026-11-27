@@ -6,6 +6,13 @@ What every TNT app does on the 320x170 screen:
   * Menus:   Up/Down move (plain F / X work too, no Fn needed).
              OK (Enter) or Right selects.  Left or ESC goes back one level;
              ESC on the main page quits.  (Plain Z / C = Left / Right.)
+  * Keys 4-8 (the five number keys right under the screen) run the most
+             used actions of a screen; their labels sit at the bottom of the
+             screen with a short line pointing down to each key (keybar).
+  * Fn+H     shows / hides the help for the current screen.
+  * Hold ESC goes to HOME (the launcher does that; apps never fight it).
+             This is the official CardputerZero key spec:
+             https://cardputer.cc/#/documents/cp0-keys
   * Fields:  OK or Right on a text field starts editing it right there and the
              row turns red.  While editing every key types (F/X/Z/C are just
              letters), Fn+Left/Right move the cursor, DEL deletes, OK saves and
@@ -53,7 +60,7 @@ TITLE_H, ROW_H, HINT_H = 26, 20, 19
 ROWS = (H - TITLE_H - HINT_H - 2) // ROW_H     # 6 rows of 17 px bold text
 FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
               "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
-FONT_SIZES = {"title": 19, "row": 17, "small": 14}
+FONT_SIZES = {"title": 19, "row": 17, "small": 14, "tiny": 12}
 
 # ---- keys -----------------------------------------------------------------------
 UP, DOWN = {"up"}, {"down"}
@@ -65,6 +72,36 @@ NAV_LETTERS = {"f": "up", "x": "down", "z": "left", "c": "right"}
 HINT_MENU = "↑↓ move  OK/→ open  ←/ESC back"
 HINT_FORM = "↑↓ move  OK/→ edit  ESC back"
 HINT_EDIT = "OK save  ESC cancel"
+
+# ---- official CardputerZero key spec (cardputer.cc/#/documents/cp0-keys) ---------
+HELP = "help"                  # Fn+H sends KEY_HELP (evdev 138): show / hide help
+SOFT_KEYS = "45678"            # number keys under the screen, left to right
+SOFT_X = (49, 105, 161, 217, 273)   # recommended icon centres
+SOFT_Y = 153
+SOFT_SIZE = 22                 # recommended icon size (22 x 22)
+SOFT_W = 52                    # our label boxes are 52 wide so text fits
+KEYBAR_H = 30                  # bottom strip y 140..170
+ROWS_KEYS = (H - TITLE_H - KEYBAR_H - 2) // ROW_H   # 5 rows above a keybar
+KEYBAR_BG = (14, 17, 26)
+SOFT_BG = (36, 48, 76)
+SOFT_FG = (235, 240, 255)
+SOFT_LINE = (150, 200, 255)
+
+KEYS_HELP = [
+    "Keys",
+    "F / X  move up / down",
+    "OK or C/→  open or select",
+    "Z/← or ESC  back one level",
+    "4 5 6 7 8  the actions shown at",
+    "   the bottom of the screen",
+    "Hold ESC  go to HOME",
+    "Fn+H  show / hide this help",
+]
+
+
+def soft_index(char: str) -> int | None:
+    """0..4 for number keys 4..8, else None."""
+    return SOFT_KEYS.index(char) if char and len(char) == 1 and char in SOFT_KEYS else None
 
 
 def nav_name(name: str, char: str = "", ctrl: bool = False) -> str:
@@ -306,9 +343,13 @@ def as_view(row, selected: bool) -> RowView:
 
 
 def render(surf, title: str, rows: list, hint: str = "", selected: int | None = None,
-           right: str = "", f: dict | None = None) -> None:
-    """Draw a whole TNT screen: green title, up to ROWS rows, hint bar."""
+           right: str = "", f: dict | None = None, keys: list | None = None) -> None:
+    """Draw a whole TNT screen: green title, up to ROWS rows, hint bar.
+    With keys (labels for number keys 4..8) the hint bar becomes a keybar and
+    ROWS_KEYS rows fit."""
     f = f or fonts()
+    if keys and any(keys):
+        rows = rows[:ROWS_KEYS]
     surf.fill(BG)
     surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
     surf.blit(f["title"].render(title, True, TITLE_FG), (6, 2), (0, 0, W - 12, TITLE_H))
@@ -320,7 +361,9 @@ def render(surf, title: str, rows: list, hint: str = "", selected: int | None = 
     for i, row in enumerate(rows[:ROWS]):
         draw_row(surf, f["row"], y, as_view(row, selected == i))
         y += ROW_H
-    if hint:
+    if keys and any(keys):
+        draw_keybar(surf, keys, f)
+    elif hint:
         surf.fill(HINT_BG, (0, H - HINT_H, W, HINT_H))
         surf.blit(f["small"].render(hint, True, HINT_FG), (6, H - HINT_H + 1), (0, 0, W - 12, HINT_H))
 
@@ -354,3 +397,122 @@ def draw_row(surf, font, y: int, r: RowView) -> None:
         surf.blit(img, (W - vw - 6, y + 1), (0, 0, vw, ROW_H))
     room = W - 12 - (vw + 10 if vw else 0)
     surf.blit(font.render(r.label, True, color), (6, y + 1), (0, 0, room, ROW_H))
+
+
+# ---- keybar for number keys 4..8 -------------------------------------------------
+
+def _fit(f: dict, text: str, width: int):
+    font = f["small"]
+    if font.size(text)[0] > width:
+        font = f.get("tiny") or font
+    return font
+
+
+def draw_keybar(surf, keys: list, f: dict | None = None, y0: int | None = None) -> None:
+    """Labels for number keys 4..8 along the bottom, each with a short line
+    pointing down to its key. keys: up to 5 labels, None/"" leaves a key out.
+    A label can be ("text", color) to tint it (e.g. red for Stop)."""
+    import pygame
+    f = f or fonts()
+    sw, sh = surf.get_size()
+    sx = sw / W                       # scale when drawn on a bigger surface
+    top = sh - int(KEYBAR_H * sx) if y0 is None else y0
+    surf.fill(KEYBAR_BG, (0, top, sw, sh - top))
+    surf.fill((40, 46, 62), (0, top, sw, 1))
+    bw, bh = int(SOFT_W * sx), int(SOFT_SIZE * sx)
+    by = top + int(2 * sx)
+    for i, cx in enumerate(SOFT_X):
+        lab = keys[i] if i < len(keys) else None
+        if not lab:
+            continue
+        color = SOFT_FG
+        if isinstance(lab, (tuple, list)):
+            lab, color = lab[0], lab[1]
+        x = int(cx * sx)
+        r = pygame.Rect(x - bw // 2, by, bw, bh)
+        pygame.draw.rect(surf, SOFT_BG, r, border_radius=max(3, int(4 * sx)))
+        font = _fit(f, lab, bw - 4)
+        img = font.render(lab, True, color)
+        if img.get_width() > bw - 4:
+            img = pygame.transform.smoothscale(img, (bw - 4, img.get_height()))
+        surf.blit(img, (x - img.get_width() // 2, by + (bh - img.get_height()) // 2))
+        surf.fill(SOFT_LINE, (x - max(1, int(sx)) // 2, by + bh + 1, max(1, int(sx)), sh - (by + bh + 1)))
+
+
+# ---- Fn+H help ------------------------------------------------------------------
+
+def wrap_text(font, text, width: int, indent: str = "") -> list[str]:
+    out = []
+    for para in (text if isinstance(text, list) else str(text).split("\n")):
+        words, cur = str(para).split(" "), ""
+        for w in words:
+            trial = f"{cur} {w}" if cur else w
+            if cur and font.size(trial)[0] > width:
+                out.append(cur)
+                cur = indent + w
+            else:
+                cur = trial
+        out.append(cur)
+    return out
+
+
+class HelpView:
+    """Full-screen help shown with Fn+H. text: this screen's help (str or
+    lines); the standard key list is added after it."""
+    LINE_H = 17
+
+    def __init__(self, title: str, text="", keys: list | None = None):
+        self.title = f"Help: {title}" if title else "Help"
+        self.text = text
+        self.keys = keys or []
+        self.top = 0
+        self._lines = None
+
+    def lines(self, f: dict) -> list:
+        if self._lines is None:
+            font = f["small"]
+            out = []
+            if self.text:
+                out += [(l, FG) for l in wrap_text(font, self.text, W - 14)] + [("", FG)]
+            names = [k[0] if isinstance(k, (tuple, list)) else k for k in self.keys]
+            soft = [f"{SOFT_KEYS[i]}  {n}" for i, n in enumerate(names) if n]
+            if soft:
+                out += [("Number keys", WARN)] + [(l, FG) for l in soft] + [("", FG)]
+            out += [(KEYS_HELP[0], WARN)] + [(l, FG) for l in KEYS_HELP[1:]]
+            self._lines = out
+        return self._lines
+
+    def rows(self) -> int:
+        return (H - TITLE_H - HINT_H - 4) // self.LINE_H
+
+    def handle(self, key) -> str | None:
+        """Returns "close" when the help should go away."""
+        name, char, ctrl = _k(key)
+        name = nav_name(name, char, ctrl)
+        n = len(self._lines or [])
+        if name in ("up", "pageup"):
+            self.top = max(0, self.top - (1 if name == "up" else self.rows()))
+        elif name in ("down", "pagedown"):
+            self.top = max(0, min(n - self.rows(), self.top + (1 if name == "down" else self.rows())))
+        elif name in (HELP, "esc", "enter", "left", "backspace"):
+            return "close"
+        return None
+
+    def render(self, surf, f: dict | None = None) -> None:
+        f = f or fonts()
+        ls = self.lines(f)
+        surf.fill(BG)
+        surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
+        surf.blit(f["title"].render(self.title, True, TITLE_FG), (6, 2), (0, 0, W - 12, TITLE_H))
+        y = TITLE_H + 2
+        for text, color in ls[self.top:self.top + self.rows()]:
+            surf.blit(f["small"].render(text, True, color), (7, y), (0, 0, W - 12, self.LINE_H))
+            y += self.LINE_H
+        if len(ls) > self.rows():
+            span = H - TITLE_H - HINT_H
+            bh = max(8, span * self.rows() // len(ls))
+            by = TITLE_H + (span - bh) * self.top // max(1, len(ls) - self.rows())
+            surf.fill((90, 100, 130), (W - 3, by, 3, bh))
+        surf.fill(HINT_BG, (0, H - HINT_H, W, HINT_H))
+        hint = "\u2191\u2193 scroll  Fn+H/ESC close" if len(ls) > self.rows() else "Fn+H / ESC / OK close"
+        surf.blit(f["small"].render(hint, True, HINT_FG), (6, H - HINT_H + 1))

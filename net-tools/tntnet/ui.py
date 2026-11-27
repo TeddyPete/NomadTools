@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 import pygame
 
+from . import tntui as T
 from .keys import Key
 
 # colors
@@ -61,6 +62,7 @@ class View:
     edit: str | None = None   # an input line shown above the hint (terminal)
     editing: bool = False     # highlight / input line shown red: keys type
     qr: str | None = None     # draw this text as a QR code on the left
+    keys: list | None = None  # labels for number keys 4..8 (keybar at the bottom)
 
 
 # ---------------------------------------------------------------- screens
@@ -68,6 +70,29 @@ class View:
 class Screen:
     title = ""
     hint = ""
+    help = ""      # Fn+H text for this screen (the standard key list is added)
+
+    def softkeys(self, app) -> list:
+        """Actions on number keys 4..8: up to 5 (label, fn(app)) or None.
+        Labels are drawn at the bottom of the LCD (official key spec)."""
+        return []
+
+    def keybar(self, app) -> list | None:
+        sk = self.softkeys(app)
+        if not sk or not any(sk):
+            return None
+        return [(s[0]() if callable(s[0]) else s[0]) if s else None for s in sk]
+
+    def soft(self, k: Key, app) -> bool:
+        """Run the action for number key 4..8; True when the key was used."""
+        i = T.soft_index(k.char) if not k.name and not k.ctrl else None
+        if i is None:
+            return False
+        sk = self.softkeys(app)
+        if i < len(sk) and sk[i] and sk[i][1]:
+            sk[i][1](app)
+            return True
+        return False
 
     def view(self, rows: int) -> View:
         return View(self.title, [], self.hint)
@@ -97,14 +122,24 @@ def window(lines: list, cursor: int, rows: int, top: int) -> tuple[int, int]:
 class Menu(Screen):
     """A list of (label, action). Action is a callable(app)."""
 
-    def __init__(self, title: str, items: list, hint: str = "F/X move  OK open  Esc back"):
+    def __init__(self, title: str, items: list, hint: str = "F/X move  OK open  Esc back",
+                 softkeys: list | None = None, help: str = ""):
         self.title, self.items, self.hint = title, items, hint
         self.cur = 0
+        self._soft = softkeys or []
+        if help:
+            self.help = help
+
+    def softkeys(self, app) -> list:
+        return self._soft
 
     def labels(self) -> list[str]:
         out = []
         for i, (label, _) in enumerate(self.items):
             label = label() if callable(label) else label
+            if self._soft:              # keys 4..8 are actions: no item numbers
+                out.append(label)
+                continue
             n = f"{i + 1}" if i < 9 else " "
             out.append(f"{n} {label}")
         return out
@@ -122,9 +157,43 @@ class Menu(Screen):
             self.cur = (self.cur + 1) % len(self.items)
         elif nav in ("enter", "right"):
             self.items[self.cur][1](app)
-        elif k.char.isdigit() and k.char != "0" and int(k.char) <= len(self.items):
+        elif not self._soft and k.char.isdigit() and k.char != "0" and int(k.char) <= len(self.items):
             self.cur = int(k.char) - 1
             self.items[self.cur][1](app)
+
+
+class HelpScreen(Screen):
+    """Fn+H: help for the screen underneath, then the standard key list."""
+    hint = "F/X scroll  Fn+H/Esc close"
+
+    def __init__(self, under: Screen, app):
+        self.title = f"Help: {under.title}" if under.title else "Help"
+        self.lines = []
+        if under.help:
+            self.lines += [Line(t) for t in under.help.split("\n")] + [Line("")]
+        bar = under.keybar(app) or []
+        names = [b[0] if isinstance(b, (tuple, list)) else b for b in bar]
+        soft = [f"{T.SOFT_KEYS[i]}  {n}" for i, n in enumerate(names) if n]
+        if soft:
+            self.lines += [Line("Number keys", HEAD)] + [Line(t) for t in soft] + [Line("")]
+        self.lines += [Line(T.KEYS_HELP[0], HEAD)] + [Line(t) for t in T.KEYS_HELP[1:]]
+        self.top = 0
+
+    def view(self, rows: int) -> View:
+        self.top = max(0, min(self.top, len(self.lines) - rows))
+        return View(self.title, self.lines[self.top:], self.hint)
+
+    def on_key(self, k: Key, app) -> None:
+        if k.name in ("help", "esc", "enter", "bksp") or k.nav == "left":
+            app.pop()
+        elif k.up:
+            self.top = max(0, self.top - 1)
+        elif k.down:
+            self.top += 1
+        elif k.name == "pgdn":
+            self.top += 5
+        elif k.name == "pgup":
+            self.top = max(0, self.top - 5)
 
 
 @dataclass
@@ -363,6 +432,22 @@ class TaskScreen(Screen):
     def running(self) -> bool:
         return bool(self.thread and self.thread.is_alive())
 
+    help = ("Results appear as they come in. F/X scroll, ',' and '/' scroll sideways. "
+            "Blue lines can be opened with OK. Saved reports go in Site & reports.")
+
+    def softkeys(self, app) -> list:
+        return [(lambda: ("Stop", BAD) if self.running else "Again",
+                 lambda app: self.out.stop() if self.running else self.start()),
+                ("Save", self.save)]
+
+    def save(self, app) -> None:
+        from . import reports
+        try:
+            path = reports.save(app.cfg, self.report, self.out.text())
+            self.saved_msg = "Saved " + os.path.basename(path)
+        except OSError as e:
+            self.saved_msg = f"Save failed: {e}"
+
     def view(self, rows: int) -> View:
         with self.out.lock:
             lines = list(self.out.lines)
@@ -373,6 +458,9 @@ class TaskScreen(Screen):
         hint = self.saved_msg or (state + ("Enter pick  " if picks else "")
                                   + ("Q stop  " if self.running else "R rerun  ") + "S save  Esc back")
         title = self.title if not self.running else f"{self.title} *"
+        if self.saved_msg:
+            lines = lines + [Line(self.saved_msg, OK if self.saved_msg.startswith("Saved") else BAD)]
+            cur = len(lines) - 1 if self.cur < 0 else cur
         return View(title, lines, hint, cur, self.hscroll)
 
     def on_key(self, k: Key, app) -> None:
@@ -402,12 +490,7 @@ class TaskScreen(Screen):
         elif k.char in ("r", "R") and not self.running:
             self.start()
         elif k.char in ("s", "S"):
-            from . import reports
-            try:
-                path = reports.save(app.cfg, self.report, self.out.text())
-                self.saved_msg = "Saved " + os.path.basename(path)
-            except OSError as e:
-                self.saved_msg = f"Save failed: {e}"
+            self.save(app)
         elif k.nav in ("enter", "right") and self.on_pick and 0 <= cur < n:
             p = self.out.lines[cur].payload
             if p is not None:
@@ -452,8 +535,9 @@ class Painter:
         self.pad = pad
         self.cw = self.f.size("M")[0]
 
-    def rows(self) -> int:
-        return max(1, (self.size[1] - self.th - self.hh - 2) // self.lh)
+    def rows(self, keys: bool = False) -> int:
+        bottom = T.KEYBAR_H if keys and self.size == (T.W, T.H) else self.hh
+        return max(1, (self.size[1] - self.th - bottom - 2) // self.lh)
 
     def cols(self) -> int:
         return max(10, (self.size[0] - 2 * self.pad) // self.cw)
@@ -467,14 +551,16 @@ class Painter:
         if site:
             img = self.fh.render(site, True, (255, 230, 200))
             surf.blit(img, (W - img.get_width() - self.pad, (self.th - img.get_height()) // 2))
-        rows = self.rows() - (1 if v.edit is not None else 0)
+        bar = bool(v.keys) and not wide and (W, H) == (T.W, T.H)
+        hh = T.KEYBAR_H if bar else self.hh
+        rows = self.rows(bar) - (1 if v.edit is not None else 0)
         lines = v.lines
         y = self.th + 1
         cols = self.cols()
         xoff = self.pad
         if v.qr:
             from . import qr
-            px = qr.draw(surf, v.qr, 4, self.th + 3, H - self.th - self.hh - 6)
+            px = qr.draw(surf, v.qr, 4, self.th + 3, H - self.th - hh - 6)
             xoff = px + 10
             cols = max(8, (W - xoff - self.pad) // self.cw)
         wrap = self.wrap and not wide and not v.hscroll
@@ -517,17 +603,24 @@ class Painter:
                 used += 1
             i += 1
         if v.edit is not None:
-            ey = H - self.hh - self.lh - 1
+            ey = H - hh - self.lh - 1
             surf.fill(EDIT if v.editing else (40, 40, 55), (0, ey, W, self.lh))
             e = "> " + v.edit + ("_" if v.editing else "")
             surf.blit(self.f.render(e[-cols:], True, (255, 255, 255) if v.editing else (170, 170, 180)),
                       (self.pad, ey))
-        surf.fill((22, 26, 36), (0, H - self.hh, W, self.hh))
-        surf.blit(self.fh.render(v.hint, True, (170, 200, 255)), (self.pad, H - self.hh + 1))
+        if bar:
+            T.draw_keybar(surf, v.keys, T.fonts())
+        else:
+            hint = v.hint
+            if v.keys:      # desktop window: name the number keys in the hint
+                names = [(b[0] if isinstance(b, (tuple, list)) else b) for b in v.keys]
+                hint = "   ".join(f"{T.SOFT_KEYS[i]} {n}" for i, n in enumerate(names) if n) + "   |   " + hint
+            surf.fill((22, 26, 36), (0, H - self.hh, W, self.hh))
+            surf.blit(self.fh.render(hint, True, (170, 200, 255)), (self.pad, H - self.hh + 1))
         # scroll indicator
         if len(lines) > rows:
-            bar_h = max(6, (H - self.th - self.hh) * rows // len(lines))
-            span = H - self.th - self.hh - bar_h
+            bar_h = max(6, (H - self.th - hh) * rows // len(lines))
+            span = H - self.th - hh - bar_h
             by = self.th + (span * top // max(1, len(lines) - rows))
             surf.fill((90, 90, 110), (W - 3, by, 3, bar_h))
 
@@ -625,12 +718,13 @@ class Renderer:
     def window_rows(self) -> int:
         return self.win_p.rows() if self.win_p else 0
 
-    def render(self, screen: Screen, site: str, force: bool = False) -> None:
-        rows_l = self.lcd_p.rows()
+    def render(self, screen: Screen, site: str, force: bool = False, keys: list | None = None) -> None:
+        rows_l = self.lcd_p.rows(bool(keys))
         v_lcd = screen.view(rows_l)
+        v_lcd.keys = keys
         key = (id(screen), v_lcd.title, len(v_lcd.lines), v_lcd.hint, v_lcd.cursor, v_lcd.hscroll,
                v_lcd.edit, tuple((l.text, l.color) if isinstance(l, Line) else l for l in v_lcd.lines[-60:]),
-               site)
+               site, repr(keys))
         if key == self.last and not force:
             return
         now = time.monotonic()

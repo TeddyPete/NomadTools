@@ -9,6 +9,7 @@ import time
 from . import capture as C
 from . import files as F
 from . import lcd as L
+from . import tntui as T
 from . import netinfo, pcapread, qr, tap, viewer, web
 from . import settings as S
 from .keys import Keyboard
@@ -49,6 +50,7 @@ class App:
         self.panel, self.kb = panel, kb
         self.cfg = S.load()
         self.stack: list[Screen] = []
+        self.helpview = None    # Fn+H help view while it is shown
         self.dirty = True
         self.quit = False
         self.state: dict = C.read_state()
@@ -204,8 +206,7 @@ class App:
             keys = self.kb.poll(0.1) if self.kb else (time.sleep(0.1) or [])
             for k in keys:
                 if self.stack:
-                    top = self.stack[-1]
-                    top.key(k if top.text_entry else nav_key(k))
+                    self.dispatch(k)
                 self.dirty = True
             if not self.stack:
                 break
@@ -219,18 +220,36 @@ class App:
                 last_draw = now
                 self.dirty = False
 
+    def dispatch(self, k) -> None:
+        """One key: Fn+H help, number keys 4..8, then the screen itself."""
+        top = self.stack[-1]
+        if self.helpview is not None:
+            if self.helpview.handle(k) == "close":
+                self.helpview = None
+            return
+        if k.name == "help":
+            self.helpview = T.HelpView(top.title, top.help or HELP, top.keybar())
+            return
+        if not top.text_entry and top.soft(k):
+            return
+        top.key(k if top.text_entry else nav_key(k))
+
     def draw(self) -> None:
         if not self.stack:
+            return
+        if self.helpview is not None:
+            self.helpview.render(self.panel.surf, self.panel.fonts)
+            self.panel.flush()
             return
         s = self.stack[-1]
         rows, sel = s.rows()
         if hasattr(s, "overlay"):
             from . import tntui as T
-            T.render(self.panel.surf, s.title, rows, s.hint, sel, s.right(), self.panel.fonts)
+            T.render(self.panel.surf, s.title, rows, s.hint, sel, s.right(), self.panel.fonts, s.keybar())
             s.overlay(self.panel.surf)
             self.panel.flush()
         else:
-            self.panel.draw(s.title, rows, s.hint, sel, s.right())
+            self.panel.draw(s.title, rows, s.hint, sel, s.right(), s.keybar())
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +273,17 @@ class Home(Menu):
             ("Share files (QR)", lambda: app.push(ShareScreen(app)), lambda: "ON" if app.share.on else ""),
             ("Help", lambda: app.push(Message(app, "Help", HELP))),
         ]
-        super().__init__(app, APP_TITLE, items, "↑↓ move  OK/→ open  ESC quit", numbered=True)
+        super().__init__(app, APP_TITLE, items, "↑↓ move  OK/→ open  ESC quit")
+
+    def softkeys(self):
+        app = self.app
+        return [
+            (lambda: ("Stop", L.BAD) if app.capturing else ("Start", L.OK), self.start_stop),
+            ("Live", lambda: app.push(LiveView(app))),
+            ("Files", lambda: app.push(FilesMenu(app))),
+            (lambda: ("Share", L.OK) if app.share.on else "Share", lambda: app.push(ShareScreen(app))),
+            ("Filter", lambda: app.push(FilterMenu(app))),
+        ]
 
     @property
     def title(self):
@@ -425,6 +454,20 @@ def open_settings(app):
 
 class LiveView(Screen):
     title = "Live view"
+    help = ("Packets, size, rate and drops of the capture, then the top protocols and "
+            "senders. OK or key 4 stops a running capture or starts a new one.")
+
+    def softkeys(self):
+        app = self.app
+
+        def go():
+            if app.capturing:
+                app.stop_capture()
+            else:
+                app.start_capture()
+        return [(lambda: ("Stop", L.BAD) if app.capturing else ("Start", L.OK), go),
+                ("Files", lambda: app.push(FilesMenu(app))),
+                ("Share", lambda: app.push(ShareScreen(app)))]
 
     def __init__(self, app):
         super().__init__(app)
@@ -486,7 +529,7 @@ class LiveView(Screen):
 
     def rows(self):
         ls = self.lines()
-        n = L.Panel.ROWS
+        n = self.nrows
         self.top = max(0, min(self.top, len(ls) - n))
         return ls[self.top:self.top + n], None
 
@@ -496,9 +539,9 @@ class LiveView(Screen):
         elif k.name in DOWN:
             self.top += 1
         elif k.name == "pagedown":
-            self.top += L.Panel.ROWS
+            self.top += self.nrows
         elif k.name == "pageup":
-            self.top = max(0, self.top - L.Panel.ROWS)
+            self.top = max(0, self.top - self.nrows)
         elif k.name == "enter":
             if self.app.capturing:
                 self.app.stop_capture()
