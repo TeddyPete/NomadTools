@@ -1,7 +1,10 @@
 // TNT WiFi Share: what the app may do without a password.
 // - Local users in the "netdev" group may change NetworkManager connections,
 //   scan Wi-Fi and share connections (as on the Raspberry Pi desktop).
-// - They may start/stop the app's NAT unit, tnt-wifi-share-nat@<iface>.service.
+// - They may start, reload and stop the app's NAT unit,
+//   tnt-wifi-share-nat@<iface>.service. It runs /usr/lib/tnt-wifi-share/net-helper,
+//   which loads NAT, device blocks, speed limits, port forwards and DHCP
+//   reservations for the shared side only, after checking every value.
 // - Users in "video" may start the desktop (lightdm) to show a guest Wi-Fi
 //   login page in a browser on HDMI.
 // Nothing else is allowed.
@@ -21,7 +24,7 @@ polkit.addRule(function (action, subject) {
   if (action.id == "org.freedesktop.systemd1.manage-units") {
     var unit = action.lookup("unit");
     var verb = action.lookup("verb");
-    if (subject.isInGroup("netdev") && (verb == "start" || verb == "stop") &&
+    if (subject.isInGroup("netdev") && (verb == "start" || verb == "stop" || verb == "reload") &&
         /^tnt-wifi-share-nat@[A-Za-z0-9_.-]+\.service$/.test(unit)) {
       return polkit.Result.YES;
     }

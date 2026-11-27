@@ -1,0 +1,207 @@
+#!/usr/bin/python3 -I
+"""TNT WiFi Share root helper. Runs only from tnt-wifi-share-nat@<iface>.service,
+which the app starts, reloads and stops through polkit (never at boot).
+
+    net-helper start|apply|stop <iface>
+
+start  remember ip_forward and turn it on, then apply
+apply  read the app's rules for <iface> from /run/tnt-wifi-share-policy/<iface>.json
+       and load them:
+         - NAT (masquerade) for devices on <iface>
+         - blocked devices (by MAC address): no internet
+         - speed limits per device and for all devices
+         - port forwards from the uplink to a device
+         - DHCP reservations and local DNS names (a dnsmasq file that
+           NetworkManager's shared-mode dnsmasq reads)
+stop   remove all of it; put ip_forward back when no TNT table is left
+
+Every value from the rules file is checked (MACs, IPv4 addresses, ports,
+numbers, host names) before use; anything else is skipped. Nothing is
+written outside /run, except the dnsmasq file, which is removed on stop.
+"""
+import ipaddress
+import json
+import os
+import re
+import subprocess
+import sys
+
+RUN = "/run/tnt-wifi-share"
+POLICY_DIR = "/run/tnt-wifi-share-policy"
+DNSMASQ_DIR = "/etc/NetworkManager/dnsmasq-shared.d"
+DNSMASQ_CONF = os.path.join(DNSMASQ_DIR, "tnt-wifi-share-{}.conf")
+IFACE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,15}$")
+MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
+NAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,61}[A-Za-z0-9])?$")
+MAX_ITEMS = 64
+
+
+def ip4(v):
+    try:
+        return str(ipaddress.IPv4Address(str(v).strip()))
+    except ValueError:
+        return None
+
+
+def num(v, lo, hi):
+    try:
+        n = int(str(v).strip())
+    except ValueError:
+        return None
+    return n if lo <= n <= hi else None
+
+
+def mac(v):
+    v = str(v).strip().lower()
+    return v if MAC_RE.match(v) else None
+
+
+def name(v):
+    v = str(v).strip()
+    return v if NAME_RE.match(v) else None
+
+
+def load_policy(dev):
+    path = os.path.join(POLICY_DIR, dev + ".json")
+    try:
+        if os.path.getsize(path) > 65536:
+            return {}
+        with open(path) as f:
+            p = json.load(f)
+        return p if isinstance(p, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def items(p, key):
+    v = p.get(key)
+    return [x for x in v[:MAX_ITEMS] if isinstance(x, dict)] if isinstance(v, list) else []
+
+
+def ruleset(dev, p):
+    t = "tnt_share_" + re.sub(r"[^A-Za-z0-9_]", "_", dev)
+    q = '"' + dev + '"'
+    blocked = sorted({m for m in (mac(x) for x in p.get("block", [])[:MAX_ITEMS] if isinstance(x, str)) if m})
+    pre, fwd = [], []
+    for f in items(p, "forwards"):
+        port, to_ip, to_port = num(f.get("port"), 1, 65535), ip4(f.get("ip")), num(f.get("to_port"), 1, 65535)
+        proto = f.get("proto")
+        if not (port and to_ip and to_port) or proto not in ("tcp", "udp", "both"):
+            continue
+        for pr in (("tcp", "udp") if proto == "both" else (proto,)):
+            pre.append(f"iifname != {q} fib daddr type local {pr} dport {port} dnat to {to_ip}:{to_port}")
+    if blocked:
+        fwd.append(f"iifname {q} ether saddr @blocked drop")
+    for lim in items(p, "limits"):
+        ip = ip4(lim.get("ip"))
+        down, up = num(lim.get("down_kbytes", 0), 0, 10_000_000), num(lim.get("up_kbytes", 0), 0, 10_000_000)
+        if not ip:
+            continue
+        if down:
+            fwd.append(f"oifname {q} ip daddr {ip} limit rate over {down} kbytes/second burst {max(down // 4, 32)} kbytes drop")
+        if up:
+            fwd.append(f"iifname {q} ip saddr {ip} limit rate over {up} kbytes/second burst {max(up // 4, 32)} kbytes drop")
+    down_all = num(p.get("all_down_kbytes", 0), 0, 10_000_000)
+    up_all = num(p.get("all_up_kbytes", 0), 0, 10_000_000)
+    if down_all:
+        fwd.append(f"oifname {q} limit rate over {down_all} kbytes/second burst {max(down_all // 4, 32)} kbytes drop")
+    if up_all:
+        fwd.append(f"iifname {q} limit rate over {up_all} kbytes/second burst {max(up_all // 4, 32)} kbytes drop")
+    fwd += [f"iifname {q} accept",
+            f"oifname {q} ct state established,related accept",
+            f"oifname {q} ct status dnat accept"]
+    nat = p.get("nat", True) is not False
+    elements = (" elements = { " + ", ".join(blocked) + " }") if blocked else ""
+    lines = [f"table ip {t} {{}}", f"delete table ip {t}", f"table ip {t} {{",
+             f"  set blocked {{ type ether_addr;{elements} }}",
+             "  chain prerouting {", "    type nat hook prerouting priority -100; policy accept;"]
+    lines += ["    " + r for r in pre] + ["  }", "  chain forward {",
+                                           "    type filter hook forward priority -10; policy accept;"]
+    lines += ["    " + r for r in fwd] + ["  }", "  chain postrouting {",
+                                           "    type nat hook postrouting priority 110; policy accept;"]
+    if nat:
+        lines.append(f"    iifname {q} oifname != {q} masquerade")
+    lines += ["  }", "}"]
+    return t, "\n".join(lines) + "\n"
+
+
+def dnsmasq_text(p):
+    out = ["# TNT WiFi Share: DHCP reservations and local names (removed when sharing stops)"]
+    for r in items(p, "reservations"):
+        m, ip, n = mac(r.get("mac", "")), ip4(r.get("ip")), name(r.get("name", "")) if r.get("name") else None
+        if m and ip:
+            out.append(f"dhcp-host={m},{ip}" + (f",{n}" if n else ""))
+    for d in items(p, "dns"):
+        n, ip = name(d.get("name", "")), ip4(d.get("ip"))
+        if n and ip:
+            out.append(f"host-record={n},{ip}")
+    return "\n".join(out) + "\n" if len(out) > 1 else ""
+
+
+def write_dnsmasq(dev, text):
+    path = DNSMASQ_CONF.format(dev)
+    if not text:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        return
+    os.makedirs(DNSMASQ_DIR, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+def nft(text):
+    r = subprocess.run(["nft", "-f", "-"], input=text, text=True, capture_output=True)
+    if r.returncode != 0:
+        sys.stderr.write(r.stderr)
+    return r.returncode
+
+
+def tables():
+    r = subprocess.run(["nft", "list", "tables"], text=True, capture_output=True)
+    return [l for l in r.stdout.splitlines() if "tnt_share_" in l]
+
+
+def apply(dev):
+    p = load_policy(dev)
+    t, text = ruleset(dev, p)
+    rc = nft(text)
+    if rc != 0:     # never leave the shared side without NAT because of a bad rule
+        _, text = ruleset(dev, {"nat": p.get("nat", True)})
+        rc = nft(text)
+    write_dnsmasq(dev, dnsmasq_text(p))
+    return rc
+
+
+def main(argv):
+    if len(argv) != 3 or argv[1] not in ("start", "apply", "stop") or not IFACE_RE.match(argv[2]):
+        sys.stderr.write("usage: net-helper start|apply|stop <iface>\n")
+        return 2
+    action, dev = argv[1], argv[2]
+    os.makedirs(RUN, exist_ok=True)
+    fwd_file = os.path.join(RUN, "ip_forward")
+    if action == "start":
+        if not os.path.exists(fwd_file):
+            with open("/proc/sys/net/ipv4/ip_forward") as f, open(fwd_file, "w") as g:
+                g.write(f.read())
+        with open("/proc/sys/net/ipv4/ip_forward", "w") as f:
+            f.write("1\n")
+        return apply(dev)
+    if action == "apply":
+        return apply(dev)
+    t = "tnt_share_" + re.sub(r"[^A-Za-z0-9_]", "_", dev)
+    nft(f"table ip {t} {{}}\ndelete table ip {t}\n")
+    write_dnsmasq(dev, "")
+    if not tables() and os.path.exists(fwd_file):
+        with open(fwd_file) as f, open("/proc/sys/net/ipv4/ip_forward", "w") as g:
+            g.write(f.read())
+        os.remove(fwd_file)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

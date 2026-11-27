@@ -7,8 +7,11 @@ Safety rules this module follows:
 - Before the app changes an interface, it records which profile was active
   on it (in $XDG_RUNTIME_DIR, also cleared on reboot). restore() removes the
   app's profiles, stops NAT and re-activates what was there before.
-- The only root-level step (NAT + IP forwarding) runs in a systemd unit,
-  tnt-wifi-share-nat@<iface>.service, which is never enabled at boot.
+- The only root-level steps (NAT, forwarding, device blocks, speed limits,
+  port forwards, DHCP reservations) run in a systemd unit,
+  tnt-wifi-share-nat@<iface>.service, which is never enabled at boot. The app
+  hands it a rules file in /run/tnt-wifi-share-policy; the helper checks
+  every value before use.
 """
 from __future__ import annotations
 
@@ -25,7 +28,15 @@ PREFIX = "tnt-share-"
 CON_ETH = PREFIX + "eth"          # mode 1: Ethernet side of Wi-Fi -> Ethernet
 CON_HOTSPOT = PREFIX + "hotspot"  # mode 2: the access point
 CON_UPLINK = PREFIX + "uplink"    # mode 2: static-IP Ethernet uplink
+CON_VLAN = PREFIX + "vlan"        # mode 1 with a VLAN tag: the tagged side
+CON_BR = PREFIX + "bridge"        # mode 2 bridge: the bridge itself
+CON_BR_ETH = PREFIX + "br-eth"    # mode 2 bridge: Ethernet port in the bridge
+CON_LLDP = PREFIX + "lldp"        # short LLDP listen on an idle Ethernet port
+CON_WG = PREFIX + "wg"            # WireGuard VPN
+MODE_CONS = (CON_ETH, CON_HOTSPOT, CON_UPLINK, CON_VLAN, CON_BR, CON_BR_ETH, CON_LLDP)
+BRIDGE_IF = "tntbr0"
 NAT_UNIT = "tnt-wifi-share-nat@{}.service"
+POLICY_DIR = "/run/tnt-wifi-share-policy"
 
 MODE_NAMES = {None: "Not sharing", "wifi2eth": "Wi-Fi -> Ethernet", "hotspot": "Ethernet -> Hotspot"}
 
@@ -186,7 +197,7 @@ def leases(dev: str) -> dict[str, tuple[str, str]]:
     return out
 
 
-def clients(dev: str, ap: bool = False) -> list[dict]:
+def clients(dev: str, ap: bool = False, stations_dev: str | None = None) -> list[dict]:
     """Devices seen on the shared side: DHCP leases, ARP neighbours and, for
     the hotspot, associated Wi-Fi stations."""
     seen: dict[str, dict] = {}
@@ -202,7 +213,7 @@ def clients(dev: str, ap: bool = False) -> list[dict]:
         if not c["ip"]:
             c["ip"] = ip
     if ap:
-        rc, out, _ = run(["iw", "dev", dev, "station", "dump"], timeout=5)
+        rc, out, _ = run(["iw", "dev", stations_dev or dev, "station", "dump"], timeout=5)
         stations = {l.split()[1].lower() for l in out.splitlines() if l.startswith("Station")}
         for mac in stations:
             seen.setdefault(mac, dict(mac=mac, ip="", name=""))
@@ -237,6 +248,10 @@ def remember(st: dict, dev: str) -> None:
         save_state(st)
 
 
+def _con_names() -> set[str]:
+    return {r[0] for r in terse("-f", "NAME", "connection", "show") if r}
+
+
 def our_connections() -> list[str]:
     return [r[1] for r in terse("-f", "NAME,UUID", "connection", "show") if len(r) >= 2 and r[0].startswith(PREFIX)]
 
@@ -268,6 +283,7 @@ def restore(log=print) -> list[str]:
         elif not uuid:
             msgs.append(f"{dev}: left to auto-connect")
     save_state({"mode": None, "saved": {}, "nat": []})
+    _clear_policy()
     for m in msgs:
         log(m)
     return msgs
@@ -316,26 +332,39 @@ def start_wifi_to_eth(cfg: dict) -> str:
     stop_sharing(keep_saved=True)
     st = load_state()
     remember(st, e)
-    common = ["type", "ethernet", "ifname", e, "con-name", CON_ETH, "autoconnect", "yes",
-              "connection.autoconnect-priority", "100", "ipv6.method", "disabled",
-              "ipv4.addresses", _cidr(cfg["share_ip"], cfg["share_mask"])]
-    if cfg["share_dhcp"]:
-        _add(*common, "ipv4.method", "shared")
+    vlan = vlan_id(cfg)
+    lan = f"{e}.{vlan}" if vlan else e
+    lldp = ["connection.lldp", "enable" if cfg.get("lldp", True) else "disable"]
+    ipcfg = ["ipv6.method", "disabled", "ipv4.addresses", _cidr(cfg["share_ip"], cfg["share_mask"])]
+    ipcfg += ["ipv4.method", "shared"] if cfg["share_dhcp"] else ["ipv4.method", "manual", "ipv4.never-default", "yes"]
+    if vlan:
+        # Untagged port profile (no IP, LLDP on) plus the tagged VLAN that is shared.
+        _add("type", "ethernet", "ifname", e, "con-name", CON_ETH, "autoconnect", "yes",
+             "connection.autoconnect-priority", "100", "ipv4.method", "disabled", "ipv6.method", "disabled", *lldp)
+        _add("type", "vlan", "dev", e, "id", str(vlan), "ifname", lan, "con-name", CON_VLAN,
+             "autoconnect", "yes", *ipcfg)
     else:
-        _add(*common, "ipv4.method", "manual", "ipv4.never-default", "yes")
-    st["nat"] = [e]
+        _add("type", "ethernet", "ifname", e, "con-name", CON_ETH, "autoconnect", "yes",
+             "connection.autoconnect-priority", "100", *lldp, *ipcfg)
+    st["nat"] = [lan]
     st["mode"] = "wifi2eth"
+    st["lan"] = lan
     save_state(st)
-    ok2, err = nat("start", e)
+    write_policy(lan, cfg)
+    ok2, err = nat("start", lan)
     if not ok2:
         restore(log=lambda m: None)
         raise NetError(f"NAT failed: {err[:100]}")
     ok, note = _up(CON_ETH, e)
+    if ok and vlan:
+        ok, note2 = _up(CON_VLAN, e)
+        note = note or note2
     if not ok:
         restore(log=lambda m: None)
         raise NetError(note)
     dhcp = "DHCP on" if cfg["share_dhcp"] else "DHCP off"
-    return f"Sharing Wi-Fi to Ethernet ({dhcp}). " + (note or "")
+    tag = f", VLAN {vlan}" if vlan else ""
+    return f"Sharing Wi-Fi to Ethernet ({dhcp}{tag}). " + (note or "")
 
 
 def start_hotspot(cfg: dict) -> str:
@@ -351,6 +380,8 @@ def start_hotspot(cfg: dict) -> str:
         err = S.check_host(cfg["uplink_ip"], cfg["uplink_mask"])
         if err:
             raise NetError("Uplink: " + err)
+    if cfg.get("hs_bridge"):
+        return _start_bridge_hotspot(cfg, w, e)
     stop_sharing(keep_saved=True)
     st = load_state()
     remember(st, w)
@@ -365,7 +396,7 @@ def start_hotspot(cfg: dict) -> str:
         dns = [d for d in cfg["uplink_dns"].replace(",", " ").split() if S.valid_ip(d)]
         if dns:
             args += ["ipv4.dns", " ".join(dns)]
-        _add(*args)
+        _add(*args, "connection.lldp", "enable")
         ok, note = _up(CON_UPLINK, e)
         if note:
             notes.append(note)
@@ -373,17 +404,13 @@ def start_hotspot(cfg: dict) -> str:
         notes.append("Plug in the Ethernet uplink")
     elif e:
         nm("device", "connect", e, timeout=30)
-    ch = str(cfg["hs_channel"]).strip() or "6"
-    _add("type", "wifi", "ifname", w, "con-name", CON_HOTSPOT, "autoconnect", "no",
-         "ssid", cfg["hs_ssid"], "802-11-wireless.mode", "ap", "802-11-wireless.band", "bg",
-         "802-11-wireless.channel", ch, "ipv4.method", "shared",
-         "ipv4.addresses", f"{cfg['hs_ip'].strip()}/24", "ipv6.method", "disabled",
-         "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", cfg["hs_password"],
-         "wifi-sec.proto", "rsn", "wifi-sec.pairwise", "ccmp", "wifi-sec.group", "ccmp",
-         "wifi-sec.pmf", "disable")
+    _add(*_ap_args(cfg, w), "ipv4.method", "shared",
+         "ipv4.addresses", f"{cfg['hs_ip'].strip()}/24", "ipv6.method", "disabled")
     st["nat"] = [w]
     st["mode"] = "hotspot"
+    st["lan"] = w
     save_state(st)
+    write_policy(w, cfg)
     ok2, err = nat("start", w)
     if not ok2:
         notes.append(f"NAT helper: {err[:60]}")
@@ -394,17 +421,67 @@ def start_hotspot(cfg: dict) -> str:
     return f"Hotspot {cfg['hs_ssid']} is on. " + " ".join(notes)
 
 
+def _ap_args(cfg: dict, w: str) -> list[str]:
+    ch = str(cfg["hs_channel"]).strip() or "6"
+    return ["type", "wifi", "ifname", w, "con-name", CON_HOTSPOT, "autoconnect", "no",
+            "ssid", cfg["hs_ssid"], "802-11-wireless.mode", "ap", "802-11-wireless.band", "bg",
+            "802-11-wireless.channel", ch,
+            "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", cfg["hs_password"],
+            "wifi-sec.proto", "rsn", "wifi-sec.pairwise", "ccmp", "wifi-sec.group", "ccmp",
+            "wifi-sec.pmf", "disable"]
+
+
+def _start_bridge_hotspot(cfg: dict, w: str, e: str | None) -> str:
+    """Mode 2, bridge: the hotspot and the Ethernet port share one network.
+    No NAT and no DHCP of ours; Wi-Fi devices get addresses from the real
+    network, like plugging them into the switch."""
+    if not e:
+        raise NetError("Bridge mode needs the Ethernet port")
+    stop_sharing(keep_saved=True)
+    st = load_state()
+    remember(st, w)
+    remember(st, e)
+    br = ["type", "bridge", "ifname", BRIDGE_IF, "con-name", CON_BR, "autoconnect", "no",
+          "bridge.stp", "no", "ipv6.method", "disabled", "connection.lldp", "enable"]
+    if cfg["uplink_dhcp"]:
+        br += ["ipv4.method", "auto"]
+    else:
+        br += ["ipv4.method", "manual", "ipv4.addresses", _cidr(cfg["uplink_ip"], cfg["uplink_mask"])]
+        if S.valid_ip(cfg["uplink_gw"]):
+            br += ["ipv4.gateway", cfg["uplink_gw"].strip()]
+        dns = [d for d in cfg["uplink_dns"].replace(",", " ").split() if S.valid_ip(d)]
+        if dns:
+            br += ["ipv4.dns", " ".join(dns)]
+    _add(*br)
+    _add("type", "ethernet", "ifname", e, "con-name", CON_BR_ETH, "autoconnect", "no",
+         "master", BRIDGE_IF, "slave-type", "bridge")
+    _add(*_ap_args(cfg, w), "master", BRIDGE_IF, "slave-type", "bridge")
+    st["nat"], st["mode"], st["lan"], st["bridge"] = [], "hotspot", BRIDGE_IF, True
+    save_state(st)
+    notes = []
+    nm("connection", "up", CON_BR, timeout=20)          # may wait for DHCP; carry on
+    ok, note = _up(CON_BR_ETH, e)
+    if note:
+        notes.append(note)
+    ok, note = _up(CON_HOTSPOT, w, timeout=60)
+    if not ok:
+        restore(log=lambda m: None)
+        raise NetError("Hotspot failed: " + note)
+    return f"Hotspot {cfg['hs_ssid']} is on, bridged to Ethernet (no NAT). " + " ".join(notes)
+
+
 def stop_sharing(keep_saved: bool = False) -> list[str]:
     """Stop whichever mode is running. With keep_saved, the record of the
     original profiles is kept so a later restore() still brings them back."""
     if not keep_saved:
         return restore(log=lambda m: None)
     st = load_state()
-    for name in (CON_ETH, CON_HOTSPOT, CON_UPLINK):
-        nm("connection", "delete", "id", name, timeout=20)
+    for name in MODE_CONS:
+        if name in _con_names():
+            nm("connection", "delete", "id", name, timeout=20)
     for dev in st.get("nat", []):
         nat("stop", dev)
-    st["nat"], st["mode"] = [], None
+    st["nat"], st["mode"], st["lan"], st["bridge"] = [], None, None, False
     save_state(st)
     return []
 
@@ -475,6 +552,299 @@ def status() -> dict:
         out["eth_con"] = d[e]["con"]
         out["eth_ip"] = ipv4(e)
         out["eth_carrier"] = carrier(e)
-    side = {"wifi2eth": e, "hotspot": w}.get(st.get("mode"))
-    out["clients"] = clients(side, ap=st.get("mode") == "hotspot") if side else []
+    side = st.get("lan") or {"wifi2eth": e, "hotspot": w}.get(st.get("mode"))
+    out["lan"] = side
+    out["bridge"] = bool(st.get("bridge"))
+    if st.get("mode") == "hotspot" and st.get("bridge"):
+        out["clients"] = clients(BRIDGE_IF, ap=True, stations_dev=w)
+        out["bridge_ip"] = ipv4(BRIDGE_IF)
+    else:
+        out["clients"] = clients(side, ap=st.get("mode") == "hotspot") if side else []
+    out["vlan"] = side.split(".", 1)[1] if side and "." in side else ""
+    out["vpn"] = vpn_state()
     return out
+
+
+# ---- sharing rules (blocks, limits, forwards, reservations, names) ---------
+
+def vlan_id(cfg: dict) -> int:
+    v = str(cfg.get("share_vlan", "0")).strip()
+    return int(v) if v.isdigit() and 1 <= int(v) <= 4094 else 0
+
+
+def build_policy(cfg: dict, bridge: bool = False) -> dict:
+    """The rules file the root helper loads for the shared side."""
+    block, limits, res = [], [], []
+    for mac, d in (cfg.get("devices") or {}).items():
+        m = S.norm_mac(mac)
+        if not m or not isinstance(d, dict):
+            continue
+        ip = d.get("ip", "") if d.get("reserve") and S.valid_ip(d.get("ip", "")) else ""
+        if d.get("block"):
+            block.append(m)
+        if ip:
+            res.append(dict(mac=m, ip=ip.strip(), name=S.hostname(d.get("name", ""))))
+        down, up = _mbit(d.get("down")), _mbit(d.get("up"))
+        if ip and (down or up):
+            limits.append(dict(ip=ip.strip(), down_kbytes=down * 125, up_kbytes=up * 125))
+    fwd = []
+    for f in cfg.get("forwards") or []:
+        port, to_port = S.check_port(f.get("port", "")), S.check_port(f.get("to_port", "") or f.get("port", ""))
+        proto = str(f.get("proto", "")).lower()
+        if port and to_port and S.valid_ip(f.get("ip", "")) and proto in ("tcp", "udp", "both"):
+            fwd.append(dict(proto=proto, port=port, ip=f["ip"].strip(), to_port=to_port))
+    dns = [dict(name=d["name"].strip(), ip=d["ip"].strip()) for d in cfg.get("dns_names") or []
+           if S.NAME_RE.match(d.get("name", "").strip()) and S.valid_ip(d.get("ip", ""))]
+    return dict(nat=not bridge, block=block, limits=limits, forwards=fwd, reservations=res, dns=dns,
+                all_down_kbytes=_mbit(cfg.get("limit_all_down")) * 125,
+                all_up_kbytes=_mbit(cfg.get("limit_all_up")) * 125)
+
+
+def _mbit(v) -> int:
+    """'10 Mb/s' or '10' -> 10; 'Off', '0' or junk -> 0."""
+    digits = ""
+    for ch in str(v or "").strip():
+        if not ch.isdigit():
+            break
+        digits += ch
+    return min(int(digits), 10000) if digits else 0
+
+
+def write_policy(dev: str, cfg: dict) -> dict:
+    pol = build_policy(cfg)
+    path = os.path.join(POLICY_DIR, dev + ".json")
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(pol, f)
+        os.chmod(tmp, 0o660)
+        os.replace(tmp, path)
+    except OSError as e:
+        raise NetError(f"Can't write sharing rules ({e.strerror}). Reinstall the app.")
+    return pol
+
+
+def _clear_policy() -> None:
+    try:
+        for n in os.listdir(POLICY_DIR):
+            if n.endswith(".json"):
+                os.remove(os.path.join(POLICY_DIR, n))
+    except OSError:
+        pass
+
+
+def apply_rules(cfg: dict) -> str:
+    """Load changed rules while sharing runs. DHCP reservations and DNS names
+    need the DHCP server restarted, which blips the shared side briefly."""
+    st = load_state()
+    lan = st.get("lan")
+    if not st.get("mode") or not lan:
+        return "Saved. The rules load when sharing starts."
+    if st.get("bridge"):
+        return "Saved. Bridge mode passes traffic straight through, so these rules apply in NAT mode only."
+    old_path = os.path.join(POLICY_DIR, lan + ".json")
+    try:
+        old = json.load(open(old_path))
+    except (OSError, ValueError):
+        old = {}
+    new = write_policy(lan, cfg)
+    rc, _, err = run(["systemctl", "--no-ask-password", "reload", NAT_UNIT.format(lan)], timeout=30)
+    if rc != 0:
+        raise NetError(f"Rules not loaded: {err[:100]}")
+    dhcp_changed = (old.get("reservations"), old.get("dns")) != (new["reservations"], new["dns"])
+    if dhcp_changed:
+        con = CON_VLAN if "." in lan else (CON_HOTSPOT if st.get("mode") == "hotspot" else CON_ETH)
+        nm("connection", "up", con, timeout=45)
+        return "Rules loaded. The DHCP server restarted to pick up reservations and names."
+    return "Rules loaded."
+
+
+# ---- switch info (LLDP) --------------------------------------------------------
+
+def lldp(dev: str | None = None) -> list[dict]:
+    """LLDP neighbours NetworkManager heard on dev (needs LLDP on the active profile)."""
+    args = ["-t", "-m", "multiline", "device", "lldp", "list"] + (["ifname", dev] if dev else [])
+    rc, out, _ = nm(*args, timeout=10)
+    nbrs: dict[int, dict] = {}
+    for line in out.splitlines():
+        k, _, v = line.partition(":")
+        if not k.startswith("NEIGHBOR["):
+            continue
+        idx = int(k[9:k.index("]")])
+        field = k[k.index("].") + 2:]
+        nbrs.setdefault(idx, {})[field] = v.replace("\\:", ":").strip()
+    out_list = []
+    for n in nbrs.values():
+        out_list.append(dict(
+            switch=n.get("SYSTEM-NAME") or n.get("CHASSIS-ID", ""),
+            port=n.get("PORT-DESCRIPTION") or n.get("PORT-ID", ""),
+            port_id=n.get("PORT-ID", ""),
+            vlan=n.get("IEEE-802-1-PVID", "") or n.get("IEEE-802-1-VID", ""),
+            vlan_name=n.get("IEEE-802-1-VLAN-NAME", ""),
+            mgmt=n.get("MANAGEMENT-ADDRESSES", "") or n.get("MANAGEMENT-ADDRESS", ""),
+            desc=n.get("SYSTEM-DESCRIPTION", "")[:120],
+            caps=n.get("SYSTEM-CAPABILITIES", ""),
+            dev=n.get("DEVICE", dev or "")))
+    return out_list
+
+
+def lldp_listen(seconds: int = 35) -> list[dict]:
+    """Bring up a no-IP LLDP-only profile on an idle Ethernet port, listen,
+    then put the port back. Switches send LLDP every 30 s."""
+    e = eth_dev()
+    if not e:
+        raise NetError("No Ethernet port found")
+    if not carrier(e):
+        raise NetError("Plug the Ethernet cable into the switch first")
+    found = lldp(e)
+    if found:
+        return found
+    if load_state().get("mode") == "wifi2eth":
+        raise NetError("No switch info yet. LLDP needs up to 30 s after the cable goes in.")
+    st = load_state()
+    remember(st, e)
+    try:
+        _add("type", "ethernet", "ifname", e, "con-name", CON_LLDP, "autoconnect", "no",
+             "ipv4.method", "disabled", "ipv6.method", "disabled", "connection.lldp", "enable")
+        nm("connection", "up", CON_LLDP, timeout=20)
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            time.sleep(2)
+            found = lldp(e)
+            if found:
+                break
+    finally:
+        nm("connection", "delete", "id", CON_LLDP, timeout=20)
+        uuid = st["saved"].get(e)
+        if uuid:
+            nm("connection", "up", uuid, timeout=45)
+        st = load_state()
+        if not st.get("mode"):
+            st["saved"].pop(e, None)
+            save_state(st)
+    return found
+
+
+# ---- live numbers for the dashboard ------------------------------------------
+
+def iface_bytes(dev: str) -> tuple[int, int]:
+    try:
+        rx = int(open(f"/sys/class/net/{dev}/statistics/rx_bytes").read())
+        tx = int(open(f"/sys/class/net/{dev}/statistics/tx_bytes").read())
+        return rx, tx
+    except (OSError, ValueError):
+        return 0, 0
+
+
+def eth_speed(dev: str) -> str:
+    try:
+        sp = int(open(f"/sys/class/net/{dev}/speed").read())
+        dup = open(f"/sys/class/net/{dev}/duplex").read().strip()
+    except (OSError, ValueError):
+        return ""
+    if sp <= 0:
+        return ""
+    return (f"{sp // 1000} Gb/s" if sp >= 1000 else f"{sp} Mb/s") + ("" if dup == "full" else f" {dup}")
+
+
+def wifi_rate(dev: str) -> str:
+    rc, out, _ = run(["iw", "dev", dev, "link"], timeout=5)
+    for l in out.splitlines():
+        l = l.strip()
+        if l.startswith("tx bitrate:"):
+            p = l.split()
+            return f"{p[2]} Mb/s" if len(p) > 2 else ""
+    return ""
+
+
+def ping(host: str, timeout: float = 1.0) -> float | None:
+    """Round trip in ms, or None."""
+    rc, out, _ = run(["ping", "-n", "-c", "1", "-W", str(max(1, int(timeout))), host], timeout=timeout + 2)
+    for part in out.split():
+        if part.startswith("time="):
+            try:
+                return float(part[5:])
+            except ValueError:
+                return None
+    return None
+
+
+# ---- WireGuard VPN ---------------------------------------------------------------
+
+def wg_parse(text: str) -> str | None:
+    """Error text if this isn't a usable WireGuard config, else None."""
+    t = text.replace("\r", "")
+    if "[Interface]" not in t or "[Peer]" not in t:
+        return "Not a WireGuard config ([Interface] and [Peer] needed)"
+    keys = {l.split("=", 1)[0].strip().lower() for l in t.splitlines() if "=" in l}
+    for k in ("privatekey", "publickey", "endpoint", "allowedips"):
+        if k not in keys:
+            return f"WireGuard config is missing {k}"
+    if len(t) > 8000:
+        return "File is too big for a WireGuard config"
+    return None
+
+
+def wg_save(text: str) -> str:
+    err = wg_parse(text)
+    if err:
+        raise NetError(err)
+    os.makedirs(S.CONF_DIR, exist_ok=True)
+    tmp = S.WG_CONF + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(text.replace("\r", ""))
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, S.WG_CONF)
+    return "WireGuard config saved"
+
+
+def wg_info() -> dict:
+    try:
+        with open(S.WG_CONF) as f:
+            t = f.read()
+    except OSError:
+        return {}
+    info = {}
+    for l in t.splitlines():
+        k, _, v = l.partition("=")
+        k = k.strip().lower()
+        if k in ("endpoint", "address", "allowedips", "dns"):
+            info[k] = v.strip()
+    return info
+
+
+def vpn_state() -> str:
+    for r in terse("-f", "NAME,DEVICE,STATE", "connection", "show", "--active"):
+        if len(r) >= 3 and r[0] == CON_WG:
+            return "on" if r[2] == "activated" else r[2]
+    return ""
+
+
+def vpn_up() -> str:
+    """Bring up WireGuard from the saved config. With AllowedIPs 0.0.0.0/0 the
+    Pi and every shared device go out through the VPN."""
+    import tempfile
+    if not os.path.exists(S.WG_CONF):
+        raise NetError("No WireGuard config yet")
+    vpn_down()
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "tntwg0.conf")
+        with open(S.WG_CONF) as src, open(path, "w") as dst:
+            dst.write(src.read())
+        os.chmod(path, 0o600)
+        rc, _, err = nm("connection", "import", "type", "wireguard", "file", path, timeout=20)
+    if rc != 0:
+        raise NetError("WireGuard import failed: " + nm_error(err))
+    nm("connection", "modify", "tntwg0", "connection.id", CON_WG, "connection.autoconnect", "no", timeout=10)
+    rc, _, err = nm("connection", "up", CON_WG, timeout=30)
+    if rc != 0:
+        vpn_down()
+        raise NetError("VPN didn't start: " + nm_error(err))
+    return "VPN on. Shared devices now go out through WireGuard."
+
+
+def vpn_down() -> str:
+    for n in (CON_WG, "tntwg0"):
+        if n in _con_names():
+            nm("connection", "delete", "id", n, timeout=20)
+    return "VPN off."

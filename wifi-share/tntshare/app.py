@@ -91,6 +91,9 @@ class App:
     def run(self) -> None:
         threading.Thread(target=self._status_loop, daemon=True).start()
         self.push(Home(self))
+        if not self.cfg.get("setup_done"):
+            from .extras import Wizard
+            self.push(Wizard(self))
         last_draw = 0.0
         while not self.quit:
             keys = self.kb.poll(0.1) if self.kb else (time.sleep(0.1) or [])
@@ -129,7 +132,7 @@ class App:
             return
         s = self.stack[-1]
         rows, sel = s.rows()
-        self.panel.draw(s.title, rows, s.hint, sel, s.right(), s.keybar())
+        self.panel.draw(s.title, rows, s.hint, sel, s.right(), s.keybar(), getattr(s, "paint", None))
 
 
 # ---------------------------------------------------------------------------
@@ -148,8 +151,10 @@ def inet_row(app) -> tuple[str, tuple]:
 class Home(Menu):
     def __init__(self, app):
         self.app = app
+        from . import extras as X
         items = [
             ("Status", lambda: app.push(Status(app)), lambda: inet_row(app)[0].split(": ")[1]),
+            ("Dashboard", lambda: app.push(X.Dashboard(app)), ""),
             ("Share Wi-Fi to Ethernet", self.mode1, lambda: "ON" if app.status.get("mode") == "wifi2eth" else "",
              lambda: L.OK if app.status.get("mode") == "wifi2eth" else L.FG),
             ("Hotspot from Ethernet", self.mode2, lambda: "ON" if app.status.get("mode") == "hotspot" else "",
@@ -157,15 +162,20 @@ class Home(Menu):
             ("Join Wi-Fi", lambda: open_wifi_list(app), lambda: (app.status.get("wifi_link") or {}).get("ssid", "")[:14]
              if app.status.get("mode") != "hotspot" else ""),
             ("Guest Wi-Fi login", lambda: start_portal(app), lambda: "needed" if app.inet[0] == "portal" else ""),
-            ("Ethernet settings", lambda: edit_ethernet(app)),
-            ("Hotspot settings", lambda: edit_hotspot(app)),
+            ("Devices", lambda: app.push(X.Devices(app)), lambda: str(len(app.status.get("clients", []))) if app.status.get("mode") else ""),
+            ("Switch port (LLDP)", lambda: app.push(X.SwitchPort(app)), lambda: f"VLAN {app.status['vlan']}" if app.status.get("vlan") else ""),
+            ("VPN (WireGuard)", lambda: app.push(X.Vpn(app)), lambda: "ON" if app.status.get("vpn") == "on" else "",
+             lambda: L.OK if app.status.get("vpn") == "on" else L.FG),
+            ("Settings", lambda: app.push(X.SettingsMenu(app)), ""),
             ("Stop sharing", self.stop, ""),
         ]
         super().__init__(app, APP_TITLE, items, "\u2191\u2193 move  OK/\u2192 open  ESC quit")
 
     help = ("Share Wi-Fi to Ethernet gives a switch (and the gear on it) this device's Wi-Fi "
-            "internet. Hotspot from Ethernet makes a Wi-Fi hotspot from a wired network. "
-            "Guest Wi-Fi login opens a hotel or venue login page right here.")
+            "internet. Hotspot from Ethernet makes a Wi-Fi hotspot from a wired network (its own "
+            "network, or bridged). Guest Wi-Fi login opens a hotel or venue login page right here. "
+            "Devices: rename, block, fixed IPs, speed limits. Dashboard: live speed and ping. "
+            "Settings: VLAN tag, port forwards, local names, the setup wizard.")
 
     def softkeys(self):
         app = self.app
@@ -183,6 +193,7 @@ class Home(Menu):
         if app.status.get("mode") == "wifi2eth":
             return self.stop()
         p = S.mask_to_prefix(c["share_mask"])
+        tag = f" VLAN {net.vlan_id(c)}." if net.vlan_id(c) else ""
         dhcp = "DHCP server ON: gear gets addresses automatically." if c["share_dhcp"] else \
             f"DHCP OFF: set gear gateway to {c['share_ip']} and DNS to 1.1.1.1."
         warn = ""
@@ -190,7 +201,7 @@ class Home(Menu):
             warn = "The hotspot will stop. "
         app.push(Confirm(app, "Wi-Fi -> Ethernet",
                          f"{warn}Share {(app.status.get('wifi_link') or {}).get('ssid') or 'Wi-Fi'} to the Ethernet port. "
-                         f"Pi on Ethernet: {c['share_ip']}/{p}. {dhcp}",
+                         f"Pi on Ethernet: {c['share_ip']}/{p}.{tag} {dhcp}",
                          lambda: app.run_task("Wi-Fi -> Ethernet", "Starting", lambda: net.start_wifi_to_eth(app.cfg),
                                               ok_title="Sharing on"),
                          yes="OK start", no="ESC back"))
@@ -200,6 +211,8 @@ class Home(Menu):
         if app.status.get("mode") == "hotspot":
             return self.stop()
         up = "Ethernet uplink: DHCP" if c["uplink_dhcp"] else f"Ethernet uplink: {c['uplink_ip']}"
+        if c.get("hs_bridge"):
+            up = "Bridged to Ethernet: devices get addresses from the wired network"
         warn = " Wi-Fi client connection drops while the hotspot runs." if app.status.get("wifi_state") == "connected" else ""
         app.push(Confirm(app, "Hotspot",
                          f"Hotspot {c['hs_ssid']}  password {c['hs_password']}  ch {c['hs_channel']}. {up}.{warn}",
@@ -234,7 +247,9 @@ class Status(Screen):
     help = "What is running now, the internet check, addresses and how many clients are connected."
 
     def softkeys(self):
-        return [("Recheck", self.app.refresh), ("Clients", lambda: self.app.push(Clients(self.app)))]
+        from .extras import Devices, Dashboard
+        return [("Recheck", self.app.refresh), ("Devices", lambda: self.app.push(Devices(self.app))),
+                ("Graph", lambda: self.app.push(Dashboard(self.app)))]
 
     def __init__(self, app):
         super().__init__(app)
@@ -243,7 +258,8 @@ class Status(Screen):
     def all_rows(self):
         st, app = self.app.status, self.app
         mode = st.get("mode")
-        rows = [("Mode", L.OK if mode else L.FG, {"wifi2eth": "Wi-Fi > Ethernet", "hotspot": "Hotspot"}.get(mode, "Off"))]
+        mname = {"wifi2eth": "Wi-Fi > Ethernet", "hotspot": "Hotspot (bridge)" if st.get("bridge") else "Hotspot"}.get(mode, "Off")
+        rows = [("Mode", L.OK if mode else L.FG, mname)]
         text, color = inet_row(app)
         rows.append(("Internet", color, text.split(": ", 1)[1].replace(" (portal)", "")))
         if st.get("wifi"):
@@ -263,6 +279,12 @@ class Status(Screen):
                 rows.append(("Ethernet", L.WARN, "no cable"))
             else:
                 rows.append(("Ethernet", L.FG, ip_short(st.get("eth_ip")).split("/")[0] or st.get("eth_state", "")))
+        if st.get("vlan"):
+            rows.append(("VLAN tag", L.FG, st["vlan"]))
+        if st.get("bridge_ip"):
+            rows.append(("Bridge IP", L.FG, ip_short(st.get("bridge_ip")).split("/")[0]))
+        if st.get("vpn"):
+            rows.append(("VPN", L.OK if st["vpn"] == "on" else L.WARN, st["vpn"]))
         if mode:
             rows.append(("Clients", L.FG, str(len(st.get("clients", [])))))
         else:
@@ -284,7 +306,8 @@ class Status(Screen):
         elif k.name == "down":
             self.top = min(max(0, n - self.nrows), self.top + 1)
         elif k.name in SELECT:
-            self.app.push(Clients(self.app))
+            from .extras import Devices
+            self.app.push(Devices(self.app))
         else:
             super().key(k)
 
@@ -553,6 +576,8 @@ def edit_ethernet(app):
         ("share_ip", "Pi address", "ip"),
         ("share_mask", "Subnet mask", "mask", "Like 255.255.255.0 or 24"),
         ("share_dhcp", "DHCP server", "bool", ("On", "Off (static)")),
+        ("share_vlan", "VLAN tag", "number", "0 = untagged"),
+        ("lldp", "Switch info (LLDP)", "bool", ("Listen", "Off")),
         ("", "Uplink (for the hotspot)", "header"),
         ("uplink_dhcp", "Uplink IP", "bool", ("DHCP", "Static")),
         ("uplink_ip", "IP address", "ip", "", lambda v: not v["uplink_dhcp"]),
@@ -565,6 +590,10 @@ def edit_ethernet(app):
         err = S.check_host(v["share_ip"], v["share_mask"])
         if err:
             return "Share side: " + err
+        tag = str(v["share_vlan"]).strip() or "0"
+        if not tag.isdigit() or int(tag) > 4094:
+            return "VLAN tag must be 0 (none) or 1-4094"
+        v["share_vlan"] = str(int(tag))
         if not v["uplink_dhcp"]:
             err = S.check_host(v["uplink_ip"], v["uplink_mask"])
             if err:
@@ -572,7 +601,10 @@ def edit_ethernet(app):
             if v["uplink_gw"] and not S.valid_ip(v["uplink_gw"]):
                 return f"Bad gateway: {v['uplink_gw']}"
         return None
-    app.push(Form(app, "Ethernet settings", fields, app.cfg, lambda v: saved(app, v, "wifi2eth"), validate))
+    app.push(Form(app, "Ethernet settings", fields, app.cfg, lambda v: saved(app, v, "wifi2eth"), validate,
+                  help="Share side: the Pi's address on the switch, DHCP for the gear, an optional "
+                       "802.1Q VLAN tag (for a trunk or tagged port) and LLDP switch info. "
+                       "Uplink: how the Ethernet port gets online when it feeds the hotspot."))
 
 
 def edit_hotspot(app):
@@ -580,12 +612,15 @@ def edit_hotspot(app):
         ("hs_ssid", "Name (SSID)", "text"),
         ("hs_password", "Password", "secret", "8 to 63 characters"),
         ("hs_channel", "Channel (2.4 GHz)", "choice", ["1", "6", "11"]),
-        ("hs_ip", "Pi address", "ip", "Clients get 192.168.x.10 and up (/24)"),
+        ("hs_bridge", "Network", "bool", ("Bridge to Ethernet", "Own network (NAT)")),
+        ("hs_ip", "Pi address", "ip", "Clients get .10 and up", lambda v: not v["hs_bridge"]),
     ]
 
     def validate(v):
         return S.check_hotspot(v["hs_ssid"], v["hs_password"]) or S.check_host(v["hs_ip"], "24")
-    app.push(Form(app, "Hotspot settings", fields, app.cfg, lambda v: saved(app, v, "hotspot"), validate))
+    app.push(Form(app, "Hotspot settings", fields, app.cfg, lambda v: saved(app, v, "hotspot"), validate,
+                  help="Bridge: Wi-Fi devices join the wired network itself (its DHCP, no NAT), like "
+                       "plugging them into the switch. Own network: the Pi gives them addresses and NAT."))
 
 
 def saved(app, values, mode):

@@ -237,3 +237,126 @@ class Nav(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PowerFeatures(unittest.TestCase):
+    def _helper(self):
+        import importlib.machinery
+        import importlib.util
+        path = os.path.join(os.path.dirname(__file__), "..", "packaging", "net-helper")
+        loader = importlib.machinery.SourceFileLoader("nethelper", path)
+        spec = importlib.util.spec_from_loader("nethelper", loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+        return mod
+
+    def cfg(self):
+        c = S.load()
+        c["devices"] = {"00:05:A6:1C:22:10": dict(name="DSP rack 1", reserve=True, ip="192.168.50.12",
+                                                   down="10 Mb/s", up="Off", block=False),
+                        "a4:83:e7:11:22:33": dict(block=True),
+                        "bad": dict(block=True)}
+        c["forwards"] = [dict(name="web", proto="TCP", port="8080", ip="192.168.50.12", to_port="80"),
+                         dict(name="x", proto="tcp", port="99999", ip="192.168.50.12", to_port="80")]
+        c["dns_names"] = [dict(name="dsp1.av", ip="192.168.50.12"), dict(name="bad name", ip="1.2.3.4")]
+        c["limit_all_down"] = "50 Mb/s"
+        return c
+
+    def test_policy(self):
+        p = net.build_policy(self.cfg())
+        self.assertEqual(p["block"], ["a4:83:e7:11:22:33"])
+        self.assertEqual(p["reservations"], [dict(mac="00:05:a6:1c:22:10", ip="192.168.50.12", name="DSP-rack-1")])
+        self.assertEqual(p["limits"], [dict(ip="192.168.50.12", down_kbytes=1250, up_kbytes=0)])
+        self.assertEqual(p["forwards"], [dict(proto="tcp", port=8080, ip="192.168.50.12", to_port=80)])
+        self.assertEqual(p["dns"], [dict(name="dsp1.av", ip="192.168.50.12")])
+        self.assertEqual(p["all_down_kbytes"], 6250)
+        self.assertTrue(p["nat"])
+        self.assertEqual(net._mbit("Off"), 0)
+
+    def test_helper_rules_are_checked(self):
+        h = self._helper()
+        p = net.build_policy(self.cfg())
+        p["forwards"].append(dict(proto="tcp", port=80, ip="1.2.3.4; flush ruleset", to_port=80))
+        p["block"].append('00:11:22:33:44:55" accept; #')
+        t, text = h.ruleset("eth0.20", p)
+        self.assertEqual(t, "tnt_share_eth0_20")
+        self.assertIn('iifname "eth0.20" ether saddr @blocked drop', text)
+        self.assertIn("tcp dport 8080 dnat to 192.168.50.12:80", text)
+        self.assertIn("ip daddr 192.168.50.12 limit rate over 1250 kbytes/second", text)
+        self.assertIn("masquerade", text)
+        self.assertNotIn("flush", text)
+        self.assertNotIn("accept; #", text)
+        d = h.dnsmasq_text(p)
+        self.assertIn("dhcp-host=00:05:a6:1c:22:10,192.168.50.12,DSP-rack-1", d)
+        self.assertIn("host-record=dsp1.av,192.168.50.12", d)
+        _, bridge = h.ruleset("tntbr0", {"nat": False})
+        self.assertNotIn("masquerade", bridge)
+        self.assertEqual(h.main(["x", "start", "eth0; rm -rf /"]), 2)
+
+    def test_wg_parse(self):
+        good = "[Interface]\nPrivateKey = a\nAddress = 10.0.0.2/32\n[Peer]\nPublicKey = b\nEndpoint = vpn:51820\nAllowedIPs = 0.0.0.0/0\n"
+        self.assertIsNone(net.wg_parse(good))
+        self.assertIsNotNone(net.wg_parse("hello"))
+        net.wg_save(good)
+        self.assertEqual(net.wg_info()["endpoint"], "vpn:51820")
+        self.assertEqual(oct(os.stat(S.WG_CONF).st_mode & 0o777), "0o600")
+
+    def test_lldp_parse(self):
+        out = ("NEIGHBOR[0].DEVICE:eth0\nNEIGHBOR[0].CHASSIS-ID:00\\:11\nNEIGHBOR[0].PORT-ID:12\n"
+               "NEIGHBOR[0].PORT-DESCRIPTION:Stage left\nNEIGHBOR[0].SYSTEM-NAME:M4250\n"
+               "NEIGHBOR[0].IEEE-802-1-PVID:20\n")
+        old = net.nm
+        net.nm = lambda *a, **k: (0, out, "")
+        try:
+            n = net.lldp("eth0")
+        finally:
+            net.nm = old
+        self.assertEqual((n[0]["switch"], n[0]["port"], n[0]["vlan"]), ("M4250", "Stage left", "20"))
+
+    def test_device_edit_and_block(self):
+        from tntshare import extras as X
+        from tntshare.demo import fake_app
+        from tntshare.keys import Key
+        app = fake_app()
+        app.status["mode"] = None
+        dev = X.Devices(app)
+        app.stack = [dev]
+        dev.sel = dev.macs.index("00:05:a6:1c:22:10")
+        app.dispatch(Key("4", "4"))                  # key 4 = Block
+        self.assertTrue(app.cfg["devices"]["00:05:a6:1c:22:10"]["block"])
+        X.edit_device(app, "00:60:74:aa:01:02", dict(ip="192.168.50.15"))
+        form = app.stack[-1]
+        form.form.select("down")
+        form.key(Key("enter"))                     # Off -> 1 Mb/s
+        form.form.select("__save")
+        form.key(Key("enter"))
+        d = app.cfg["devices"]["00:60:74:aa:01:02"]
+        self.assertEqual((d["reserve"], d["ip"], d["down"]), (True, "192.168.50.15", "1 Mb/s"))
+
+    def test_wizard(self):
+        from tntshare import extras as X
+        from tntshare.demo import fake_app
+        from tntshare.keys import Key
+        app = fake_app()
+        app.status["mode"] = None
+        app.cfg["setup_done"] = False
+        w = X.Wizard(app)
+        app.stack = [w]
+        w.key(Key("enter"))                        # Wi-Fi to Ethernet
+        self.assertEqual(w.step, "wifi")
+        w.key(Key("enter"))                        # use Hotel Guest
+        self.assertEqual(w.step, "gear")
+        w.key(Key("down"))
+        w.key(Key("enter"))                        # static IPs
+        self.assertEqual(w.step, "addr")
+        self.assertFalse(app.cfg["share_dhcp"])
+        w.key(Key("esc"))                          # back to the gear question
+        self.assertEqual(w.step, "gear")
+        w.key(Key("enter"))                        # DHCP
+        self.assertEqual(w.step, "done")
+        w.key(Key("down"))
+        w.key(Key("enter"))                        # finish, start later
+        self.assertTrue(app.cfg["setup_done"])
+        self.assertNotIn(w, app.stack)
+        for s in app.stack:
+            s.rows()
