@@ -333,6 +333,26 @@ def fonts() -> dict:
     return _fonts
 
 
+_title_fonts: dict = {}
+
+
+def title_image(text: str, maxw: int = W - 12, f: dict | None = None):
+    """The title in the title font, stepped down a size or two when a long
+    name ("Nomad Display Control") would not fit, so it is never cut off."""
+    f = f or fonts()
+    img = f["title"].render(text, True, TITLE_FG)
+    size = FONT_SIZES["title"]
+    while img.get_width() > maxw and size > FONT_SIZES["small"]:
+        size -= 1
+        if size not in _title_fonts:
+            import os
+            import pygame
+            path = next((p for p in FONT_PATHS if os.path.exists(p)), None)
+            _title_fonts[size] = pygame.font.Font(path, size) if path else pygame.font.Font(None, int(size * 1.35))
+        img = _title_fonts[size].render(text, True, TITLE_FG)
+    return img
+
+
 def as_view(row, selected: bool) -> RowView:
     """Accept RowView, "text", (text, color) or (text, color, right_text)."""
     if isinstance(row, RowView):
@@ -352,7 +372,8 @@ def render(surf, title: str, rows: list, hint: str = "", selected: int | None = 
         rows = rows[:ROWS_KEYS]
     surf.fill(BG)
     surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
-    surf.blit(f["title"].render(title, True, TITLE_FG), (6, 2), (0, 0, W - 12, TITLE_H))
+    img = title_image(title, W - 12, f)
+    surf.blit(img, (6, max(0, (TITLE_H - img.get_height()) // 2)), (0, 0, W - 12, TITLE_H))
     if right:
         img = f["small"].render(right, True, TITLE_RIGHT)
         surf.fill(TITLE_BG, (W - img.get_width() - 12, 0, img.get_width() + 12, TITLE_H))
@@ -503,7 +524,8 @@ class HelpView:
         ls = self.lines(f)
         surf.fill(BG)
         surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
-        surf.blit(f["title"].render(self.title, True, TITLE_FG), (6, 2), (0, 0, W - 12, TITLE_H))
+        img = title_image(self.title, W - 12, f)
+        surf.blit(img, (6, max(0, (TITLE_H - img.get_height()) // 2)), (0, 0, W - 12, TITLE_H))
         y = TITLE_H + 2
         for text, color in ls[self.top:self.top + self.rows()]:
             surf.blit(f["small"].render(text, True, color), (7, y), (0, 0, W - 12, self.LINE_H))
