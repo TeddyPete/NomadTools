@@ -331,19 +331,35 @@ def text_glow(img, xy, text, font, fill, glow, anchor="mm"):
 
 # ---------- Nomad MCP scene concepts (what it does) ----------
 def cardputer(img, box, accent):
-    """Little CardputerZero: screen on the left, keyboard grid on the right."""
+    """CardputerZero as it really looks: light grey landscape body, dark screen
+    centred at the top with two small buttons beside it, and a dense grid of
+    round keys below (a few coloured ones down the left side)."""
     x0, y0, x1, y1 = box
-    device_body(img, box, 40, 24, (92, 98, 110), (36, 40, 48))
     w, h = x1 - x0, y1 - y0
-    scr = (x0 + w * 0.07, y0 + h * 0.14, x0 + w * 0.47, y0 + h * 0.86)
-    screen(img, scr, 14)
+    device_body(img, box, int(h * 0.16), 22, (226, 229, 234), (150, 155, 164))
+    # screen
+    scr = (x0 + w * 0.22, y0 + h * 0.09, x0 + w * 0.66, y0 + h * 0.40)
+    screen(img, scr, 10)
     d = ImageDraw.Draw(img)
-    kx0, ky0 = x0 + w * 0.53, y0 + h * 0.16
-    kw, kh = w * 0.42 / 5, h * 0.68 / 4
-    for r in range(4):
-        for c in range(5):
-            d.rounded_rectangle((kx0 + c * kw + 3, ky0 + r * kh + 3, kx0 + (c + 1) * kw - 3, ky0 + (r + 1) * kh - 3), 6,
-                                fill=(24, 26, 32, 255))
+    # two small round buttons right of the screen
+    for i, by in enumerate((0.17, 0.31)):
+        bx, byy, br = x0 + w * 0.76 + i * w * 0.08, y0 + h * by, h * 0.045
+        d.ellipse((bx - br, byy - br, bx + br, byy + br), fill=(70, 74, 84, 255))
+    # keyboard: 4 rows x 11 round keys
+    cols, rows = 11, 4
+    kx0, kx1, ky0, ky1 = x0 + w * 0.06, x1 - w * 0.06, y0 + h * 0.50, y1 - h * 0.07
+    kw, kh = (kx1 - kx0) / cols, (ky1 - ky0) / rows
+    side = [(214, 70, 70), (70, 170, 90), (70, 120, 210), (220, 190, 60)]
+    k = layer()
+    kd = ImageDraw.Draw(k)
+    for r in range(rows):
+        for c in range(cols):
+            cx, cy = kx0 + (c + 0.5) * kw, ky0 + (r + 0.5) * kh
+            rr = min(kw, kh) * 0.40
+            col = side[r] if c == 0 else ((150, 110, 200) if (r, c) == (3, 1) else (246, 247, 249))
+            kd.ellipse((cx - rr + 2, cy - rr + 4, cx + rr + 2, cy + rr + 4), fill=(90, 94, 104, 255))
+            kd.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), fill=col + (255,))
+    img.alpha_composite(k)
     return scr
 
 
@@ -475,17 +491,17 @@ def mcp_cloud(key, accent):
     img = layer()
     cloud_shape(img, 512, 235, 580, accent)
     scr_pc = monitor(img, (40, 520, 400, 790), accent)
-    scr_cp = cardputer(img, (560, 590, 990, 840), accent)
+    scr_cp = cardputer(img, (570, 555, 990, 840), accent)
 
     def arcs(dd, c):
         a = [(220 + t * 150, 520 - 330 * math.sin(math.pi / 2 * t) + 10) for t in [i / 30 for i in range(31)]]
-        b = [(660 + t * 130, 300 + 280 * (1 - math.cos(math.pi / 2 * t))) for t in [i / 30 for i in range(31)]]
+        b = [(660 + t * 130, 300 + 220 * (1 - math.cos(math.pi / 2 * t))) for t in [i / 30 for i in range(31)]]
         for pts in (a, b):
             for i in range(0, 30, 5):
                 dd.line(pts[i:i + 4], fill=c, width=30)
         # arrow heads
         dd.polygon([(345, 230), (395, 205), (390, 262)], fill=c)
-        dd.polygon([(760, 560), (820, 560), (790, 610)], fill=c)
+        dd.polygon([(760, 500), (820, 500), (790, 550)], fill=c)
     glow_draw(img, arcs, accent, blur=(22, 8))
     glow_draw(img, lambda dd, c: spark(dd, 512, 250, 85, c), accent, blur=(16, 6))
     # glowing prompt on the PC screen, sparkle on the Cardputer screen
@@ -493,7 +509,7 @@ def mcp_cloud(key, accent):
                                   dd.line((scr_pc[0] + 90, scr_pc[1] + 90, scr_pc[0] + 40, scr_pc[1] + 130), fill=c, width=16),
                                   dd.line((scr_pc[0] + 120, scr_pc[1] + 140, scr_pc[0] + 210, scr_pc[1] + 140), fill=c, width=16)),
               accent, blur=(14, 5))
-    glow_draw(img, lambda dd, c: spark(dd, (scr_cp[0] + scr_cp[2]) / 2, (scr_cp[1] + scr_cp[3]) / 2, 55, c), accent, blur=(14, 5))
+    glow_draw(img, lambda dd, c: spark(dd, (scr_cp[0] + scr_cp[2]) / 2, (scr_cp[1] + scr_cp[3]) / 2, 34, c), accent, blur=(14, 5))
     screen_glass(img, scr_pc, 10)
     screen_glass(img, scr_cp, 14)
     return img
@@ -511,14 +527,14 @@ def style_labeled(key, accent, name_on_top=False, scene=None):
     k = 0.60 if scene else 0.64
     dev = dev.resize((int(S * k), int(S * k)), Image.LANCZOS)
     img.alpha_composite(dev, (int((S - S * k) / 2), (205 if not scene else 238) if not name_on_top else 235))
-    brand = ImageFont.truetype(FONT, 118)
+    brand = ImageFont.truetype(FONT, 136)
     name = SHORT[key]
-    f = fit_font(name, S - 170, 168)
+    f = fit_font(name, S - 300, 150)
     if name_on_top:
         text_glow(img, (S / 2, 190), name, f, accent + (255,), accent)
         text_glow(img, (S / 2, 878), "NOMAD", brand, (240, 244, 250, 255), accent)
     else:
-        text_glow(img, (S / 2, 178), "NOMAD", brand, (240, 244, 250, 255), accent)
+        text_glow(img, (S / 2, 182), "NOMAD", brand, (240, 244, 250, 255), accent)
         text_glow(img, (S / 2, 868), name, f, accent + (255,), accent)
     return img
 
