@@ -1,12 +1,14 @@
 """One-time setup page on the local network, for pasting the ngrok authtoken.
 
 The token is about 50 characters, too long to type on the small keyboard, so
-the ngrok setup screen shows a QR code for http://<device ip>:8766/<key>. The
-phone (on the same Wi-Fi or LAN) opens it, pastes the token and saves.
+the ngrok setup screen shows a QR code (and short text) for
+http://<device ip>:<port>/<key>, e.g. 192.168.1.10:8776/k7q2. The phone (on the
+same Wi-Fi or LAN) opens it, pastes the token and saves.
 
   * Runs inside the LCD app only while that screen is open, then stops.
-  * The random key in the path is shown only on the device screen; any other
-    path gets 404, and 20 wrong requests shut the page down.
+  * The random 4-character key in the path is shown only on the device screen
+    (about a million choices); any other path gets 404, and 20 wrong requests
+    shut the page down, so guessing it is hopeless.
   * It never shows the saved token back.
 """
 from __future__ import annotations
@@ -20,6 +22,7 @@ from urllib.parse import parse_qs
 from . import brand, config as C
 
 PORT = brand.SETUP_PORT
+KEY_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"   # no 0/o, 1/l/i: easy to read and type
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{app} setup</title><style>
@@ -43,7 +46,7 @@ Pasting the whole <code>ngrok config add-authtoken ...</code> line is fine.</p>{
 
 class SetupWeb:
     def __init__(self, on_saved=None):
-        self.key = secrets.token_urlsafe(6)
+        self.key = "".join(secrets.choice(KEY_CHARS) for _ in range(4))
         self.on_saved = on_saved
         self.saved = False
         self.bad = 0
@@ -51,7 +54,11 @@ class SetupWeb:
         self.error = ""
 
     def url(self, ip: str) -> str:
-        return f"http://{ip}:{PORT}/{self.key}"
+        return f"http://{self.short(ip)}"
+
+    def short(self, host: str) -> str:
+        """What to type in the phone's browser (it adds http:// itself)."""
+        return f"{host}:{PORT}/{self.key}"
 
     def start(self) -> bool:
         owner = self
@@ -71,7 +78,8 @@ class SetupWeb:
                 self.wfile.write(data)
 
             def allowed(self) -> bool:
-                if self.path.split("?")[0] == "/" + owner.key:
+                # forgiving: phones capitalise the first letter or add a slash
+                if self.path.split("?")[0].strip("/").lower() == owner.key:
                     return True
                 owner.bad += 1
                 self.send_response(404)

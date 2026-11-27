@@ -135,6 +135,17 @@ def install_ngrok(log=print) -> str:
     return v
 
 
+def mdns_name() -> str:
+    """"<hostname>.local" when avahi answers for it on the LAN, else ""."""
+    import socket
+    try:
+        active = subprocess.run(["systemctl", "is-active", "--quiet", "avahi-daemon"], timeout=3).returncode == 0
+    except Exception:
+        active = False
+    host = socket.gethostname().split(".")[0].lower()
+    return f"{host}.local" if active and host and host != "localhost" else ""
+
+
 def lan_ip() -> str:
     """This device's address on the local network ("" when offline)."""
     import socket

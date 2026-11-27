@@ -337,6 +337,9 @@ def tunnel_ready(cfg: dict) -> bool:
     return True
 
 
+BIG = "\x01"     # QRScreen text: marks a paragraph drawn large
+
+
 class QRScreen(Screen):
     """A QR code on the left, short text on the right. OK = next step (when there is one)."""
     live = True
@@ -369,11 +372,15 @@ class QRScreen(Screen):
                 text = url + "\n" + text
         width = T.W - x - 4
         y = top
-        for line in self._wrap(f, text, width):
-            if y + 16 > bottom:
-                break
-            surf.blit(f.render(line, True, color), (x, y))
-            y += 16
+        for para in text.split("\n"):
+            # a paragraph that starts with BIG is drawn in the larger font (an address to type)
+            big = para.startswith(BIG)
+            font, step = (self.app.panel.fonts["row"], 22) if big else (f, 16)
+            for line in self._wrap(font, para[len(BIG):] if big else para, width):
+                if y + step > bottom + 2:
+                    break
+                surf.blit(font.render(line, True, T.FG if big else color), (x, y))
+                y += step
 
     @staticmethod
     def _wrap(font, text: str, width: int) -> list:
@@ -561,6 +568,7 @@ class NgrokTokenScreen(QRScreen):
         super().__init__(app, "ngrok 3/3: paste token", "", "", self.type_it, "type it instead")
         from .setupweb import SetupWeb
         self.web = SetupWeb(on_saved=self.saved)
+        self.mdns = control.mdns_name()
         self.done = False
         self.install = "" if control.ngrok_path() else "installing"
         if self.install:
@@ -602,7 +610,11 @@ class NgrokTokenScreen(QRScreen):
         if not self.web.httpd or not ip:
             return "", ("No network address yet. " if not ip else f"Setup page failed: {self.web.error}. ") + \
                 "Press OK to type the token instead.", T.WARN
-        return self.web.url(ip), "Phone on the same Wi-Fi/LAN: scan, paste the token, Save.\n" + self.web.url(ip), T.FG
+        text = "Phone on same Wi-Fi: scan it, or type:\n" + BIG + ip + "\n" + \
+            BIG + self.web.short("")
+        if self.mdns:
+            text += "\nor " + self.web.short(self.mdns)
+        return self.web.url(ip), text, T.FG
 
     def type_it(self):
         scr = FormScreen(self.app, "ngrok authtoken", T.EditList(
