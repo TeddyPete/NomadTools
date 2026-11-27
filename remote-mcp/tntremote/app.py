@@ -548,8 +548,10 @@ AI_APPS = [
      "connector address and click Connect. If ngrok shows 'You are about to visit', click Visit Site. "
      "On the Allow page, type the code this device shows next. Works in Claude's cloud too."),
     ("chatgpt", "ChatGPT", "pair",
-     "In ChatGPT on the web: Settings > Apps & Connectors > Advanced, turn on Developer mode. Then "
-     "Create: name it, paste the connector address, Authentication OAuth, tick trust, Create. "
+     "In ChatGPT on the web: Plugins (left sidebar) > Add (top right) > Add custom MCP server. Name: "
+     "Nomad AI Bridge. Connection: Server URL (not Tunnel) and paste the connector address, Authentication OAuth, "
+     "tick I understand, Create as a plugin. Needs a Business, Enterprise or Edu plan (Pro: read "
+     "only). "
      "If ngrok shows 'You are about to visit', click Visit Site. On the Allow page, type the code "
      "this device shows next."),
     ("codex", "Codex (app, CLI, IDE)", "key", ""),

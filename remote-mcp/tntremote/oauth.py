@@ -100,7 +100,7 @@ def check_pairing(code: str) -> tuple[bool, str]:
     with _pair_lock:
         p = C.read_json(C.PAIR_FILE) or {}
         if not p.get("hash") or p.get("exp", 0) < time.time():
-            return False, "No pairing code is active. On the CardputerZero open " + brand.APP_NAME + " and choose Pair new connection."
+            return False, "No pairing code is active. On the CardputerZero open " + brand.APP_NAME + " and choose Connect an AI app, then your app."
         if hmac.compare_digest(p["hash"], _h(code)):
             # keep a marker so the device can say "accepted" instead of "used or expired"
             C.write_json(C.PAIR_FILE, {"used": time.time()})

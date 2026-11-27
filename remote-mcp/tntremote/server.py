@@ -399,7 +399,7 @@ class Handler(BaseHTTPRequestHandler):
                                                          "code_challenge_method", "response_type", "scope", "resource"))
         st = oauth.pairing_state()
         info = (f"A code is showing on the device ({st['left'] // 60} min left)." if st["active"] else
-                f"On the CardputerZero open <b>{html.escape(brand.APP_NAME)}</b> and choose <b>Pair new connection</b>. A code appears on its screen.")
+                f"On the CardputerZero open <b>{html.escape(brand.APP_NAME)}</b> and choose <b>Connect an AI app</b>, then your app (Claude or ChatGPT). A code appears on its screen.")
         body = (f'<p><b class="who">{html.escape(g.get("client_name") or "An AI app")}</b> wants full control of this CardputerZero: '
                 f'run commands, read and change files, use Net Tools.</p><p>{info}</p>'
                 + (f'<p class="err">{html.escape(msg)}</p>' if msg else "") +
