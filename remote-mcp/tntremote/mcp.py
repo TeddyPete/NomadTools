@@ -6,7 +6,7 @@ import json
 import time
 import traceback
 
-from . import __version__, brand, config as C, nettools, tools as T
+from . import __version__, brand, config as C, nettools, statusview, tools as T
 
 PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
@@ -32,7 +32,7 @@ INT = {"type": "integer"}
 BOOL = {"type": "boolean"}
 
 TOOLS = [
-    ("device_status", "Show the CardputerZero's health: uptime, memory, disk, temperature, IP addresses, tunnel and permission switches.",
+    ("device_status", "Show the CardputerZero's status: health (temperature, uptime, RAM, disk, load), RAM breakdown, network and Wi-Fi, tunnel and public address, permission switches, top programs by memory and installed apps, with an overall verdict. Apps that support MCP Apps show it as a visual status card.",
      _s({}), T.device_status, True),
     ("run_command", "Run a bash command on the CardputerZero as user pi and wait for it (default 120 s, max 900 s). Returns exit code, stdout and stderr.",
      _s({"command": dict(STR, description="bash command line"), "cwd": dict(STR, description="working folder (default home)"),
@@ -78,8 +78,12 @@ BY_NAME = {t[0]: t for t in TOOLS}
 def tool_list() -> list[dict]:
     out = []
     for name, desc, schema, _fn, ro in TOOLS:
-        out.append({"name": name, "description": desc, "inputSchema": schema,
-                    "annotations": {"readOnlyHint": ro, "destructiveHint": name in ("delete_path", "run_command", "write_file", "move_path", "edit_file"),
+        t = {"name": name, "description": desc, "inputSchema": schema}
+        if name == "device_status":   # visual status card in apps that show MCP Apps views
+            t["_meta"] = {"ui": {"resourceUri": statusview.URI}, "openai/outputTemplate": statusview.URI,
+                          "openai/widgetAccessible": False}
+        out.append(t)
+        t.update({"annotations": {"readOnlyHint": ro, "destructiveHint": name in ("delete_path", "run_command", "write_file", "move_path", "edit_file"),
                                     "openWorldHint": name in ("net_tool", "av_device_info", "run_command")}})
     return out
 
@@ -121,7 +125,8 @@ def handle(msg, server, client: str) -> dict | None:
         if method == "initialize":
             want = params.get("protocolVersion")
             ver = want if want in PROTOCOLS else PROTOCOLS[0]
-            return _ok(mid, {"protocolVersion": ver, "capabilities": {"tools": {"listChanged": False}},
+            return _ok(mid, {"protocolVersion": ver, "capabilities": {"tools": {"listChanged": False}, "resources": {},
+                                                                    "extensions": {"io.modelcontextprotocol/ui": {}}},
                              "serverInfo": {"name": brand.CMD, "title": brand.APP_NAME + " (CardputerZero)", "version": __version__},
                              "instructions": INSTRUCTIONS})
         if method == "ping":
@@ -145,10 +150,22 @@ def handle(msg, server, client: str) -> dict | None:
                 res, ok = f"{type(e).__name__}: {e}", False
                 traceback.print_exc()
             audit(client, name, args, ok, int((time.monotonic() - t0) * 1000))
+            if isinstance(res, T.Result):
+                return _ok(mid, {"content": [{"type": "text", "text": res.text}],
+                                 "structuredContent": res.data, "isError": False})
             content = [res] if isinstance(res, dict) else [{"type": "text", "text": str(res)}]
             return _ok(mid, {"content": content, "isError": not ok})
-        if method in ("resources/list", "prompts/list"):
-            return _ok(mid, {method.split("/")[0]: []})
+        if method == "resources/list":
+            return _ok(mid, {"resources": [{"uri": statusview.URI, "name": "device-status-view",
+                                            "title": "Device status view", "mimeType": statusview.MIME}]})
+        if method == "resources/read":
+            if params.get("uri") != statusview.URI:
+                return _err(mid, -32002, "resource not found")
+            return _ok(mid, {"contents": [{"uri": statusview.URI, "mimeType": statusview.MIME, "text": statusview.HTML,
+                                           "_meta": {"ui": {"csp": {"connectDomains": [], "resourceDomains": []},
+                                                            "prefersBorder": True}}}]})
+        if method == "prompts/list":
+            return _ok(mid, {"prompts": []})
         if method == "resources/templates/list":
             return _ok(mid, {"resourceTemplates": []})
         return _err(mid, -32601, f"method not found: {method}")

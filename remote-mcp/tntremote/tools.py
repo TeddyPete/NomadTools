@@ -90,27 +90,167 @@ def _ips() -> list[str]:
     return res
 
 
-def device_status(args: dict, cfg: dict, ctx) -> str:
+def _sh(argv: list[str], t: float = 2) -> str:
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, timeout=t).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _wifi() -> str:
+    """SSID and signal of the Wi-Fi link, '' when not on Wi-Fi."""
+    link = _sh(["iw", "dev", "wlan0", "link"])
+    ssid = sig = ""
+    for line in link.splitlines():
+        line = line.strip()
+        if line.startswith("SSID:"):
+            ssid = line[5:].strip()
+        elif line.startswith("signal:"):
+            sig = line[7:].strip()
+    if not ssid:
+        ssid = _sh(["iwgetid", "-r"]).strip()
+    return f"{ssid} ({sig})" if ssid and sig else ssid
+
+
+def _apps() -> list[tuple[str, str]]:
+    """(friendly name, package/desktop id) of the launcher apps."""
+    d = "/usr/share/APPLaunch/applications"
+    out = []
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        if not f.endswith(".desktop"):
+            continue
+        name = f[:-8]
+        for line in _read(os.path.join(d, f)).splitlines():
+            if line.startswith("Name="):
+                name = line[5:].strip()
+                break
+        out.append((name, f[:-8]))
+    return sorted(out, key=lambda x: x[0].lower())
+
+
+def _top_procs(n: int = 6) -> list[tuple[int, int, str]]:
+    """(MB, pid, command) of the programs using the most memory (resident)."""
+    res = []
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            st = _read(f"/proc/{pid}/status")
+            rss = next((int(l.split()[1]) for l in st.splitlines() if l.startswith("VmRSS:")), 0)
+            if not rss:
+                continue
+            with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                cmd = fh.read().replace(b"\0", b" ").decode(errors="replace").strip()
+        except (OSError, ValueError):
+            continue
+        res.append((rss, int(pid), cmd or "?"))
+    res.sort(reverse=True)
+    out = []
+    for rss, pid, cmd in res[:n]:
+        words = cmd.split()
+        short = " ".join([os.path.basename(words[0])] + words[1:4])[:60] if words else "?"
+        out.append((round(rss / 1024), pid, short))
+    return out
+
+
+class Result:
+    """A tool result with both text (for the AI) and structured data (for a UI view)."""
+
+    def __init__(self, text: str, data: dict):
+        self.text, self.data = text, data
+
+
+def status_data(cfg: dict) -> dict:
     up = float((_read("/proc/uptime") or "0").split()[0])
     mem = {}
     for line in _read("/proc/meminfo").splitlines():
         k, _, v = line.partition(":")
         mem[k] = int(v.split()[0]) // 1024 if v.split() else 0
+    tot, avail = mem.get("MemTotal", 0), mem.get("MemAvailable", 0)
     du = shutil.disk_usage("/")
-    temp = _read("/sys/class/thermal/thermal_zone0/temp")
+    temp_raw = _read("/sys/class/thermal/thermal_zone0/temp")
+    temp = round(int(temp_raw) / 1000, 1) if temp_raw.isdigit() else None
     st = C.read_json(C.STATUS_FILE) or {}
-    lines = [
-        f"Host: {socket.gethostname()}  user: {os.environ.get('USER') or os.getuid()}",
-        f"Uptime: {int(up // 86400)}d {int(up % 86400 // 3600)}h {int(up % 3600 // 60)}m   load: {_read('/proc/loadavg')}",
-        f"Memory: {mem.get('MemAvailable', 0)} MB free of {mem.get('MemTotal', 0)} MB, swap free {mem.get('SwapFree', 0)} MB",
-        f"Disk /: {du.free // 2**20} MB free of {du.total // 2**20} MB",
-        f"CPU temp: {int(temp) / 1000:.1f} C" if temp.isdigit() else "CPU temp: ?",
-        "IP: " + ("; ".join(_ips()) or "none"),
-        f"Tunnel: {st.get('tunnel', '?')}   public URL: {cfg.get('public_url') or '(not set)'}",
-        f"Permissions: commands {'on' if cfg['allow_commands'] else 'OFF'}, sudo {'ON' if cfg.get('allow_sudo') else 'off'}, file writes {'on' if cfg['allow_writes'] else 'OFF'}, net tools {'on' if cfg['allow_net_tools'] else 'OFF'}",
-        "Installed TNT apps: " + ", ".join(sorted(os.listdir("/usr/share/APPLaunch/lib")) if os.path.isdir("/usr/share/APPLaunch/lib") else []),
-    ]
-    return "\n".join(lines)
+    url = st.get("public_url") or cfg.get("public_url") or ""
+    tunnel = st.get("tunnel", "unknown")
+    if up < 3600:
+        upt = f"{int(up // 60)} min"
+    else:
+        upt = f"{int(up // 86400)}d {int(up % 86400 // 3600)}h {int(up % 3600 // 60)}m"
+    cma, cma_free = mem.get("CmaTotal", 0), mem.get("CmaFree", 0)
+    caches = mem.get("Buffers", 0) + mem.get("Cached", 0) + mem.get("SReclaimable", 0)
+    free = mem.get("MemFree", 0)
+    progs = max(0, tot - free - caches - (cma - cma_free))
+    gb = 2 ** 30
+    notes = []
+    if temp is not None and temp >= 75:
+        notes.append(f"CPU is hot ({temp:.0f} C)")
+    if avail < 60:
+        notes.append(f"RAM is low ({avail} MB available)")
+    elif avail < 100:
+        notes.append(f"watch RAM ({avail} MB available)")
+    if du.used / du.total > 0.9:
+        notes.append("disk is over 90% full")
+    if tunnel != "connected":
+        notes.append(f"tunnel is {tunnel}")
+    ips = []
+    for ip in _ips():
+        dev, _, addr = ip.partition(" ")
+        ips.append({"interface": dev, "address": addr})
+    return {
+        "app": brand.APP_NAME, "host": socket.gethostname(), "user": os.environ.get("USER") or str(os.getuid()),
+        "level": "ok" if not notes else ("warn" if all(n.startswith("watch") for n in notes) else "bad"),
+        "overall": "Healthy" + (", but " + "; ".join(notes) if notes else "") + ".",
+        "temp_c": temp, "uptime_s": int(up), "uptime": upt,
+        "ram_mb": {"total": tot, "used": tot - avail, "available": avail, "programs": progs,
+                   "graphics_reserved": cma, "graphics_used": cma - cma_free, "caches": caches, "free": free},
+        "swap_mb": {"total": mem.get("SwapTotal", 0), "used": mem.get("SwapTotal", 0) - mem.get("SwapFree", 0)},
+        "disk_gb": {"total": round(du.total / gb, 2), "used": round(du.used / gb, 2), "free": round(du.free / gb, 2)},
+        "load": [float(x) for x in (_read("/proc/loadavg") or "0 0 0").split()[:3]],
+        "ips": ips, "wifi": _wifi(),
+        "tunnel": {"kind": cfg.get("tunnel_kind", ""), "state": tunnel, "address": (url + "/mcp") if url else ""},
+        "permissions": {"Run commands": bool(cfg.get("allow_commands")), "Admin (sudo)": bool(cfg.get("allow_sudo")),
+                        "File changes": bool(cfg.get("allow_writes")), "Net tools": bool(cfg.get("allow_net_tools"))},
+        "top": [{"mb": mb, "pid": pid, "program": cmd} for mb, pid, cmd in _top_procs()],
+        "apps": [n for n, _ in _apps()],
+    }
+
+
+def status_text(d: dict) -> str:
+    r, dk = d["ram_mb"], d["disk_gb"]
+    pct = lambda a, b: round(100 * a / b) if b else 0
+    L = [f"# {d['host']} status ({d['app']})", "", f"**Overall:** {d['overall']}", "",
+         "## Live health", "| Item | Value |", "|---|---|",
+         f"| CPU temperature | {str(d['temp_c']) + ' C' if d['temp_c'] is not None else 'unknown'} |",
+         f"| Uptime | {d['uptime']} |",
+         f"| RAM | {r['used']} / {r['total']} MB used, {r['available']} MB available ({pct(r['used'], r['total'])}%) |",
+         f"| Swap | {d['swap_mb']['used']} / {d['swap_mb']['total']} MB used |",
+         f"| Disk / | {dk['used']} / {dk['total']} GB used, {dk['free']} GB free ({pct(dk['used'], dk['total'])}%) |",
+         f"| CPU load 1/5/15 min | {' / '.join(str(x) for x in d['load'])} (1 core) |", "",
+         "## RAM breakdown (MB)", "| Part | MB |", "|---|---|",
+         f"| Programs | {r['programs']} |",
+         f"| Graphics pool (CMA), in use / reserved | {r['graphics_used']} / {r['graphics_reserved']} |",
+         f"| Caches (given back when needed) | {r['caches']} |",
+         f"| Free | {r['free']} |", "",
+         "## Network and system", "| Item | Value |", "|---|---|",
+         f"| Hostname | {d['host']} |", f"| User | {d['user']} |"]
+    L += [f"| IP {i['interface']} | {i['address']} |" for i in d["ips"]] or ["| IP | none |"]
+    t = d["tunnel"]
+    L += [f"| Wi-Fi | {d['wifi'] or 'not connected'} |",
+          f"| Tunnel ({t['kind']}) | {t['state']} |",
+          f"| Public address | {t['address'] or 'not set'} |", "",
+          "## Permissions (switched on the device)", "| Permission | State |", "|---|---|"]
+    L += [f"| {k} | {'on' if v else 'off'} |" for k, v in d["permissions"].items()]
+    L += ["", "## Top programs by memory", "| MB | PID | Program |", "|---|---|---|"]
+    L += [f"| {p['mb']} | {p['pid']} | `{p['program']}` |" for p in d["top"]]
+    L += ["", f"## Installed launcher apps ({len(d['apps'])})", ", ".join(d["apps"]) or "none"]
+    return "\n".join(L)
+
+
+def device_status(args: dict, cfg: dict, ctx) -> Result:
+    """Markdown report (sections and tables) plus the same data for the visual status view."""
+    d = status_data(cfg)
+    return Result(status_text(d), d)
 
 
 # ---- commands ---------------------------------------------------------------------
