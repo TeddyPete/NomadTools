@@ -20,7 +20,7 @@ The connected app can:
 1. Open **Nomad MCP**. The first time, it shows what the app does and how, with **Start setup** already selected. Press OK. Later you can rerun it from **Setup > ngrok setup**. Three QR codes follow:
    1. Scan it and make a free ngrok account, or sign in. After sign-up, choose **Share localhost**. Then press OK.
    2. Scan it to open your ngrok authtoken page. ngrok lists 4 steps; only step 2, **Add your authtoken**, matters. Copy the token (the part after `ngrok config add-authtoken`). Then press OK.
-   3. Scan it with your phone, on the same Wi-Fi/LAN as the device, or type the short address shown beside it (like `192.168.1.10:8776/k7q2`, or `cp0.local:8776/k7q2`). Paste the token and tap Save. Pasting the whole `ngrok config add-authtoken ...` line also works. If your phone can't reach the device, press OK and type the token on the keyboard instead.
+   3. Scan it with your phone, on the same Wi-Fi/LAN as the device, or type the address shown beside it, like `192.168.1.10:8776/nomadmcp` (or `cp0.local:8776/nomadmcp`). Paste the token and tap Save. The device then shows the token's last 4 characters, and the phone shows the same 4. If they match, press OK on the device to use it. Pasting the whole `ngrok config add-authtoken ...` line also works. If your phone can't reach the device, press OK and type the token on the keyboard instead.
 3. It switches Remote access on and shows your **connector address**, `https://<name>.ngrok-free.dev/mcp`, as text and as a QR code. This address is fixed and stays the same after restarts. Press OK there to get the pairing code.
 
 No account? Pick **Quick test** instead. It works right away, but the address changes every time the device restarts. **Cloudflare** is there for people who already run Cloudflare tunnels. Its command-line steps are in [../remote-mcp/README.md](../remote-mcp/README.md).
@@ -41,6 +41,7 @@ With the free ngrok plan, your browser may first show an ngrok "You are about to
 ## Safety
 
 * Nomad MCP only dials **out**, so it opens no ports on the network.
+* The token page only runs while setup step 3 is on the screen, and a pasted token is used only after you press OK on the device.
 * Every app has to be approved with a one-time code shown on the device's own screen. A code is valid for 10 minutes and one use.
 * Tokens are stored only as hashes. Refresh tokens last 60 days and renew while the app is in use.
 * **Remote access Off** cuts everyone off at once. **Connected > Disconnect everyone** forgets all sign-ins.

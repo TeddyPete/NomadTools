@@ -606,14 +606,18 @@ class NgrokTokenScreen(QRScreen):
             return "", self.install, T.BAD
         if self.done:
             return "", "Token saved. Downloading ngrok...", T.WARN
+        if self.web.pending:
+            # a phone sent a token: the owner must confirm it here
+            return "", ("A token came in from the setup page. It ends in:\n" + BIG + "..." +
+                        self.web.pending[-4:] + "\nThe phone shows the same 4. Use it only if they match."), T.WARN
         ip = control.lan_ip()
         if not self.web.httpd or not ip:
             return "", ("No network address yet. " if not ip else f"Setup page failed: {self.web.error}. ") + \
                 "Press OK to type the token instead.", T.WARN
-        text = "Phone on same Wi-Fi: scan it, or type:\n" + BIG + ip + "\n" + \
+        text = "Phone on the same Wi-Fi: scan it, or type:\n" + BIG + ip + "\n" + \
             BIG + self.web.short("")
         if self.mdns:
-            text += "\nor " + self.web.short(self.mdns)
+            text += f"\n(or {self.mdns} in place of the IP)"
         return self.web.url(ip), text, T.FG
 
     def type_it(self):
@@ -632,8 +636,23 @@ class NgrokTokenScreen(QRScreen):
         scr.event = ev
         self.app.push(scr)
 
+    def hint(self):
+        if self.web.pending and not self.done:
+            return "OK use it   ESC reject"
+        return super().hint()
+
     def key(self, k):
-        if T.nav_name(k.name, k.char) in T.BACK:
+        back = T.nav_name(k.name, k.char) in T.BACK
+        if self.web.pending and not self.done:
+            if k.name == "enter" or T.nav_name(k.name, k.char) == "right":
+                try:
+                    self.web.accept()
+                except ValueError as err:
+                    self.app.toast(str(err))
+            elif back:
+                self.web.reject()
+            return
+        if back:
             self.web.stop()
         super().key(k)
 
