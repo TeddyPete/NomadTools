@@ -430,7 +430,76 @@ def mcp_pocket(key, accent):
     return img
 
 
-MCP_SCENES = {"link": mcp_link, "nodes": mcp_nodes, "pocket": mcp_pocket}
+def cloud_shape(img, cx, cy, w, accent):
+    """Glossy 3D cloud."""
+    m = Image.new("L", (S, S), 0)
+    d = ImageDraw.Draw(m)
+    h = w * 0.55
+    d.ellipse((cx - w * 0.50, cy - h * 0.05, cx - w * 0.05, cy + h * 0.50), fill=255)
+    d.ellipse((cx - w * 0.30, cy - h * 0.55, cx + w * 0.22, cy + h * 0.45), fill=255)
+    d.ellipse((cx + w * 0.02, cy - h * 0.25, cx + w * 0.50, cy + h * 0.50), fill=255)
+    d.rounded_rectangle((cx - w * 0.38, cy + h * 0.05, cx + w * 0.38, cy + h * 0.50), int(h * 0.22), fill=255)
+    sh = layer()
+    sh.paste((0, 0, 0, 190), (0, 0), m)
+    img.alpha_composite(sh.transform(sh.size, Image.AFFINE, (1, 0, -10, 0, 1, -30)).filter(ImageFilter.GaussianBlur(30)))
+    g = vgrad(S, int(h * 1.1), (120, 128, 144), (40, 44, 54))
+    full = layer()
+    full.paste(g, (0, int(cy - h * 0.55)))
+    img.paste(full, (0, 0), m)
+    # gloss on the top
+    hi = layer()
+    ImageDraw.Draw(hi).ellipse((cx - w * 0.28, cy - h * 0.52, cx + w * 0.18, cy + h * 0.05), fill=(255, 255, 255, 70))
+    hi = hi.filter(ImageFilter.GaussianBlur(18))
+    hi.putalpha(ImageChops.multiply(hi.getchannel("A"), m))
+    img.alpha_composite(hi)
+    # accent rim glow
+    edge = m.filter(ImageFilter.FIND_EDGES).filter(ImageFilter.MaxFilter(5))
+    rimc = layer()
+    rimc.paste(accent + (160,), (0, 0), edge)
+    img.alpha_composite(rimc.filter(ImageFilter.GaussianBlur(3)))
+
+
+def monitor(img, box, accent):
+    x0, y0, x1, y1 = box
+    cx = (x0 + x1) / 2
+    fill_grad(img, (cx - 30, y1 - 10, cx + 30, y1 + 50), 6, (90, 96, 108), (40, 44, 52))
+    fill_grad(img, (cx - 100, y1 + 40, cx + 100, y1 + 66), 12, (110, 116, 128), (40, 44, 52))
+    device_body(img, box, 26, 18)
+    scr = (x0 + 22, y0 + 22, x1 - 22, y1 - 22)
+    screen(img, scr, 10)
+    return scr
+
+
+def mcp_cloud(key, accent):
+    """Concept 4 (Ted): computer up to a cloud, back down to the CardputerZero."""
+    img = layer()
+    cloud_shape(img, 512, 235, 580, accent)
+    scr_pc = monitor(img, (40, 520, 400, 790), accent)
+    scr_cp = cardputer(img, (560, 590, 990, 840), accent)
+
+    def arcs(dd, c):
+        a = [(220 + t * 150, 520 - 330 * math.sin(math.pi / 2 * t) + 10) for t in [i / 30 for i in range(31)]]
+        b = [(660 + t * 130, 300 + 280 * (1 - math.cos(math.pi / 2 * t))) for t in [i / 30 for i in range(31)]]
+        for pts in (a, b):
+            for i in range(0, 30, 5):
+                dd.line(pts[i:i + 4], fill=c, width=30)
+        # arrow heads
+        dd.polygon([(345, 230), (395, 205), (390, 262)], fill=c)
+        dd.polygon([(760, 560), (820, 560), (790, 610)], fill=c)
+    glow_draw(img, arcs, accent, blur=(22, 8))
+    glow_draw(img, lambda dd, c: spark(dd, 512, 250, 85, c), accent, blur=(16, 6))
+    # glowing prompt on the PC screen, sparkle on the Cardputer screen
+    glow_draw(img, lambda dd, c: (dd.line((scr_pc[0] + 40, scr_pc[1] + 50, scr_pc[0] + 90, scr_pc[1] + 90), fill=c, width=16),
+                                  dd.line((scr_pc[0] + 90, scr_pc[1] + 90, scr_pc[0] + 40, scr_pc[1] + 130), fill=c, width=16),
+                                  dd.line((scr_pc[0] + 120, scr_pc[1] + 140, scr_pc[0] + 210, scr_pc[1] + 140), fill=c, width=16)),
+              accent, blur=(14, 5))
+    glow_draw(img, lambda dd, c: spark(dd, (scr_cp[0] + scr_cp[2]) / 2, (scr_cp[1] + scr_cp[3]) / 2, 55, c), accent, blur=(14, 5))
+    screen_glass(img, scr_pc, 10)
+    screen_glass(img, scr_cp, 14)
+    return img
+
+
+MCP_SCENES = {"link": mcp_link, "nodes": mcp_nodes, "pocket": mcp_pocket, "cloud": mcp_cloud}
 
 
 def style_labeled(key, accent, name_on_top=False, scene=None):
