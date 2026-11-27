@@ -21,20 +21,23 @@ APP_TITLE = brand.APP_NAME
 HELP = (
     brand.APP_NAME + " turns this CardputerZero into an MCP server that AI apps can use from "
     "anywhere it has internet: Claude (phone app, claude.ai, Claude Code), ChatGPT "
-    "(developer mode connectors) and OpenAI Codex. They can run commands, read and change "
-    "files, install and run programs, and use TNT AV Net Tools.\n"
+    "(plugins) and OpenAI Codex. They can run commands, read and change "
+    "files, install and run programs, and use " + brand.NET_TOOLS + ".\n"
     "It connects out through a tunnel (ngrok or Cloudflare), so no ports are opened on the "
     "network you plug into.\n"
     "To connect: Setup > Connector address shows the address (text and QR). Add it as a "
     "custom connector / MCP server in your AI app, then choose Connect an AI app here: "
     "Claude and ChatGPT sign in with a code on the Allow page; Codex, Claude Code and other "
     "apps get an access key (a private address) shown on your computer.\n"
-    "While it is on, the title bar (here and in TNT apps) shows an orange dot (red when Admin "
+    "While it is on, the title bar (here and in " + brand.APPS_WORD + " apps) shows an orange dot (red when Admin "
     "/ sudo is allowed). Turn Remote access Off to cut every AI app off at once; "
     "Disconnect everyone forgets all sign-ins.\n"
     + (brand.CREDITS + "\n" if brand.CREDITS else "") +
-    "TheTechNomad.com"
+    "\n".join(brand.DEVELOPER)
 )
+
+ABOUT = (brand.APP_NAME + "\n" + brand.TAGLINE + ".\n\n" + "\n".join(brand.DEVELOPER)
+         + ("\n\n" + brand.CREDITS if brand.CREDITS else ""))
 
 
 def ago(t: float) -> str:
@@ -160,7 +163,8 @@ class Home(FormScreen):
                   T.Field("clients", "Connected apps", "action"),
                   T.Field("perms", "Permissions", "action"),
                   T.Field("setup", "Setup", "action"),
-                  T.Field("help", "Help", "action")]
+                  T.Field("help", "Help", "action"),
+                  T.Field("about", "About", "action")]
         super().__init__(app, APP_TITLE, T.EditList(fields, {"remote": control.is_on()}))
 
     def right(self):
@@ -209,6 +213,8 @@ class Home(FormScreen):
             app.push(SetupScreen(app))
         elif ev == "action:help":
             app.push(TextScreen(app, "Help", wrap(HELP, 30) + [f"Version {__version__}"]))
+        elif ev == "action:about":
+            app.push(TextScreen(app, "About", wrap(ABOUT, 30) + ["", f"Version {__version__}"]))
 
 
 class PairedScreen(TextScreen):

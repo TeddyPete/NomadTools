@@ -49,7 +49,7 @@ Section: net
 Priority: optional
 Homepage: https://TheTechNomad.com
 Description: Nomad AI Bridge: let your AI connect to and control your CardputerZero
- By Tech Nomad Ted, TheTechNomad.com. Formerly Nomad MCP.
+ Developed by TheTechNomad, www.TheTechNomad.com, github.com/TeddyPete.
  An MCP server for Claude, ChatGPT and Codex: AI apps (Claude, ChatGPT
  plugins, OpenAI Codex and other MCP clients) can use the
  CardputerZero from wherever it is plugged in: run commands, read and

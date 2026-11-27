@@ -15,3 +15,8 @@ MIGRATE_CLOUDFLARE = False      # new app: always starts on ngrok
 FIRST_RUN_WIZARD = True         # no tunnel yet: open straight into the ngrok setup wizard
 CREDITS = ("Powered by ngrok. Not affiliated with ngrok, Anthropic (Claude) or OpenAI "
            "(ChatGPT, Codex); those names are their owners' trademarks.")
+DEVELOPER = ("Developed by TheTechNomad", "www.TheTechNomad.com", "https://github.com/TeddyPete")
+TAGLINE = "Let your AI connect to and control your Cardputer Zero"
+OWNER = "the owner's"
+NET_TOOLS = "Nomad Net Tools"
+APPS_WORD = "Nomad"

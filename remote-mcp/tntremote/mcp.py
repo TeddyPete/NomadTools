@@ -10,16 +10,19 @@ from . import __version__, brand, config as C, nettools, statusview, tools as T
 
 PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
+DEV = getattr(brand, "DEVELOPER", ("Developed by TheTechNomad", "www.TheTechNomad.com"))
 INSTRUCTIONS = (
-    "You are connected to Ted's M5Stack CardputerZero (Raspberry Pi CM0, Debian 13 arm64, "
-    "352 MB RAM, 320x170 LCD, keyboard) through TNT MCP Link. Commands run as user 'pi' "
+    f"You are connected to {getattr(brand, 'OWNER', 'the owner' + chr(39) + 's')} M5Stack CardputerZero (Raspberry Pi CM0, Debian 13 arm64, "
+    f"352 MB RAM, 320x170 LCD, keyboard) through {brand.APP_NAME}. Commands run as user 'pi'. "
     "Set sudo=true on run_command/start_background to run as root (apt install, systemctl ...); "
-    "that only works while Ted has Admin (sudo) switched on in the device menu, otherwise ask him to turn it on. "
-    "Memory is tight: avoid heavy builds, prefer apt packages Ted installs or pure Python. "
+    "that only works while the owner has Admin (sudo) switched on in the device menu, otherwise ask them to turn it on. "
+    "Memory is tight: avoid heavy builds, prefer apt packages or pure Python. "
     "Use start_background for anything longer than a couple of minutes. "
-    "TNT apps live in /usr/share/APPLaunch/lib/<package>; source checkouts usually in ~/. "
-    "net_tool and av_device_info use TNT AV Net Tools for AV network checks. "
-    "screenshot_lcd shows what is on the built-in screen. Every call is logged on the device."
+    "Launcher apps live in /usr/share/APPLaunch/lib/<package>; source checkouts usually in ~/. "
+    f"net_tool and av_device_info use {getattr(brand, 'NET_TOOLS', 'the Net Tools app')} for AV network checks (when installed). "
+    "device_status gives a full status report; screenshot_lcd shows what is on the built-in screen. "
+    "Every call is logged on the device. "
+    f"About {brand.APP_NAME}: " + "; ".join(DEV) + "."
 )
 
 
@@ -62,12 +65,12 @@ TOOLS = [
     ("delete_path", "Delete a file, or a folder with recursive=true.",
      _s({"path": STR, "recursive": BOOL}, ["path"]), T.delete_path, False),
     ("screenshot_lcd", "Take a screenshot of the CardputerZero's built-in 320x170 screen.", _s({}), T.screenshot, True),
-    ("net_tool", "Run a TNT AV Net Tools check on the network the CardputerZero is plugged into and return the results as text. "
+    ("net_tool", "Run a " + getattr(brand, "NET_TOOLS", "Net Tools") + " check on the network the CardputerZero is plugged into and return the results as text. "
                  "iface is e.g. eth0 or wlan0 (blank = best interface); seconds = listen time for passive checks.",
      _s({"action": {"type": "string", "enum": list(nettools.ACTIONS)}, "iface": STR, "target": dict(STR, description="host for ping/traceroute/conflict"),
          "ip": dict(STR, description="device IP for control_port_check"), "count": STR, "size": STR, "seconds": STR,
          "extra_ports": dict(STR, description="extra ports, comma separated")}, ["action"]), nettools.net_tool, True),
-    ("av_device_info", "Log in to an AV device (Crestron, Extron, Q-SYS, Biamp, Shure, Netgear AV switch) and pull its info, the same as TNT AV Net Tools' device info. "
+    ("av_device_info", "Log in to an AV device (Crestron, Extron, Q-SYS, Biamp, Shure, Netgear AV switch) and pull its info, the same as " + getattr(brand, "NET_TOOLS", "Net Tools") + "' device info. "
                        "Credentials are used once and not stored. Crestron: VER, IPCONFIG, PROGCOMMENTS, uptime, IPTABLE (never ERRLOG).",
      _s({"brand": {"type": "string", "enum": nettools.BRANDS}, "ip": STR, "user": STR, "password": STR,
          "mode": dict(STR, description="optional: SSH / Telnet / Console etc.")}, ["brand", "ip"]), nettools.av_device_info, True),
@@ -127,7 +130,9 @@ def handle(msg, server, client: str) -> dict | None:
             ver = want if want in PROTOCOLS else PROTOCOLS[0]
             return _ok(mid, {"protocolVersion": ver, "capabilities": {"tools": {"listChanged": False}, "resources": {},
                                                                     "extensions": {"io.modelcontextprotocol/ui": {}}},
-                             "serverInfo": {"name": brand.CMD, "title": brand.APP_NAME + " (CardputerZero)", "version": __version__},
+                             "serverInfo": {"name": brand.CMD, "title": brand.APP_NAME + " (CardputerZero)", "version": __version__,
+                                            "description": getattr(brand, "TAGLINE", "") + ". " + DEV[0] + ".",
+                                            "websiteUrl": "https://www.TheTechNomad.com"},
                              "instructions": INSTRUCTIONS})
         if method == "ping":
             return _ok(mid, {})
