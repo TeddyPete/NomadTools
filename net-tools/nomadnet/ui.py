@@ -303,8 +303,10 @@ class AboutScreen(Screen):
     hint = "Scan for the website  Esc back"
 
     def view(self, rows: int) -> View:
-        lines = T.about_lines()
-        return View(self.title, [Line(lines[0], HEAD)] + [Line(t) for t in lines[1:]], self.hint, qr=T.WEBSITE_URL)
+        a = T.ABOUT    # short lines: the QR code takes the left half of the LCD
+        lines = [Line(a["name"], HEAD), Line(f"v{a['version']}  {a['license']} License", DIM),
+                 Line("Developed by"), Line(T.DEVELOPER), Line(T.WEBSITE), Line(T.GITHUB)]
+        return View(self.title, lines, self.hint, qr=T.WEBSITE_URL)
 
     def on_key(self, k: Key, app) -> None:
         if k.nav != "right":
