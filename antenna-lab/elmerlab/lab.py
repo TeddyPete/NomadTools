@@ -98,6 +98,8 @@ class Result:
     polarization: str = ""
     az_slice: list = field(default_factory=list)   # (phi, gain)
     el_slice: list = field(default_factory=list)   # (elev 0..180, gain)
+    pattern3d: list = field(default_factory=list)  # (theta, phi, gain) on a 6 x 10 degree grid
+    wires: list = field(default_factory=list)      # ((x, y, z), (x, y, z)) in metres
     free_space: bool = False
     warnings: list = field(default_factory=list)
     errors: list = field(default_factory=list)
@@ -162,6 +164,12 @@ def pattern_stats(r: Result, pts: list, free: bool) -> None:
         return idx.get((round(th, 6), round(ph % 360, 6)))
     r.gain, r.takeoff, r.azimuth = mx[4], 90 - mx[0], mx[1]
     r.az_slice = sorted([(p[1], p[4]) for p in pts if abs(p[0] - mx[0]) < 1e-6])
+    grid = {}
+    for p in pts:
+        th, ph = round(p[0]), round(p[1]) % 360
+        if th % 6 == 0 and ph % 10 == 0:
+            grid[(th, ph)] = p[4]
+    r.pattern3d = sorted((th, ph, g) for (th, ph), g in grid.items())
     thetas = sorted({p[0] for p in pts})
     el = []
     for th in thetas:
@@ -206,6 +214,7 @@ def run_design(t: Template, p: dict, mhz: float, ground: nec.Ground, material: s
     if t.ground == "mininec" and ground.kind == "real":
         ground = nec.Ground("real", ground.er, ground.sigma, "mininec")
     model = t.model(p, mhz, ground, material)
+    r.wires = [(tuple(w.a), tuple(w.b)) for w in model.wires]
     freqs = design_sweep(t, mhz, wide)
     segs, r.warnings = nec.segment_model(model, max(freqs + [mhz]))
     # 1) sweep: impedance only, split across the cores

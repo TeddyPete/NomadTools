@@ -43,6 +43,10 @@ def render_screens(out_dir: str) -> list:
     app.push(Pattern(app, d))
     shot("lcd_4_pattern")
     app.pop()
+    from .app import Pattern3D
+    app.push(Pattern3D(app, d))
+    shot("lcd_8_3d")
+    app.pop()
     app.push(CutList(app, d))
     shot("lcd_5_cut")
     app.pop()
@@ -67,4 +71,18 @@ def render_screens(out_dir: str) -> list:
     res = X.optimize_beam(y, dy.p, 14.15, "copper", "Balanced", rounds=6)
     app.push(Optimized(app, dy, res))
     shot("lcd_7_optimize")
+    app.pop()
+    for tid, mhz, name in (("ground-plane", 14.2, "lcd_9_3d_vertical"), ("dipole", 7.15, "lcd_9_3d_dipole")):
+        tv = TP.by_id(tid)
+        if not tv:
+            continue
+        dv = Design(app, tv)
+        dv.mhz = mhz
+        dv.p = tv.defaults(mhz)
+        dv.result = lab.run_design(tv, dv.p, mhz, nec.ground_of("average"), "copper", dv.device)
+        app.push(dv)
+        app.push(Pattern3D(app, dv))
+        shot(name)
+        app.pop()
+        app.pop()
     return files

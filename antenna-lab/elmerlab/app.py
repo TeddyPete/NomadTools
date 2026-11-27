@@ -9,6 +9,7 @@ import time
 import pygame
 
 from . import extras as X
+from . import icons as IC
 from . import lab, nec
 from . import lcd as L
 from . import nomadui as T
@@ -19,6 +20,12 @@ from .ui import BACK, DOWN, SELECT, UP, Busy, EditList, Field, Menu, Message, Sc
 APP_TITLE = "Ask Elmer"
 PKG = "askelmer-antenna-lab"
 FT = 3.28084
+T.ICON_DRAW = IC.draw
+
+
+def K(text, icon):
+    """A key 4-8 label with its icon."""
+    return (text, None, icon)
 
 HELP_MAIN = ("Ask Elmer Antenna Lab models real antennas with the NEC2 engine. Pick an antenna, set the "
              "frequency and the sizes, then Run (key 4) for feed impedance, SWR, gain and the radiation "
@@ -32,7 +39,10 @@ HELP_SWR = ("SWR against frequency into 50 ohm coax, through the matching device
             "design frequency; the green band is 2:1 or better. 5 sweeps wide. 6 Measure lays a real sweep over "
             "the model in green: from a NanoVNA on the USB port, or a Touchstone .s1p file from your home "
             "folder or a USB stick. A measurement through coax shows the SWR at the radio end.")
-HELP_PATTERN = "Left: azimuth (seen from above) at the main lobe's elevation. Right: elevation through the main lobe; the horizon is the bottom line. Rings are -3, -10 and -20 dB from the peak."
+HELP_3D = ("The whole radiation pattern in 3D, with the antenna in the middle. The shape reaches out where the "
+           "antenna is strong: amber is the peak, navy is 20 dB or more down. Left/Right turn it, Up/Down tilt it, "
+           "5 spins it. Over ground only the half above the ground is shown. ESC goes back.")
+HELP_PATTERN = "Left: azimuth (seen from above) at the main lobe's elevation. Right: elevation through the main lobe; the horizon is the bottom line. Rings are -3, -10 and -20 dB from the peak. 5 shows the whole pattern in 3D."
 
 
 def config_dir() -> str:
@@ -234,11 +244,11 @@ class Home(Menu):
 
     def __init__(self, app):
         items = [(f, (lambda f=f: app.push(Family(app, f))),
-                  str(sum(1 for t in TP.TEMPLATES if t.family == f))) for f in FAMILIES]
+                  str(sum(1 for t in TP.TEMPLATES if t.family == f)), L.FG, IC.FAMILY_ICON[f]) for f in FAMILIES]
         items.insert(0, ("Last design", lambda: open_design(app, app.st.tpl),
-                         lambda: TP.by_id(app.st.tpl).name if TP.by_id(app.st.tpl) else "", L.OK))
-        items += [("Settings", lambda: app.push(Settings(app)), lambda: app.st.units),
-                  ("About", lambda: app.push(Message(app, "About", HELP_MAIN)))]
+                         lambda: TP.by_id(app.st.tpl).name if TP.by_id(app.st.tpl) else "", L.OK, "last"))
+        items += [("Settings", lambda: app.push(Settings(app)), lambda: app.st.units, L.FG, "gear"),
+                  ("About", lambda: app.push(Message(app, "About", HELP_MAIN)), "", L.FG, "about")]
         super().__init__(app, APP_TITLE, items, "↑↓ move  OK open  ESC quit")
 
 
@@ -246,7 +256,8 @@ class Family(Menu):
     help = HELP_MAIN
 
     def __init__(self, app, fam):
-        items = [(t.name, (lambda t=t: open_design(app, t.id))) for t in TP.TEMPLATES if t.family == fam]
+        items = [(t.name, (lambda t=t: open_design(app, t.id)), "", L.FG, IC.for_template(t.id, t.family))
+                 for t in TP.TEMPLATES if t.family == fam]
         super().__init__(app, fam, items)
 
 
@@ -373,9 +384,9 @@ class Design(Screen):
         return f"{fmt_mhz(self.mhz)} MHz"
 
     def softkeys(self):
-        return [("Run", self.run), ("Tune", self.tune) if self.t.tune else None,
-                ("SWR", lambda: self.show(SwrChart)), ("Pattern", lambda: self.show(Pattern)),
-                ("Cut", self.cutlist)]
+        return [(K("Run", "run"), self.run), (K("Tune", "tune"), self.tune) if self.t.tune else None,
+                (K("SWR", "swr"), lambda: self.show(SwrChart)), (K("Pattern", "pattern"), lambda: self.show(Pattern)),
+                (K("Cut", "cut"), self.cutlist)]
 
     def rows(self):
         return self.form.view(self.nrows), None
@@ -526,9 +537,9 @@ class Results(Screen):
 
     def softkeys(self):
         d = self.d
-        return [("Design", lambda: self.app.pop(self)), ("Tune", self.tune) if d.t.tune else None,
-                ("SWR", lambda: self.app.push(SwrChart(self.app, d))),
-                ("Pattern", lambda: self.app.push(Pattern(self.app, d))), ("Cut", d.cutlist)]
+        return [(K("Design", "edit"), lambda: self.app.pop(self)), (K("Tune", "tune"), self.tune) if d.t.tune else None,
+                (K("SWR", "swr"), lambda: self.app.push(SwrChart(self.app, d))),
+                (K("Pattern", "pattern"), lambda: self.app.push(Pattern(self.app, d))), (K("Cut", "cut"), d.cutlist)]
 
     def tune(self):
         self.app.pop(self)
@@ -636,7 +647,7 @@ class CutList(Screen):
         self.top = 0
 
     def softkeys(self):
-        return [("Design", lambda: self.app.pop(self)), None, None, None, ("Units", self.flip)]
+        return [(K("Design", "edit"), lambda: self.app.pop(self)), None, None, None, (K("Units", "wide"), self.flip)]
 
     def flip(self):
         st = self.app.st
@@ -705,8 +716,9 @@ class Chart(Screen):
 
     def softkeys(self):
         d = self.d
-        return [("Design", self.to_design), ("Wide", self.toggle_wide) if isinstance(self, SwrChart) else None,
-                ("SWR", lambda: self.swap(SwrChart)), ("Pattern", lambda: self.swap(Pattern)), ("Cut", d.cutlist)]
+        return [(K("Design", "edit"), self.to_design), (K("3D", "3d"), lambda: self.swap(Pattern3D)),
+                (K("SWR", "swr"), lambda: self.swap(SwrChart)), (K("Pattern", "pattern"), lambda: self.swap(Pattern)),
+                (K("Cut", "cut"), d.cutlist)]
 
     def to_design(self):
         while self.app.stack and self.app.stack[-1] is not self.d:
@@ -733,8 +745,9 @@ class SwrChart(Chart):
 
     def softkeys(self):
         d = self.d
-        return [("Design", self.to_design), ("Wide", self.toggle_wide), ("Measure", self.measure),
-                ("Pattern", lambda: self.swap(Pattern)), ("Cut", d.cutlist)]
+        return [(K("Design", "edit"), self.to_design), (K("Wide", "wide"), self.toggle_wide),
+                (K("Measure", "measure"), self.measure), (K("Pattern", "pattern"), lambda: self.swap(Pattern)),
+                (K("Cut", "cut"), d.cutlist)]
 
     @property
     def measured(self):
@@ -889,6 +902,189 @@ class Pattern(Chart):
         surf.blit(img, (T.W - img.get_width() - 4, self.bot_y - 12))
         if r.fb is not None and r.fb > 3:
             surf.blit(tiny.render(f"F/B {r.fb:.0f} dB", True, AXIS), (4, self.bot_y - 12))
+
+
+# ---- 3D pattern -----------------------------------------------------------------------
+
+RAMP = [(0.0, (0x1A, 0x3A, 0x5C)), (0.45, (0x1F, 0x7A, 0x8C)), (0.75, (0x5C, 0xC0, 0x8A)),
+        (1.0, (0xE8, 0xA3, 0x3D))]   # navy, teal, green, amber
+
+
+def ramp(t: float):
+    t = max(0.0, min(1.0, t))
+    for (a, ca), (b, cb) in zip(RAMP, RAMP[1:]):
+        if t <= b:
+            k = (t - a) / (b - a)
+            return tuple(round(ca[i] + k * (cb[i] - ca[i])) for i in range(3))
+    return RAMP[-1][1]
+
+
+def pattern_mesh(r) -> tuple[list, list, list]:
+    """(rows of (x, y, z, level) on the unit sphere scaled by gain, theta list,
+    phi list) from r.pattern3d. level 0..1 over a 30 dB range."""
+    grid = {(th, ph): g for th, ph, g in r.pattern3d}
+    thetas = sorted({th for th, _ph in grid})
+    phis = sorted({ph for _th, ph in grid})
+    peak = r.gain if r.gain is not None else max(grid.values())
+    rows = []
+    for th in thetas:
+        row = []
+        for ph in phis:
+            g = grid.get((th, ph), peak - 40)
+            lv = max(0.0, 1 + (g - peak) / 30)
+            t_, p_ = math.radians(th), math.radians(ph)
+            row.append((lv * math.sin(t_) * math.cos(p_), lv * math.sin(t_) * math.sin(p_), lv * math.cos(t_), lv))
+        rows.append(row)
+    return rows, thetas, phis
+
+
+class Pattern3D(Chart):
+    help = HELP_3D
+    title = "3D pattern"
+    hint = "\u2190\u2192\u2191\u2193 turn  ESC back"
+
+    def __init__(self, app, design):
+        super().__init__(app, design)
+        self.yaw, self.pitch = -40.0, 25.0
+        self.spinning = False
+        self._last = 0.0
+        self._mesh = None
+
+    def softkeys(self):
+        d = self.d
+        return [(K("Design", "edit"), self.to_design),
+                (("Stop", L.WARN, "spin") if self.spinning else K("Spin", "spin"), self.toggle_spin),
+                (K("SWR", "swr"), lambda: self.swap(SwrChart)), (K("2D", "2d"), lambda: self.swap(Pattern)),
+                (K("Cut", "cut"), d.cutlist)]
+
+    def toggle_spin(self):
+        self.spinning = not self.spinning
+        self.app.wake()
+
+    def tick(self):
+        if self.spinning and time.monotonic() - self._last > 0.12:
+            self._last = time.monotonic()
+            self.yaw = (self.yaw + 8) % 360
+            self.app.wake()
+
+    def key(self, k):
+        n = k.name
+        if n == "esc":
+            self.app.pop(self)
+        elif n in ("left", "right"):
+            self.yaw = (self.yaw + (-15 if n == "left" else 15)) % 360
+        elif n in UP or n in DOWN:
+            self.pitch = max(-10.0, min(90.0, self.pitch + (10 if n in UP else -10)))
+        elif n in SELECT:
+            self.toggle_spin()
+
+    def mesh(self):
+        r = self.d.result
+        if self._mesh is None or self._mesh[0] is not r:
+            self._mesh = (r, pattern_mesh(r))
+        return self._mesh[1]
+
+    def view(self):
+        cy_, sy = math.cos(math.radians(self.yaw)), math.sin(math.radians(self.yaw))
+        ce, se = math.cos(math.radians(self.pitch)), math.sin(math.radians(self.pitch))
+
+        def v(x, y, z):
+            x1, y1 = x * cy_ - y * sy, x * sy + y * cy_
+            return x1, z * ce + y1 * se, y1 * ce - z * se   # screen x, screen up, depth (far +)
+        return v
+
+    def paint(self, surf, f):
+        r = self.d.result
+        tiny = f["tiny"]
+        if not r or not r.pattern3d:
+            surf.blit(f["small"].render("No pattern yet: Run first", True, L.DIM), (10, 60))
+            return
+        rows, thetas, phis = self.mesh()
+        v = self.view()
+        free = r.free_space
+        top, bot = self.top_y, self.bot_y
+        cx = 138
+        if free:
+            size, cy = (bot - top) / 2 - 2, (top + bot) / 2
+        else:
+            # fit the dome and the ground disc between the title and the key bar
+            ce, se = math.cos(math.radians(self.pitch)), abs(math.sin(math.radians(self.pitch)))
+            zmax = max(q[2] for row in rows for q in row)
+            above, below = zmax * ce + se, max(se, 0.08)
+            size = min(125.0, (bot - top - 6) / (above + below))
+            cy = top + 3 + above * size
+        surf.set_clip((0, top - 1, T.W, bot - top + 2))
+
+        def P(x, y, z):
+            sx_, sy_, d = v(x, y, z)
+            return cx + sx_ * size, cy - sy_ * size, d
+        # ground disc and the forward mark
+        if not free:
+            ring = [P(math.cos(a / 18 * math.pi), math.sin(a / 18 * math.pi), 0) for a in range(36)]
+            pygame.draw.polygon(surf, (0x17, 0x2E, 0x22), [(x, y) for x, y, _ in ring])
+            pygame.draw.polygon(surf, GRID, [(x, y) for x, y, _ in ring], 1)
+        fx, fy, _ = P(1.12, 0, 0)
+        ox, oy, _ = P(0, 0, 0)
+        pygame.draw.line(surf, AXIS, (ox, oy), (fx, fy))
+        # faces, far to near
+        light = (0.35, -0.45, 0.82)
+        faces = []
+        nth, nph = len(thetas), len(phis)
+        wrap_phi = phis and (phis[-1] - phis[0]) >= 300
+        for i in range(nth - 1):
+            for j in range(nph if wrap_phi else nph - 1):
+                j2 = (j + 1) % nph
+                a, b, c, d_ = rows[i][j], rows[i][j2], rows[i + 1][j2], rows[i + 1][j]
+                pa, pb, pc, pd = (P(*q[:3]) for q in (a, b, c, d_))
+                lv = (a[3] + b[3] + c[3] + d_[3]) / 4
+                if lv <= 0.01:
+                    continue
+                # normal from the diagonals (world space), for shading
+                u = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+                w = (d_[0] - b[0], d_[1] - b[1], d_[2] - b[2])
+                nx, ny, nz = u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]
+                ln = math.sqrt(nx * nx + ny * ny + nz * nz) or 1
+                vx, vy, vz = v(nx / ln, ny / ln, nz / ln)
+                shade = 0.55 + 0.45 * abs(vx * light[0] + vy * light[1] - vz * light[2])
+                col = tuple(min(255, round(ch * shade)) for ch in ramp(lv))
+                faces.append(((pa[2] + pb[2] + pc[2] + pd[2]) / 4, col,
+                              [(pa[0], pa[1]), (pb[0], pb[1]), (pc[0], pc[1]), (pd[0], pd[1])]))
+        faces.sort(key=lambda fc: -fc[0])
+        for _d, col, poly in faces:
+            pygame.draw.polygon(surf, col, poly)
+            pygame.draw.polygon(surf, tuple(ch * 3 // 4 for ch in col), poly, 1)
+        # the antenna, drawn on top so it shows through
+        if r.wires:
+            xs = [q[0] for w_ in r.wires for q in w_]
+            ys = [q[1] for w_ in r.wires for q in w_]
+            zs = [q[2] for w_ in r.wires for q in w_]
+            ext = max(max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs), 1e-6)
+            k = 0.55 / ext
+            mx_, my_ = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+            mz = (max(zs) + min(zs)) / 2 if free else min(zs) - 0.08 / k
+            for a, b in r.wires:
+                pa = P((a[0] - mx_) * k, (a[1] - my_) * k, (a[2] - mz) * k)
+                pb = P((b[0] - mx_) * k, (b[1] - my_) * k, (b[2] - mz) * k)
+                pygame.draw.line(surf, (255, 255, 255), pa[:2], pb[:2], 2)
+        surf.set_clip(None)
+        # labels and scale
+        surf.blit(tiny.render("front", True, AXIS), (fx + 2, fy - 7))
+        info = f"{r.gain:.1f} dBi" if r.gain is not None else ""
+        img = tiny.render(info, True, L.OK)
+        surf.blit(img, (T.W - img.get_width() - 4, top))
+        if r.takeoff is not None and not free:
+            img = tiny.render(f"{r.takeoff:.0f}\u00b0 up", True, AXIS)
+            surf.blit(img, (T.W - img.get_width() - 4, top + 14))
+        # colour key
+        kx, ky = T.W - 12, bot - 58
+        for i in range(48):
+            surf.fill(ramp(1 - i / 47), (kx, ky + i, 6, 1))
+        for txt, yy in (("0", ky - 6), ("-30", ky + 42)):
+            img = tiny.render(txt, True, AXIS)
+            surf.blit(img, (kx - img.get_width() - 3, yy))
+        surf.blit(tiny.render("dB", True, AXIS), (kx - 18, ky + 18))
+        if self.spinning:
+            surf.blit(tiny.render("spinning", True, L.WARN), (4, top))
 
 
 def main_ui() -> int:

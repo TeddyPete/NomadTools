@@ -94,6 +94,7 @@ SOFT_X = (49, 105, 161, 217, 273)   # recommended icon centres
 SOFT_Y = 153
 SOFT_SIZE = 22                 # recommended icon size (22 x 22)
 SOFT_W = 52                    # our label boxes are 52 wide so text fits
+ICON_DRAW = None               # optional fn(surf, name, cx, cy, size, color) for row and key icons
 KEYBAR_H = 30                  # bottom strip y 140..170
 ROWS_KEYS = (H - TITLE_H - KEYBAR_H - 2) // ROW_H   # 5 rows above a keybar
 KEYBAR_BG = BG
@@ -163,6 +164,7 @@ class RowView:
     state: str = "normal"       # normal | selected | editing | header
     color: Any = None
     cursor: int | None = None   # cursor position in value while editing
+    icon: str | None = None     # drawn by ICON_DRAW before the label
 
 
 @dataclass
@@ -408,12 +410,14 @@ def title_image(text: str, maxw: int = TITLE_MAX_W, f: dict | None = None):
 
 
 def as_view(row, selected: bool) -> RowView:
-    """Accept RowView, "text", (text, color) or (text, color, right_text)."""
+    """Accept RowView, "text", (text, color), (text, color, right_text) or
+    (text, color, right_text, icon)."""
     if isinstance(row, RowView):
         return row
     if isinstance(row, str):
         row = (row, FG)
-    return RowView(row[0], row[2] if len(row) > 2 else "", "selected" if selected else "normal", row[1])
+    return RowView(row[0], row[2] if len(row) > 2 else "", "selected" if selected else "normal", row[1],
+                   icon=row[3] if len(row) > 3 else None)
 
 
 def draw_mark(surf, x: int, y: int, h: int) -> int:
@@ -498,8 +502,12 @@ def draw_row(surf, font, y: int, r: RowView) -> None:
         lw = font.size(r.label)[0]
         vw = min(img.get_width(), max(W // 2, W - 12 - lw - 12))
         surf.blit(img, (W - vw - 6, y + 1), (0, 0, vw, ROW_H))
-    room = W - 12 - (vw + 10 if vw else 0)
-    surf.blit(font.render(r.label, True, color), (6, y + 1), (0, 0, room, ROW_H))
+    lx = 6
+    if r.icon and ICON_DRAW:
+        ICON_DRAW(surf, r.icon, 15, y + ROW_H / 2, 16, SEL_FG if sel else AMBER)
+        lx = 28
+    room = W - lx - 6 - (vw + 10 if vw else 0)
+    surf.blit(font.render(r.label, True, color), (lx, y + 1), (0, 0, room, ROW_H))
 
 
 # ---- keybar for number keys 4..8 -------------------------------------------------
@@ -511,10 +519,28 @@ def _fit(f: dict, text: str, width: int):
     return font
 
 
+_KEY_FONTS: dict = {}
+
+
+def _key_font(text: str, width: int):
+    """Condensed title face for labels that sit beside an icon."""
+    import pygame
+    for size in (15, 14, 13):
+        font = _KEY_FONTS.get(size)
+        if font is None:
+            import os
+            fp = next((q for q in TITLE_FONT_PATHS if os.path.exists(q)), None)
+            font = _KEY_FONTS[size] = pygame.font.Font(fp, size) if fp else pygame.font.Font(None, size + 4)
+        if font.size(text)[0] <= width:
+            break
+    return font
+
+
 def draw_keybar(surf, keys: list, f: dict | None = None, y0: int | None = None) -> None:
     """Labels for number keys 4..8 along the bottom, each with a short line
     pointing down to its key. keys: up to 5 labels, None/"" leaves a key out.
-    A label can be ("text", color) to tint it (e.g. red for Stop)."""
+    A label can be ("text", color) to tint it (e.g. red for Stop), or
+    ("text", color, icon) to put an icon (drawn by ICON_DRAW) beside it."""
     import pygame
     f = f or fonts()
     sw, sh = surf.get_size()
@@ -528,17 +554,30 @@ def draw_keybar(surf, keys: list, f: dict | None = None, y0: int | None = None) 
         lab = keys[i] if i < len(keys) else None
         if not lab:
             continue
-        color = SOFT_FG
+        color, icon = SOFT_FG, None
         if isinstance(lab, (tuple, list)):
-            lab, color = lab[0], lab[1]
+            lab, color, icon = lab[0], (lab[1] if len(lab) > 1 and lab[1] else SOFT_FG), \
+                (lab[2] if len(lab) > 2 else None)
         x = int(cx * sx)
         r = pygame.Rect(x - bw // 2, by, bw, bh)
         pygame.draw.rect(surf, SOFT_BG, r, border_radius=max(3, int(4 * sx)))
-        font = _fit(f, lab, bw - 4)
-        img = font.render(lab, True, color)
-        if img.get_width() > bw - 4:
-            img = pygame.transform.smoothscale(img, (bw - 4, img.get_height()))
-        surf.blit(img, (x - img.get_width() // 2, by + (bh - img.get_height()) // 2))
+        if icon and ICON_DRAW and sx == 1:
+            isz = 14
+            room = bw - isz - 7
+            font = _key_font(lab, room)
+            img = font.render(lab, True, color)
+            if img.get_width() > room:
+                img = pygame.transform.smoothscale(img, (room, img.get_height()))
+            total = isz + 3 + img.get_width()
+            left = x - total // 2
+            ICON_DRAW(surf, icon, left + isz / 2, by + bh / 2, isz, AMBER)
+            surf.blit(img, (left + isz + 3, by + (bh - img.get_height()) // 2))
+        else:
+            font = _fit(f, lab, bw - 4)
+            img = font.render(lab, True, color)
+            if img.get_width() > bw - 4:
+                img = pygame.transform.smoothscale(img, (bw - 4, img.get_height()))
+            surf.blit(img, (x - img.get_width() // 2, by + (bh - img.get_height()) // 2))
         surf.fill(SOFT_LINE, (x - max(1, int(sx)) // 2, by + bh + 1, max(1, int(sx)), sh - (by + bh + 1)))
 
 

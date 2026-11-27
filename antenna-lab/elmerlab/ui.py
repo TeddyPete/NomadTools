@@ -90,7 +90,8 @@ class Menu(Screen):
             color = it[3] if len(it) > 3 else L.FG
             color = color() if callable(color) else color
             text = f"{i + 1} {label}" if self.numbered and i < 9 else label
-            out.append((text, color, r or ""))
+            icon = it[4] if len(it) > 4 else None
+            out.append((text, color, r or "", icon) if icon else (text, color, r or ""))
         return out
 
     def rows(self):

@@ -444,7 +444,9 @@ ground_plane = Template(
                Param("droop", "Radial droop", "angle", 0, 60, help="About 45 deg brings the feed close to 50 ohms."),
                height_param("Feed point height"), conductor_param()],
     lambda mhz: {"length": wl(mhz) / 4 * 0.96, "radialLength": wl(mhz) / 4 * 1.02, "radials": 4, "droop": 40,
-                 "height": 6 if mhz > 50 else min(wl(mhz) * 0.15, 10), "conductor": "tube6" if mhz > 50 else "awg14"},
+                 # high enough that the drooping radials clear the ground by 1.5 m
+                 "height": 6 if mhz > 50 else max(min(wl(mhz) * 0.15, 10), wl(mhz) / 4 * 1.02 * math.sin(math.radians(40)) + 1.5),
+                 "conductor": "tube6" if mhz > 50 else "awg14"},
     _gp_build, {"param": "length", "mode": "reactance", "label": "radiator"}, feed="unbalanced")
 
 

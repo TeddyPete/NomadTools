@@ -20,7 +20,8 @@ Package `askelmer-antenna-lab`, share code `AEAL`, Python package `elmerlab`
   the antenna is resonant or has the lowest SWR.
 * **SWR (6)**: SWR across the band with the band edges; Wide (5 on that screen) sweeps far
   enough to see a multiband wire's other bands.
-* **Pattern (7)**: azimuth and elevation cuts through the main lobe.
+* **Pattern (7)**: azimuth and elevation cuts through the main lobe. **3D (5 there)**: the
+  whole pattern as a shaded shape with the antenna inside; arrows turn and tilt it, 5 spins it.
 * **Cut (8)**: what to cut and build, with coil recipes for traps and loading coils.
 * **Optimize the beam** (Yagi, new in 0.2): for most gain, best front/back or a balance. It
   searches the reflector and director lengths and the spacings in free space without making

@@ -1,6 +1,6 @@
 {
   "package_name": "askelmer-antenna-lab",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "app_name": "Ask Elmer Antenna Lab",
   "bin_name": "askelmer-antenna-lab",
   "description": "Model ham antennas with the NEC2 engine: SWR, gain, pattern, cut list",
@@ -17,6 +17,7 @@
       "screenshots/lcd_2_results.png",
       "screenshots/lcd_3_swr.png",
       "screenshots/lcd_4_pattern.png",
+      "screenshots/lcd_8_3d.png",
       "screenshots/lcd_5_cut.png",
       "screenshots/lcd_6_measured.png",
       "screenshots/lcd_7_optimize.png"
