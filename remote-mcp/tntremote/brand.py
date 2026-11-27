@@ -1,0 +1,19 @@
+"""Which app this build is. One source tree builds two separate apps that can be
+installed side by side (scripts/build_deb.sh tnt|nomad writes this file):
+
+  TNT MCP Link  (tnt-mcp-link)  Ted's own build; state folders keep the old
+                                tnt-remote name; port 8765
+  Nomad MCP     (nomad-mcp)     the public build: ngrok first, own folders,
+                                own service, port 8775
+
+Everything that must not clash between the two (folders, service, ports, root
+helper) comes from here.
+"""
+APP_NAME = "TNT MCP Link"
+CMD = "tnt-mcp-link"            # command / package name
+STATE = "tnt-remote"            # folder name under ~/.config, ~/.local/state, ~/.local/lib, $XDG_RUNTIME_DIR
+SERVICE = "tnt-remote.service"  # systemd user unit
+PORT = 8765                     # server, 127.0.0.1 only
+SETUP_PORT = 8766               # one-time ngrok token page on the LAN
+ROOTRUN = "/usr/lib/tnt-remote/rootrun"
+MIGRATE_CLOUDFLARE = True       # an existing Cloudflare token keeps the device on Cloudflare

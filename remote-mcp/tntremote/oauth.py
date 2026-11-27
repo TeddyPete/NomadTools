@@ -26,7 +26,7 @@ import threading
 import time
 from urllib.parse import urlparse
 
-from . import config as C
+from . import brand, config as C
 
 ACCESS_TTL = 3600
 REFRESH_TTL = 60 * 86400
@@ -98,7 +98,7 @@ def check_pairing(code: str) -> tuple[bool, str]:
     with _pair_lock:
         p = C.read_json(C.PAIR_FILE) or {}
         if not p.get("hash") or p.get("exp", 0) < time.time():
-            return False, "No pairing code is active. On the CardputerZero open TNT MCP Link and choose Pair new connection."
+            return False, "No pairing code is active. On the CardputerZero open " + brand.APP_NAME + " and choose Pair new connection."
         if hmac.compare_digest(p["hash"], _h(code)):
             clear_pairing()
             return True, ""

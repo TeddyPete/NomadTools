@@ -1,16 +1,17 @@
-"""Paths and settings for TNT MCP Link (was TNT Remote; the folders keep the
-old tnt-remote name so an upgrade keeps every setting, sign-in and tunnel).
+"""Paths and settings. Folder names come from brand.py: "tnt-remote" for
+TNT MCP Link (so an upgrade from TNT Remote keeps everything), "nomad-mcp"
+for Nomad MCP. Below, <app> is that name.
 
 Everything lives in the pi user's home, so the server never needs root:
 
-  ~/.config/tnt-remote/settings.json   public URL, port, permission switches
-  ~/.config/tnt-remote/tunnel.token    Cloudflare tunnel token (mode 600)
-  ~/.config/tnt-remote/ngrok.yml       ngrok authtoken (mode 600)
-  ~/.local/state/tnt-remote/auth.json  OAuth clients and hashed tokens (600)
-  ~/.local/state/tnt-remote/audit.log  one line per tool call
-  ~/.local/lib/tnt-remote/cloudflared  tunnel programs (downloaded, no root)
-  ~/.local/lib/tnt-remote/ngrok
-  $XDG_RUNTIME_DIR/tnt-remote/         status.json, pairing.json, "active"
+  ~/.config/<app>/settings.json   public URL, port, permission switches
+  ~/.config/<app>/tunnel.token    Cloudflare tunnel token (mode 600)
+  ~/.config/<app>/ngrok.yml       ngrok authtoken (mode 600)
+  ~/.local/state/<app>/auth.json  OAuth clients and hashed tokens (600)
+  ~/.local/state/<app>/audit.log  one line per tool call
+  ~/.local/lib/<app>/cloudflared  tunnel programs (downloaded, no root)
+  ~/.local/lib/<app>/ngrok
+  $XDG_RUNTIME_DIR/<app>/         status.json, pairing.json, "active"
 """
 from __future__ import annotations
 
@@ -18,11 +19,13 @@ import json
 import os
 import tempfile
 
+from . import brand
+
 HOME = os.path.expanduser("~")
-CONF_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "tnt-remote")
-STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"), "tnt-remote")
-LIB_DIR = os.path.join(HOME, ".local", "lib", "tnt-remote")
-RUN_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "tnt-remote")
+CONF_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), brand.STATE)
+STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"), brand.STATE)
+LIB_DIR = os.path.join(HOME, ".local", "lib", brand.STATE)
+RUN_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", brand.STATE)
 
 SETTINGS = os.path.join(CONF_DIR, "settings.json")
 TOKEN_FILE = os.path.join(CONF_DIR, "tunnel.token")
@@ -42,13 +45,13 @@ NGROK_CONF = os.path.join(CONF_DIR, "ngrok.yml")
 #   quick       Cloudflare quick tunnel: no account, but the address changes on every restart
 TUNNEL_KINDS = ("ngrok", "cloudflare", "quick")
 
-SERVICE = "tnt-remote.service"
+SERVICE = brand.SERVICE
 
 DEFAULTS = {
     "tunnel_kind": "",         # ngrok | cloudflare | quick ("" = decide on load, see load())
     "public_url": "",          # cloudflare only, e.g. https://cp0.example.workers.dev  (no trailing slash)
     "ngrok_url": "",           # ngrok only, optional: a reserved/custom domain. Empty = the account's free dev domain.
-    "port": 8765,
+    "port": brand.PORT,
     "tunnel_protocol": "auto", # auto (QUIC, falls back to http2) | quic | http2
     "allow_commands": True,    # run_command / background jobs
     "allow_sudo": False,       # run_command sudo=true (root). Only switched on from the device menu.
@@ -74,7 +77,8 @@ def load() -> dict:
     if cfg.get("tunnel_kind") not in TUNNEL_KINDS:
         # Devices set up before the tunnel choice existed have a Cloudflare token (or an
         # address): they stay on Cloudflare. Only a brand new device starts on ngrok.
-        cfg["tunnel_kind"] = "cloudflare" if (tunnel_token() or cfg["public_url"]) else "ngrok"
+        old = brand.MIGRATE_CLOUDFLARE and (tunnel_token() or cfg["public_url"])
+        cfg["tunnel_kind"] = "cloudflare" if old else "ngrok"
     return cfg
 
 

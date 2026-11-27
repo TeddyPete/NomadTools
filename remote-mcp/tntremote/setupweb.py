@@ -17,12 +17,12 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
-from . import config as C
+from . import brand, config as C
 
-PORT = 8766
+PORT = brand.SETUP_PORT
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TNT MCP Link setup</title><style>
+<title>{app} setup</title><style>
 body{{margin:0;font-family:system-ui,sans-serif;background:#0b0e14;color:#eee}}
 header{{background:#127834;padding:14px 18px;font-size:20px;font-weight:700}}
 main{{padding:18px;max-width:480px;margin:auto}} a{{color:#8fc1ff}}
@@ -30,7 +30,7 @@ textarea{{font-size:16px;width:100%;box-sizing:border-box;padding:10px;border-ra
 button{{margin-top:14px;width:100%;padding:14px;font-size:18px;font-weight:700;border:0;border-radius:8px;background:#1e5ac8;color:#fff}}
 .err{{background:#5a0808;padding:10px;border-radius:6px}} .ok{{background:#0f4d22;padding:10px;border-radius:6px}}
 small{{color:#8899aa}}</style></head>
-<body><header>TNT MCP Link &middot; ngrok setup</header><main>{body}</main></body></html>"""
+<body><header>{app} &middot; ngrok setup</header><main>{body}</main></body></html>"""
 
 FORM = """<p>1. Open <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank" rel="noopener">your ngrok authtoken page</a>
 (sign in or sign up free first) and tap <b>Copy</b>.</p>
@@ -60,7 +60,7 @@ class SetupWeb:
                 pass
 
             def reply(self, code: int, body: str):
-                data = PAGE.format(body=body).encode()
+                data = PAGE.format(app=html.escape(brand.APP_NAME), body=body).encode()
                 self.send_response(code)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(data)))

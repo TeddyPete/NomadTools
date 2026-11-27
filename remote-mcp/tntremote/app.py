@@ -11,15 +11,15 @@ import textwrap
 import threading
 import time
 
-from . import __version__, config as C, control, oauth
+from . import __version__, brand, config as C, control, oauth
 from . import lcd as L
 from . import tntui as T
 from .keys import Keyboard
 
-APP_TITLE = "TNT MCP Link"
+APP_TITLE = brand.APP_NAME
 
 HELP = (
-    "TNT MCP Link turns this CardputerZero into an MCP server that AI apps can use from "
+    brand.APP_NAME + " turns this CardputerZero into an MCP server that AI apps can use from "
     "anywhere it has internet: Claude (phone app, claude.ai, Claude Code), ChatGPT "
     "(developer mode connectors) and OpenAI Codex. They can run commands, read and change "
     "files, install and run programs, and use TNT AV Net Tools.\n"
@@ -28,7 +28,7 @@ HELP = (
     "To connect: Setup > Connector address shows the address (text and QR). Add it as a "
     "custom connector / MCP server in your AI app, then choose Pair new connection here "
     "and type the code on the Allow page.\n"
-    "While it is on, every TNT app shows an orange dot in its title bar (red when Admin "
+    "While it is on, the title bar (here and in TNT apps) shows an orange dot (red when Admin "
     "/ sudo is allowed). Turn Remote access Off to cut every AI app off at once; "
     "Disconnect everyone forgets all sign-ins.\n"
     "TheTechNomad.com"
@@ -615,7 +615,7 @@ class SetupScreen(FormScreen):
             app.push(TextScreen(app, "Tunnel token", wrap(
                 "The token comes from Cloudflare (Zero Trust > Networks > Tunnels). It is too long to type, "
                 "so load it over SSH:\n"
-                "tnt-mcp-link --set-token  (paste, then Ctrl+D)\n"
+                f"{brand.CMD} --set-token  (paste, then Ctrl+D)\n"
                 + ("A token is saved." if C.tunnel_token() else "No token saved yet."), 30)))
         elif ev == "action:cf":
             def job():
@@ -661,7 +661,7 @@ class App:
             self.stack.pop()
 
     def toast(self, text: str) -> None:
-        self.push(TextScreen(self, "TNT MCP Link", [(l, T.WARN) for l in wrap(text, 30)]))
+        self.push(TextScreen(self, APP_TITLE, [(l, T.WARN) for l in wrap(text, 30)]))
 
     def busy(self, label: str, fn) -> None:
         scr = TextScreen(self, label, [("Working...", T.DIM)])

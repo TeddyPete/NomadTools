@@ -16,7 +16,7 @@ import threading
 import time
 from collections import deque
 
-from . import config as C
+from . import brand, config as C
 
 MAX_OUT = 60_000          # characters returned per call
 MAX_READ = 2_000_000      # bytes read from a file per call
@@ -37,7 +37,7 @@ def _wpath(p: str, cfg: dict) -> str:
         for d in PROTECTED:
             d = os.path.realpath(d)
             if full == d or full.startswith(d + os.sep):
-                raise ToolError("TNT MCP Link's own settings, sign-ins and log can only be changed on the device")
+                raise ToolError(brand.APP_NAME + "'s own settings, sign-ins and log can only be changed on the device")
     return norm
 
 
@@ -117,19 +117,19 @@ def device_status(args: dict, cfg: dict, ctx) -> str:
 
 def _need(cfg: dict, key: str, what: str) -> None:
     if not cfg.get(key):
-        raise ToolError(f"{what} is switched off on the device (TNT MCP Link > Permissions).")
+        raise ToolError(f"{what} is switched off on the device (" + brand.APP_NAME + " > Permissions).")
 
 
-ROOTRUN = "/usr/lib/tnt-remote/rootrun"
+ROOTRUN = brand.ROOTRUN
 
 
 def _argv(cmd: str, args: dict, cfg: dict) -> list[str]:
     """bash -lc cmd, or as root through the sudo helper when asked and allowed."""
     if args.get("sudo"):
         if not cfg.get("allow_sudo"):
-            raise ToolError("Admin (sudo) is switched off. Ask Ted to turn on TNT MCP Link > Permissions > Admin (sudo) on the device.")
+            raise ToolError("Admin (sudo) is switched off. Ask the owner to turn on " + brand.APP_NAME + " > Permissions > Admin (sudo) on the device.")
         if not os.access(ROOTRUN, os.X_OK):
-            raise ToolError("the sudo helper is missing; reinstall the tnt-mcp-link package")
+            raise ToolError("the sudo helper is missing; reinstall the " + brand.CMD + " package")
         return ["sudo", "-n", ROOTRUN, cmd]
     return ["/bin/bash", "-lc", cmd]
 

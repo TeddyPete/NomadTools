@@ -6,7 +6,7 @@ import json
 import time
 import traceback
 
-from . import __version__, config as C, nettools, tools as T
+from . import __version__, brand, config as C, nettools, tools as T
 
 PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
@@ -122,7 +122,7 @@ def handle(msg, server, client: str) -> dict | None:
             want = params.get("protocolVersion")
             ver = want if want in PROTOCOLS else PROTOCOLS[0]
             return _ok(mid, {"protocolVersion": ver, "capabilities": {"tools": {"listChanged": False}},
-                             "serverInfo": {"name": "tnt-mcp-link", "title": "TNT MCP Link (CardputerZero)", "version": __version__},
+                             "serverInfo": {"name": brand.CMD, "title": brand.APP_NAME + " (CardputerZero)", "version": __version__},
                              "instructions": INSTRUCTIONS})
         if method == "ping":
             return _ok(mid, {})

@@ -19,7 +19,7 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from . import __version__, config as C, mcp, oauth
+from . import __version__, brand, config as C, mcp, oauth
 
 MAX_BODY = 8 * 1024 * 1024
 
@@ -210,18 +210,18 @@ def shutil_which(name: str) -> str | None:
 # ---- HTTP --------------------------------------------------------------------------
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TNT MCP Link</title><style>
+<title>{app}</title><style>
 body{{margin:0;font-family:system-ui,sans-serif;background:#0b0e14;color:#eee}}
 header{{background:#127834;padding:14px 18px;font-size:20px;font-weight:700}}
 main{{padding:18px;max-width:440px;margin:auto}} .who{{color:#9fb3c8}}
 input[type=text]{{font-size:26px;letter-spacing:4px;text-transform:uppercase;width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:2px solid #1e5ac8;background:#141a26;color:#fff}}
 button{{margin-top:16px;width:100%;padding:14px;font-size:18px;font-weight:700;border:0;border-radius:8px;background:#1e5ac8;color:#fff}}
 .err{{background:#5a0808;padding:10px;border-radius:6px}} small{{color:#8899aa}}</style></head>
-<body><header>TNT MCP Link &middot; CardputerZero</header><main>{body}</main></body></html>"""
+<body><header>{app} &middot; CardputerZero</header><main>{body}</main></body></html>"""
 
 
 def page(body: str) -> bytes:
-    return PAGE.format(body=body).encode()
+    return PAGE.format(body=body, app=html.escape(brand.APP_NAME)).encode()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -295,7 +295,7 @@ class Handler(BaseHTTPRequestHandler):
     def prm(self) -> dict:
         b = self.base()
         return {"resource": b + "/mcp", "authorization_servers": [b], "scopes_supported": [oauth.SCOPE],
-                "bearer_methods_supported": ["header"], "resource_name": "TNT MCP Link (CardputerZero)"}
+                "bearer_methods_supported": ["header"], "resource_name": brand.APP_NAME + " (CardputerZero)"}
 
     def asm(self) -> dict:
         b = self.base()
@@ -327,7 +327,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/mcp":
             return self.send(405, b"", headers={"Allow": "POST"})
         if path in ("/", "/health"):
-            return self.send(200, page("<p>TNT MCP Link is running. Add <b>" + html.escape(self.base()) +
+            return self.send(200, page(f"<p>{html.escape(brand.APP_NAME)} is running. Add <b>" + html.escape(self.base()) +
                                        "/mcp</b> as a custom connector (MCP server) in Claude, ChatGPT or Codex.</p>"), "text/html; charset=utf-8")
         self.send(404, b'{"error":"not found"}')
 
@@ -388,7 +388,7 @@ class Handler(BaseHTTPRequestHandler):
                                                          "code_challenge_method", "response_type", "scope", "resource"))
         st = oauth.pairing_state()
         info = (f"A code is showing on the device ({st['left'] // 60} min left)." if st["active"] else
-                "On the CardputerZero open <b>TNT MCP Link</b> and choose <b>Pair new connection</b>. A code appears on its screen.")
+                f"On the CardputerZero open <b>{html.escape(brand.APP_NAME)}</b> and choose <b>Pair new connection</b>. A code appears on its screen.")
         body = (f'<p><b class="who">{html.escape(g.get("client_name") or "An AI app")}</b> wants full control of this CardputerZero: '
                 f'run commands, read and change files, use Net Tools.</p><p>{info}</p>'
                 + (f'<p class="err">{html.escape(msg)}</p>' if msg else "") +
@@ -507,7 +507,7 @@ def serve() -> int:
     signal.signal(signal.SIGINT, bye)
     threading.Thread(target=app.run_tunnel, daemon=True).start()
     threading.Thread(target=reload_cfg, daemon=True).start()
-    print(f"TNT MCP Link {__version__} on 127.0.0.1:{cfg['port']}  tunnel: {cfg['tunnel_kind']}", flush=True)
+    print(f"{brand.APP_NAME} {__version__} on 127.0.0.1:{cfg['port']}  tunnel: {cfg['tunnel_kind']}", flush=True)
     try:
         httpd.serve_forever(poll_interval=1)
     finally:
