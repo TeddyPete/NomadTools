@@ -306,7 +306,7 @@ def style_device(key, accent, with_bg=True):
 
 # Name shown on the icon (Ted: the app name on the button, no compass badge).
 SHORT = {"av-tester": "AV TESTER", "net-tools": "NET TOOLS", "wifi-share": "WIFI SHARE",
-         "packet-capture": "PCAP", "display-control": "DISPLAY", "mcp": "MCP"}
+         "packet-capture": "PCAP", "display-control": "DISPLAY", "mcp": "AI BRIDGE"}
 
 
 def fit_font(text, maxw, start, minsize=60):
@@ -357,7 +357,7 @@ def spark(d, cx, cy, r, c):
 def mcp_link(key, accent):
     """Concept 1: the CardputerZero linked by a glowing signal to an AI chat bubble."""
     img = layer()
-    scr = cardputer(img, (40, 540, 640, 900), accent)
+    scr = cardputer(img, (40, 500, 640, 840), accent)
     # AI chat bubble, top right
     bx = (480, 60, 990, 440)
     shadow(img, bx, 90, off=(10, 30), blur=34, alpha=180)
@@ -369,7 +369,7 @@ def mcp_link(key, accent):
     glow_draw(img, lambda dd, c: spark(dd, 735, 250, 130, c), accent)
     glow_draw(img, lambda dd, c: spark(dd, 890, 140, 44, c), accent, blur=(14, 6))
     # signal arc from the device screen to the bubble
-    pts = [(250 + t * 270 - 40 * math.sin(math.pi * t), 610 - t * 150 - 140 * math.sin(math.pi * t)) for t in [i / 40 for i in range(41)]]
+    pts = [(250 + t * 270 - 40 * math.sin(math.pi * t), 570 - t * 110 - 140 * math.sin(math.pi * t)) for t in [i / 40 for i in range(41)]]
 
     def f(dd, c):
         for i in range(0, 40, 5):
@@ -439,9 +439,9 @@ def style_labeled(key, accent, name_on_top=False, scene=None):
     img = layer()
     background(img, accent)
     dev = MCP_SCENES[scene](key, accent) if scene else style_device(key, accent, with_bg=False)
-    k = 0.68 if scene else 0.64
+    k = 0.60 if scene else 0.64
     dev = dev.resize((int(S * k), int(S * k)), Image.LANCZOS)
-    img.alpha_composite(dev, (int((S - S * k) / 2), (205 if not scene else 195) if not name_on_top else 235))
+    img.alpha_composite(dev, (int((S - S * k) / 2), (205 if not scene else 238) if not name_on_top else 235))
     brand = ImageFont.truetype(FONT, 118)
     name = SHORT[key]
     f = fit_font(name, S - 170, 168)
