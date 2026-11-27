@@ -12,8 +12,8 @@ on the desktop.
 From the M5Stack app store, or build the package yourself on the device:
 
 ```bash
-git clone https://github.com/TeddyPete/ZeroAVTools.git
-cd ZeroAVTools/net-tools
+git clone https://github.com/TeddyPete/NomadTools.git
+cd NomadTools/net-tools
 ./scripts/build_deb.sh
 sudo apt install ./build/nomad-net-tools_*_all.deb
 ```

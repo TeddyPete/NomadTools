@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ZeroAVTools device check: reports what this CardputerZero can actually do
+# NomadTools device check: reports what this CardputerZero can actually do
 # for AV testing (HDMI modes, EDID, audio devices, camera modes, displays).
 # Safe to run: read-only, no settings are changed.
 # Usage: ./device_check.sh > device_report.txt 2>&1
