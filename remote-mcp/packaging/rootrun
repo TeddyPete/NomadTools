@@ -1,7 +1,7 @@
 #!/bin/sh
-# TNT Remote: run one command as root for Claude.
+# TNT MCP Link: run one command as root for the connected AI app.
 # The tnt-remote server only calls this (through "sudo -n") while
-# TNT Remote > Permissions > Admin (sudo) is switched on at the device.
+# TNT MCP Link > Permissions > Admin (sudo) is switched on at the device.
 # /etc/sudoers.d/tnt-remote lets the pi user run this file without a password.
 [ -n "$1" ] || { echo "usage: rootrun 'command'" >&2; exit 2; }
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

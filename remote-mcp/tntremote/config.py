@@ -1,12 +1,15 @@
-"""Paths and settings for TNT Remote.
+"""Paths and settings for TNT MCP Link (was TNT Remote; the folders keep the
+old tnt-remote name so an upgrade keeps every setting, sign-in and tunnel).
 
 Everything lives in the pi user's home, so the server never needs root:
 
   ~/.config/tnt-remote/settings.json   public URL, port, permission switches
   ~/.config/tnt-remote/tunnel.token    Cloudflare tunnel token (mode 600)
+  ~/.config/tnt-remote/ngrok.yml       ngrok authtoken (mode 600)
   ~/.local/state/tnt-remote/auth.json  OAuth clients and hashed tokens (600)
   ~/.local/state/tnt-remote/audit.log  one line per tool call
-  ~/.local/lib/tnt-remote/cloudflared  tunnel program (downloaded, no root)
+  ~/.local/lib/tnt-remote/cloudflared  tunnel programs (downloaded, no root)
+  ~/.local/lib/tnt-remote/ngrok
   $XDG_RUNTIME_DIR/tnt-remote/         status.json, pairing.json, "active"
 """
 from __future__ import annotations
@@ -30,11 +33,21 @@ STATUS_FILE = os.path.join(RUN_DIR, "status.json")
 PAIR_FILE = os.path.join(RUN_DIR, "pairing.json")
 ACTIVE_FLAG = os.path.join(RUN_DIR, "active")      # other TNT apps show a badge while it exists
 CLOUDFLARED = os.path.join(LIB_DIR, "cloudflared")
+NGROK = os.path.join(LIB_DIR, "ngrok")
+NGROK_CONF = os.path.join(CONF_DIR, "ngrok.yml")
+
+# How the device is reached from the internet:
+#   ngrok       free ngrok account, fixed https://<name>.ngrok-free.dev address (default for new devices)
+#   cloudflare  Cloudflare tunnel token + your own address (workers.dev or a domain): advanced
+#   quick       Cloudflare quick tunnel: no account, but the address changes on every restart
+TUNNEL_KINDS = ("ngrok", "cloudflare", "quick")
 
 SERVICE = "tnt-remote.service"
 
 DEFAULTS = {
-    "public_url": "",          # e.g. https://cp0.ted4ff.workers.dev  (no trailing slash)
+    "tunnel_kind": "",         # ngrok | cloudflare | quick ("" = decide on load, see load())
+    "public_url": "",          # cloudflare only, e.g. https://cp0.example.workers.dev  (no trailing slash)
+    "ngrok_url": "",           # ngrok only, optional: a reserved/custom domain. Empty = the account's free dev domain.
     "port": 8765,
     "tunnel_protocol": "auto", # auto (QUIC, falls back to http2) | quic | http2
     "allow_commands": True,    # run_command / background jobs
@@ -58,6 +71,10 @@ def load() -> dict:
     except (OSError, ValueError):
         pass
     cfg["public_url"] = str(cfg.get("public_url") or "").rstrip("/")
+    if cfg.get("tunnel_kind") not in TUNNEL_KINDS:
+        # Devices set up before the tunnel choice existed have a Cloudflare token (or an
+        # address): they stay on Cloudflare. Only a brand new device starts on ngrok.
+        cfg["tunnel_kind"] = "cloudflare" if (tunnel_token() or cfg["public_url"]) else "ngrok"
     return cfg
 
 
@@ -109,3 +126,27 @@ def set_tunnel_token(token: str) -> None:
     with os.fdopen(fd, "w") as f:
         f.write(token + "\n")
     os.replace(TOKEN_FILE + ".tmp", TOKEN_FILE)
+
+
+def ngrok_token() -> str:
+    try:
+        with open(NGROK_CONF) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("authtoken:"):
+                    return line.split(":", 1)[1].strip().strip('"')
+    except OSError:
+        pass
+    return ""
+
+
+def set_ngrok_token(token: str) -> None:
+    """ngrok agent config (v3 format) holding only the authtoken."""
+    ensure_dirs()
+    token = token.strip()
+    if not token or any(c.isspace() or c in "\"'\\" for c in token) or len(token) > 200:
+        raise ValueError("That doesn't look like an ngrok authtoken.")
+    fd = os.open(NGROK_CONF + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(f'version: "3"\nagent:\n  authtoken: "{token}"\n  update_check: false\n')
+    os.replace(NGROK_CONF + ".tmp", NGROK_CONF)

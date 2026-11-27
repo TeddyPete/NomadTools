@@ -65,7 +65,7 @@ def _run(module: str, func: str, kwargs: dict, timeout: int) -> str:
 def net_tool(args: dict, cfg: dict, ctx) -> str:
     from .tools import ToolError, _cap
     if not cfg.get("allow_net_tools"):
-        raise ToolError("Net Tools are switched off on the device (TNT Remote > Permissions).")
+        raise ToolError("Net Tools are switched off on the device (TNT MCP Link > Permissions).")
     action = str(args.get("action") or "")
     if action not in ACTIONS:
         raise ToolError("action must be one of: " + ", ".join(ACTIONS))
@@ -80,7 +80,7 @@ def net_tool(args: dict, cfg: dict, ctx) -> str:
 def av_device_info(args: dict, cfg: dict, ctx) -> str:
     from .tools import ToolError, _cap
     if not cfg.get("allow_net_tools"):
-        raise ToolError("Net Tools are switched off on the device (TNT Remote > Permissions).")
+        raise ToolError("Net Tools are switched off on the device (TNT MCP Link > Permissions).")
     brand = str(args.get("brand") or "").lower()
     if brand not in BRANDS:
         raise ToolError("brand must be one of: " + ", ".join(BRANDS))

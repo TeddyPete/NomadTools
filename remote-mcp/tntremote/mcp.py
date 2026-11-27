@@ -12,7 +12,7 @@ PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
 INSTRUCTIONS = (
     "You are connected to Ted's M5Stack CardputerZero (Raspberry Pi CM0, Debian 13 arm64, "
-    "352 MB RAM, 320x170 LCD, keyboard) through TNT Remote. Commands run as user 'pi' "
+    "352 MB RAM, 320x170 LCD, keyboard) through TNT MCP Link. Commands run as user 'pi' "
     "Set sudo=true on run_command/start_background to run as root (apt install, systemctl ...); "
     "that only works while Ted has Admin (sudo) switched on in the device menu, otherwise ask him to turn it on. "
     "Memory is tight: avoid heavy builds, prefer apt packages Ted installs or pure Python. "
@@ -122,7 +122,7 @@ def handle(msg, server, client: str) -> dict | None:
             want = params.get("protocolVersion")
             ver = want if want in PROTOCOLS else PROTOCOLS[0]
             return _ok(mid, {"protocolVersion": ver, "capabilities": {"tools": {"listChanged": False}},
-                             "serverInfo": {"name": "tnt-remote", "title": "TNT Remote (CardputerZero)", "version": __version__},
+                             "serverInfo": {"name": "tnt-mcp-link", "title": "TNT MCP Link (CardputerZero)", "version": __version__},
                              "instructions": INSTRUCTIONS})
         if method == "ping":
             return _ok(mid, {})

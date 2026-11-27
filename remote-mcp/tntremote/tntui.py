@@ -305,12 +305,12 @@ def as_view(row, selected: bool) -> RowView:
     return RowView(row[0], row[2] if len(row) > 2 else "", "selected" if selected else "normal", row[1])
 
 
-REMOTE_ON = (255, 150, 30)     # orange dot: TNT Remote is on (Claude can reach the device)
+REMOTE_ON = (255, 150, 30)     # orange dot: TNT MCP Link is on (Claude can reach the device)
 REMOTE_ROOT = (255, 60, 60)    # red dot: ... and Admin (sudo) is allowed
 
 
 def remote_state() -> str:
-    """"", "on" or "root": read from the flag file the TNT Remote server keeps."""
+    """"", "on" or "root": read from the flag file the TNT MCP Link server keeps."""
     import os
     run = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
     try:
@@ -323,7 +323,7 @@ def remote_state() -> str:
 def render(surf, title: str, rows: list, hint: str = "", selected: int | None = None,
            right: str = "", f: dict | None = None) -> None:
     """Draw a whole TNT screen: green title, up to ROWS rows, hint bar.
-    While TNT Remote is on, every TNT app shows an orange dot (red with sudo)
+    While TNT MCP Link is on, every TNT app shows an orange dot (red with sudo)
     at the right end of the title bar."""
     import pygame
     f = f or fonts()

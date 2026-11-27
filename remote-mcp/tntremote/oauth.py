@@ -1,17 +1,19 @@
-"""OAuth 2.1 authorization server for the claude.ai custom connector.
+"""OAuth 2.1 authorization server for MCP connectors (Claude, ChatGPT, Codex).
 
-claude.ai registers itself (Dynamic Client Registration, RFC 7591), sends the
+The AI app registers itself (Dynamic Client Registration, RFC 7591), sends the
 browser to /authorize with PKCE (S256), and swaps the code for tokens at
 /token. To approve a connection the person types the one-time pairing code
-that the CardputerZero shows on its own screen (TNT Remote > Pair new
+that the CardputerZero shows on its own screen (TNT MCP Link > Pair new
 connection). Nobody on the internet can get in without that code.
 
   * Pairing codes: 8 characters, one use, 10 minutes, 5 wrong tries and the
     code is burned.
   * Tokens are random 256-bit strings; only their SHA-256 is stored.
   * Access tokens last 1 hour; refresh tokens 60 days and rotate on each use.
-  * Redirects are only allowed back to Claude (claude.ai / claude.com) or to
-    localhost (Claude Code).
+  * Redirects are only allowed back to Claude (claude.ai / claude.com),
+    ChatGPT (chatgpt.com connector callbacks) or localhost (Claude Code, Codex
+    and other local MCP clients).
+  * The authorization response carries iss (RFC 9207), which ChatGPT checks.
 """
 from __future__ import annotations
 
@@ -37,7 +39,11 @@ ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"   # no 0/O, 1/I/L
 ALLOWED_REDIRECTS = {
     "https://claude.ai/api/mcp/auth_callback",
     "https://claude.com/api/mcp/auth_callback",
+    "https://chatgpt.com/connector_platform_oauth_redirect",
+    "https://platform.openai.com/apps-manage/oauth",
 }
+# ChatGPT's per-connector form: https://chatgpt.com/connector/oauth/<callback id>
+_PREFIXES = ("https://chatgpt.com/connector/oauth/",)
 SCOPE = "device"
 
 
@@ -48,6 +54,10 @@ def _h(s: str) -> str:
 def redirect_ok(uri: str) -> bool:
     if uri in ALLOWED_REDIRECTS:
         return True
+    for p in _PREFIXES:
+        rest = uri[len(p):] if uri.startswith(p) else ""
+        if rest and all(c.isalnum() or c in "-_" for c in rest):
+            return True
     try:
         u = urlparse(uri)
     except ValueError:
@@ -88,7 +98,7 @@ def check_pairing(code: str) -> tuple[bool, str]:
     with _pair_lock:
         p = C.read_json(C.PAIR_FILE) or {}
         if not p.get("hash") or p.get("exp", 0) < time.time():
-            return False, "No pairing code is active. On the CardputerZero open TNT Remote and choose Pair new connection."
+            return False, "No pairing code is active. On the CardputerZero open TNT MCP Link and choose Pair new connection."
         if hmac.compare_digest(p["hash"], _h(code)):
             clear_pairing()
             return True, ""
@@ -138,7 +148,7 @@ class Store:
     def register(self, meta: dict) -> dict:
         uris = meta.get("redirect_uris") or []
         if not isinstance(uris, list) or not uris or not all(isinstance(u, str) and redirect_ok(u) for u in uris):
-            raise ValueError("redirect_uris must point back to Claude (claude.ai or claude.com) or to localhost")
+            raise ValueError("redirect_uris must point back to Claude, ChatGPT or localhost")
         auth_method = meta.get("token_endpoint_auth_method") or "none"
         if auth_method != "none":
             auth_method = "none"   # public client; PKCE protects the code

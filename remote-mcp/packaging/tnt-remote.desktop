@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=TNT Remote
-Exec=bin/tnt-remote
-Terminal=false
-Icon=share/images/tnt-remote.png
-Type=Application

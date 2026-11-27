@@ -14,9 +14,11 @@ def render_screens(out_dir: str) -> None:
     app = A.App(panel, None)
     app.refresh = lambda now=False: None
     app.on = True
-    app.cfg["public_url"] = "https://cp0.ted4ff.workers.dev"
-    app.clients = [{"id": "x", "name": "Claude", "last_auth": time.time() - 300}]
-    app.status = {"tunnel": "connected", "tunnel_detail": "quic", "recent": [
+    app.cfg["tunnel_kind"] = "ngrok"
+    app.clients = [{"id": "x", "name": "Claude", "last_auth": time.time() - 300},
+                   {"id": "y", "name": "ChatGPT", "last_auth": time.time() - 900}]
+    app.status = {"tunnel": "connected", "tunnel_detail": "ngrok", "tunnel_kind": "ngrok",
+                  "public_url": "https://tnt-demo-cp0.ngrok-free.dev", "recent": [
         {"t": time.time() - 4, "text": "run_command"}, {"t": time.time() - 4, "text": "$ git pull && ./build.sh"},
         {"t": time.time() - 40, "text": "net_tool"}, {"t": time.time() - 41, "text": "net: find_av_gear"},
         {"t": time.time() - 300, "text": "paired: Claude"}]}
@@ -39,5 +41,15 @@ def render_screens(out_dir: str) -> None:
     shot()
     app.pop()
     app.push(A.SetupScreen(app))
+    shot()
+    app.pop()
+    app.push(A.ConnectorScreen(app))
+    shot()
+    app.pop()
+    app.push(A.TunnelPick(app))
+    shot()
+    app.pop()
+    app.push(A.QRScreen(app, "ngrok 1/3: account", A.NGROK_SIGNUP,
+                        "Scan with your phone and make a free ngrok account (or sign in). Then press OK.", lambda: None))
     shot()
     oauth.clear_pairing()

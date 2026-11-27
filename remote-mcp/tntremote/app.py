@@ -1,7 +1,7 @@
-"""TNT Remote: the app on the CardputerZero's own screen and keyboard.
+"""TNT MCP Link: the app on the CardputerZero's own screen and keyboard.
 
 Turns remote access on and off, shows the pairing code that approves a new
-Claude connection, shows what Claude is doing, and holds the permission
+AI app connection (Claude, ChatGPT, Codex), shows what it is doing, and holds the permission
 switches (including Admin / sudo).
 """
 from __future__ import annotations
@@ -16,19 +16,21 @@ from . import lcd as L
 from . import tntui as T
 from .keys import Keyboard
 
-APP_TITLE = "TNT Remote"
+APP_TITLE = "TNT MCP Link"
 
 HELP = (
-    "TNT Remote lets Claude (phone app, claude.ai, Claude Code) use this CardputerZero "
-    "from anywhere it has internet: run commands, read and change files, install and "
-    "run programs, and use TNT AV Net Tools.\n"
-    "It connects out through a Cloudflare tunnel, so no ports are opened on the network "
-    "you plug into.\n"
-    "To connect Claude: add the custom connector (address on the Status screen), then "
-    "choose Pair new connection here and type the code on the Allow page.\n"
+    "TNT MCP Link turns this CardputerZero into an MCP server that AI apps can use from "
+    "anywhere it has internet: Claude (phone app, claude.ai, Claude Code), ChatGPT "
+    "(developer mode connectors) and OpenAI Codex. They can run commands, read and change "
+    "files, install and run programs, and use TNT AV Net Tools.\n"
+    "It connects out through a tunnel (ngrok or Cloudflare), so no ports are opened on the "
+    "network you plug into.\n"
+    "To connect: Setup > Connector address shows the address (text and QR). Add it as a "
+    "custom connector / MCP server in your AI app, then choose Pair new connection here "
+    "and type the code on the Allow page.\n"
     "While it is on, every TNT app shows an orange dot in its title bar (red when Admin "
-    "/ sudo is allowed). Turn Remote access Off to cut Claude off at once; Disconnect "
-    "everyone forgets all sign-ins.\n"
+    "/ sudo is allowed). Turn Remote access Off to cut every AI app off at once; "
+    "Disconnect everyone forgets all sign-ins.\n"
     "TheTechNomad.com"
 )
 
@@ -185,8 +187,8 @@ class Home(FormScreen):
         app = self.app
         if ev == "changed:remote":
             want = bool(self.form.values["remote"])
-            if want and not C.tunnel_token():
-                app.toast("No tunnel set up yet. The server runs, but only on this device until Setup is done.")
+            if want and not tunnel_ready(app.cfg):
+                app.toast("The tunnel isn't set up yet. The server runs, but can't be reached until Setup is done.")
             err = control.set_on(want)
             if err:
                 app.toast("Could not switch: " + err)
@@ -206,7 +208,7 @@ class Home(FormScreen):
 
 
 class PairScreen(Screen):
-    """Big one-time code to type on the Allow page in Claude."""
+    """Big one-time code to type on the Allow page."""
     title = "Pair new connection"
     live = True
 
@@ -281,9 +283,9 @@ class ClientsScreen(Screen):
             def yes():
                 oauth.revoke_all()
                 self.app.refresh(now=True)
-                self.app.toast("Everyone disconnected. Claude must pair again.")
+                self.app.toast("Everyone disconnected. Each AI app must pair again.")
             self.app.push(Confirm(self.app, "Disconnect everyone",
-                                  "Forget every Claude sign-in? Each one has to pair again with a new code.", yes))
+                                  "Forget every sign-in (Claude, ChatGPT, Codex...)? Each one has to pair again with a new code.", yes))
         else:
             super().key(k)
 
@@ -307,9 +309,9 @@ class PermsScreen(FormScreen):
             def yes():
                 self.form.values["allow_sudo"] = True
                 self.save()
-                self.app.toast("Admin is ON: Claude can run commands as root. The dot in the title bar turns red.")
+                self.app.toast("Admin is ON: the AI can run commands as root. The dot in the title bar turns red.")
             self.app.push(Confirm(self.app, "Admin (sudo)",
-                                  "Let Claude run commands as root (apt install, system settings)? Turn it off when you're done.",
+                                  "Let the AI run commands as root (apt install, system settings)? Turn it off when you're done.",
                                   yes, T.BAD))
             return
         self.save()
@@ -321,13 +323,260 @@ class PermsScreen(FormScreen):
         self.app.cfg = cfg
 
 
+KIND_NAMES = {"ngrok": "ngrok", "cloudflare": "Cloudflare", "quick": "Quick test"}
+NGROK_SIGNUP = "https://dashboard.ngrok.com/signup"
+NGROK_TOKEN_PAGE = "https://dashboard.ngrok.com/get-started/your-authtoken"
+
+
+def tunnel_ready(cfg: dict) -> bool:
+    kind = cfg.get("tunnel_kind")
+    if kind == "cloudflare":
+        return bool(C.tunnel_token())
+    if kind == "ngrok":
+        return bool(C.ngrok_token())
+    return True
+
+
+class QRScreen(Screen):
+    """A QR code on the left, short text on the right. OK = next step (when there is one)."""
+    live = True
+
+    def __init__(self, app, title: str, url: str, text: str, on_ok=None, ok_label: str = "next"):
+        super().__init__(app)
+        self.title, self.url, self.text, self.on_ok, self.ok_label = title, url, text, on_ok, ok_label
+
+    def content(self) -> tuple[str, str, tuple]:
+        """(qr text, side text, side color). Subclasses make this live."""
+        return self.url, self.text, T.FG
+
+    def rows(self):
+        return []
+
+    def hint(self):
+        return f"OK {self.ok_label}   ESC back" if self.on_ok else "ESC back"
+
+    def draw_extra(self, surf):
+        from . import qr
+        url, text, color = self.content()
+        f = self.app.panel.fonts["small"]
+        top, bottom = T.TITLE_H + 3, T.H - T.HINT_H - 2
+        x = 4
+        if url:
+            try:
+                px = qr.draw(surf, url, 4, top, bottom - top)
+                x = px + 12
+            except Exception:
+                text = url + "\n" + text
+        width = T.W - x - 4
+        y = top
+        for line in self._wrap(f, text, width):
+            if y + 16 > bottom:
+                break
+            surf.blit(f.render(line, True, color), (x, y))
+            y += 16
+
+    @staticmethod
+    def _wrap(font, text: str, width: int) -> list:
+        out = []
+        for para in text.split("\n"):
+            line = ""
+            for word in para.split(" "):
+                cand = (line + " " + word).strip()
+                if font.size(cand)[0] <= width:
+                    line = cand
+                    continue
+                if line:
+                    out.append(line)
+                line = word
+                while font.size(line)[0] > width:      # long URL: break it by characters
+                    i = len(line)
+                    while i > 1 and font.size(line[:i])[0] > width:
+                        i -= 1
+                    out.append(line[:i])
+                    line = line[i:]
+            out.append(line)
+        return out
+
+    def key(self, k):
+        if k.name == "enter" and self.on_ok:
+            self.on_ok()
+        else:
+            super().key(k)
+
+
+class ConnectorScreen(QRScreen):
+    """The address to add in Claude / ChatGPT / Codex, as text and as a QR code."""
+    title = "Connector address"
+
+    def __init__(self, app):
+        super().__init__(app, "Connector address", "", "")
+
+    def content(self):
+        app = self.app
+        st, cfg = app.status, app.cfg
+        base = st.get("public_url") if st.get("tunnel_kind") == cfg.get("tunnel_kind") else ""
+        if not app.on:
+            return "", "Remote access is OFF. Turn it on in the main menu first.", T.BAD
+        if cfg.get("tunnel_kind") == "cloudflare":
+            base = cfg.get("public_url", "")
+            if not base:
+                return "", "No address set. Setup > Address (your workers.dev or domain address).", T.WARN
+        if not base or st.get("tunnel") != "connected":
+            return "", f"Waiting for the tunnel... {st.get('tunnel', '')} {st.get('tunnel_detail', '')}".strip(), T.WARN
+        extra = ("\nThis test address changes every time the device restarts." if cfg.get("tunnel_kind") == "quick" else "")
+        return base + "/mcp", "Add as a custom connector (MCP server) in Claude, ChatGPT or Codex:\n" + base + "/mcp" + extra, T.FG
+
+
+class TunnelPick(FormScreen):
+    """Choose how the device is reached: ngrok, Cloudflare or a quick test tunnel."""
+
+    def __init__(self, app):
+        fields = [T.Field("ngrok", "ngrok (easy, free)", "action"),
+                  T.Field("cloudflare", "Cloudflare (advanced)", "action"),
+                  T.Field("quick", "Quick test (no account)", "action"),
+                  T.Field("about", "Which one?", "action")]
+        super().__init__(app, "Tunnel type", T.EditList(fields, {}))
+        self.form.select(app.cfg.get("tunnel_kind", "ngrok"))
+
+    def rows(self):
+        rows = self.form.view(T.ROWS)
+        cur = self.app.cfg.get("tunnel_kind")
+        for r, f in zip(rows, self.form.shown()):
+            if f.key == cur:
+                r.value = "in use"
+        return rows
+
+    def event(self, ev):
+        if not ev.startswith("action:"):
+            return
+        kind = ev.split(":", 1)[1]
+        app = self.app
+        if kind == "about":
+            app.push(TextScreen(app, "Which tunnel?", wrap(
+                "ngrok: make a free ngrok account (QR codes guide you). You get a fixed address like "
+                "name.ngrok-free.dev that never changes. Best for most people.\n"
+                "Cloudflare: for people with a Cloudflare account (tunnel token plus a workers.dev or "
+                "domain address). Most control, most setup.\n"
+                "Quick test: works right away with no account, but the address changes every time the "
+                "device restarts, so the connector must be added again.", 30)))
+            return
+        cur = app.cfg.get("tunnel_kind")
+
+        def go():
+            if kind == "ngrok":
+                app.pop()
+                start_ngrok_wizard(app)
+            elif kind == "quick":
+                control.set_tunnel_kind("quick")
+                app.refresh(now=True)
+                app.pop()
+                app.push(ConnectorScreen(app))
+            else:
+                control.set_tunnel_kind("cloudflare")
+                app.refresh(now=True)
+                app.pop()
+                app.toast("Cloudflare selected. Set the Address and load the tunnel token (see Setup).")
+        if kind == cur and kind != "ngrok":
+            return go()
+        if kind != cur and tunnel_ready(app.cfg) and app.clients:
+            return app.push(Confirm(app, "Change tunnel",
+                                    f"Switch from {KIND_NAMES.get(cur, cur)} to {KIND_NAMES[kind]}? The connector "
+                                    "address changes, so every AI app has to add the new address and pair again.", go))
+        go()
+
+
+def start_ngrok_wizard(app, again: bool = False) -> None:
+    """3 QR steps: make an account, open the authtoken page, paste the token on the phone."""
+    def step3():
+        app.push(NgrokTokenScreen(app))
+
+    def step2():
+        app.push(QRScreen(app, "ngrok 2/3: authtoken", NGROK_TOKEN_PAGE,
+                          "Scan, sign in, and tap Copy next to your authtoken. Then press OK.", step3))
+    if C.ngrok_token() and control.ngrok_path() and not again:
+        # already set up: just switch over and show the address
+        control.set_tunnel_kind("ngrok")
+        app.refresh(now=True)
+        app.push(ConnectorScreen(app))
+        return
+    app.push(QRScreen(app, "ngrok 1/3: account", NGROK_SIGNUP,
+                      "Scan with your phone and make a free ngrok account (or sign in). Then press OK.", step2))
+
+
+class NgrokTokenScreen(QRScreen):
+    """Step 3: a page on this device where the phone pastes the token."""
+
+    def __init__(self, app):
+        super().__init__(app, "ngrok 3/3: paste token", "", "", self.type_it, "type it instead")
+        from .setupweb import SetupWeb
+        self.web = SetupWeb(on_saved=self.saved)
+        self.done = False
+        self.install = "" if control.ngrok_path() else "installing"
+        if self.install:
+            threading.Thread(target=self._install, daemon=True).start()
+        self.web.start()
+
+    def _install(self):
+        try:
+            control.install_ngrok(lambda m: None)
+            self.install = ""
+        except Exception as e:
+            self.install = f"ngrok download failed: {e}"
+
+    def saved(self):
+        self.done = True
+
+    def content(self):
+        if self.done and not self.install:
+            self.web.stop()
+            control.set_tunnel_kind("ngrok")
+            self.app.refresh(now=True)
+            self.app.pop()
+            self.app.push(ConnectorScreen(self.app))
+            return "", "", T.FG
+        if self.install.startswith("ngrok download failed"):
+            return "", self.install, T.BAD
+        if self.done:
+            return "", "Token saved. Downloading ngrok...", T.WARN
+        ip = control.lan_ip()
+        if not self.web.httpd or not ip:
+            return "", ("No network address yet. " if not ip else f"Setup page failed: {self.web.error}. ") + \
+                "Press OK to type the token instead.", T.WARN
+        return self.web.url(ip), "Phone on the same Wi-Fi/LAN: scan, paste the token, Save.\n" + self.web.url(ip), T.FG
+
+    def type_it(self):
+        scr = FormScreen(self.app, "ngrok authtoken", T.EditList(
+            [T.Field("tok", "Token", "text", maxlen=200, help="paste or type, OK saves")], {"tok": ""}))
+
+        def ev(e, scr=scr):
+            if e != "changed:tok":
+                return
+            try:
+                C.set_ngrok_token(scr.form.values["tok"])
+            except ValueError as err:
+                return self.app.toast(str(err))
+            self.done = True
+            self.app.pop()
+        scr.event = ev
+        self.app.push(scr)
+
+    def key(self, k):
+        if T.nav_name(k.name, k.char) in T.BACK:
+            self.web.stop()
+        super().key(k)
+
+
 class SetupScreen(FormScreen):
     live = True
 
     def __init__(self, app):
-        fields = [T.Field("public_url", "Address", "text", maxlen=120, help="https://..."),
-                  T.Field("token", "Tunnel token", "action"),
-                  T.Field("cf", "cloudflared", "action"),
+        cf = lambda v: app.cfg.get("tunnel_kind") == "cloudflare"
+        fields = [T.Field("kind", "Tunnel", "action"),
+                  T.Field("addr", "Connector address", "action"),
+                  T.Field("ngrok", "ngrok setup", "action", visible=lambda v: app.cfg.get("tunnel_kind") == "ngrok"),
+                  T.Field("public_url", "Address", "text", maxlen=120, help="https://...", visible=cf),
+                  T.Field("token", "Tunnel token", "action", visible=cf),
+                  T.Field("cf", "cloudflared", "action", visible=lambda v: app.cfg.get("tunnel_kind") != "ngrok"),
                   T.Field("log", "Recent tool calls", "action")]
         super().__init__(app, "Setup", T.EditList(fields, {"public_url": app.cfg.get("public_url", "")}))
         self.cfv = control.cloudflared_version()
@@ -335,15 +584,25 @@ class SetupScreen(FormScreen):
     def rows(self):
         rows = self.form.view(T.ROWS)
         for r in rows:
-            if r.label == "[ Tunnel token ]":
+            if r.label == "[ Tunnel ]":
+                r.value = KIND_NAMES.get(self.app.cfg.get("tunnel_kind"), "?")
+            elif r.label == "[ Tunnel token ]":
                 r.value = "set" if C.tunnel_token() else "missing"
+            elif r.label == "[ ngrok setup ]":
+                r.value = "done" if C.ngrok_token() else "start"
             elif r.label == "[ cloudflared ]":
                 r.value = self.cfv or "install"
         return rows
 
     def event(self, ev):
         app = self.app
-        if ev == "changed:public_url":
+        if ev == "action:kind":
+            app.push(TunnelPick(app))
+        elif ev == "action:addr":
+            app.push(ConnectorScreen(app))
+        elif ev == "action:ngrok":
+            start_ngrok_wizard(app, again=True)
+        elif ev == "changed:public_url":
             cfg = C.load()
             v = self.form.values["public_url"].strip().rstrip("/")
             if v and not v.startswith("https://"):
@@ -352,19 +611,17 @@ class SetupScreen(FormScreen):
             self.form.values["public_url"] = v
             C.save(cfg)
             app.cfg = cfg
-            control.restart()
         elif ev == "action:token":
             app.push(TextScreen(app, "Tunnel token", wrap(
-                "The token comes from Cloudflare (Workers VPC > Tunnels). It is too long to type, so it is "
-                "loaded over SSH or by Claude on Ted's PC:\n"
-                "tnt-remote --set-token  (paste, then Ctrl+D)\n"
+                "The token comes from Cloudflare (Zero Trust > Networks > Tunnels). It is too long to type, "
+                "so load it over SSH:\n"
+                "tnt-mcp-link --set-token  (paste, then Ctrl+D)\n"
                 + ("A token is saved." if C.tunnel_token() else "No token saved yet."), 30)))
         elif ev == "action:cf":
             def job():
                 try:
                     self.cfv = control.install_cloudflared(lambda m: None)
-                    control.restart()
-                    return f"cloudflared {self.cfv} installed."
+                    return f"cloudflared {self.cfv} installed. The tunnel restarts with it."
                 except Exception as e:
                     return f"Install failed: {e}"
             app.busy("Installing cloudflared", job)
@@ -404,7 +661,7 @@ class App:
             self.stack.pop()
 
     def toast(self, text: str) -> None:
-        self.push(TextScreen(self, "TNT Remote", [(l, T.WARN) for l in wrap(text, 30)]))
+        self.push(TextScreen(self, "TNT MCP Link", [(l, T.WARN) for l in wrap(text, 30)]))
 
     def busy(self, label: str, fn) -> None:
         scr = TextScreen(self, label, [("Working...", T.DIM)])
@@ -431,11 +688,12 @@ class App:
         st, cfg = self.status, self.cfg
         tun = st.get("tunnel", "off") if self.on else "off"
         col = T.OK if tun == "connected" else (T.WARN if self.on else T.DIM)
-        url = cfg.get("public_url") or "(no address set)"
+        base = cfg.get("public_url") if cfg.get("tunnel_kind") == "cloudflare" else st.get("public_url", "")
+        kind = KIND_NAMES.get(cfg.get("tunnel_kind"), "")
         out = [("Server: " + ("running" if self.on else "OFF"), T.OK if self.on else T.BAD),
-               (f"Tunnel: {tun} {st.get('tunnel_detail', '')}".strip(), col),
+               (f"Tunnel ({kind}): {tun} {st.get('tunnel_detail', '') if st.get('tunnel_detail') != cfg.get('tunnel_kind') else ''}".strip(), col),
                ("Connector address:", T.DIM)]
-        out += [(l, T.FG) for l in wrap(url + ("/mcp" if cfg.get("public_url") else ""), 30)]
+        out += [(l, T.FG) for l in wrap((base + "/mcp") if base else "(not known yet)", 30)]
         out.append((f"Connected: {len(self.clients)}   Admin: {'ON' if cfg.get('allow_sudo') else 'off'}",
                     T.BAD if cfg.get("allow_sudo") else T.FG))
         out.append(("Recent activity:", T.DIM))

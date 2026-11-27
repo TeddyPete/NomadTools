@@ -1,12 +1,12 @@
 {
-  "package_name": "tnt-remote",
-  "version": "0.1.0",
-  "app_name": "TNT Remote",
-  "bin_name": "tnt-remote",
-  "description": "Use this CardputerZero from Claude anywhere: commands, files, Net Tools",
+  "package_name": "tnt-mcp-link",
+  "version": "0.2.0",
+  "app_name": "TNT MCP Link",
+  "bin_name": "tnt-mcp-link",
+  "description": "Use this CardputerZero from Claude, ChatGPT or Codex anywhere: commands, files, Net Tools",
   "store": {
-    "summary": "TNT Remote: let Claude run commands and AV net tools on this device",
-    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Turns the CardputerZero into a remote MCP server that Claude (phone app, claude.ai or Claude Code) can use from anywhere the device has internet: run commands and long background jobs, read, write and edit files, install and run programs (with an Admin / sudo switch), take screenshots of the built-in screen, and run TNT AV Net Tools checks on the network it is plugged into (find AV gear, Dante, PTP, multicast, LLDP, DHCP and more). It connects out through a Cloudflare tunnel, so no ports are opened on the network. Claude signs in with OAuth plus a one-time pairing code shown on this screen. Turn remote access on or off, watch live activity, disconnect everyone and set permissions from the keyboard. While it is on, other TNT apps show a dot in their title bar.",
+    "summary": "TNT MCP Link: let your AI app run commands and AV net tools on this device",
+    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Turns the CardputerZero into an MCP server that AI apps (Claude, ChatGPT developer mode, OpenAI Codex and other MCP clients) can use from anywhere the device has internet: run commands and long background jobs, read, write and edit files, install and run programs (with an Admin / sudo switch), take screenshots of the built-in screen, and run TNT AV Net Tools checks on the network it is plugged into (find AV gear, Dante, PTP, multicast, LLDP, DHCP and more). It connects out through a free ngrok tunnel (QR codes on the screen walk you through it), a Cloudflare tunnel, or a no-account quick test tunnel, so no ports are opened on the network. Each app signs in with OAuth plus a one-time pairing code shown on this screen. Turn remote access on or off, watch live activity, disconnect everyone and set permissions from the keyboard. While it is on, other TNT apps show a dot in their title bar. Formerly TNT Remote.",
     "categories": [
       "Development",
       "AI"
@@ -16,7 +16,10 @@
       "screenshots/lcd_1.png",
       "screenshots/lcd_2.png",
       "screenshots/lcd_3.png",
-      "screenshots/lcd_4.png"
+      "screenshots/lcd_4.png",
+      "screenshots/lcd_5.png",
+      "screenshots/lcd_6.png",
+      "screenshots/lcd_7.png"
     ],
     "icon": "packaging/icon.png",
     "license": "MIT",
@@ -25,7 +28,7 @@
       "github": "TeddyPete",
       "display_name": "Tech Nomad Ted"
     },
-    "share_code": "TNTR",
+    "share_code": "TNTM",
     "permissions": {
       "camera": false,
       "microphone": false,

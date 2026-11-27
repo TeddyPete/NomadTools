@@ -1,8 +1,9 @@
 #!/bin/sh
-# APPLaunch entry point for TNT Remote (also /usr/bin/tnt-remote for SSH use,
-# e.g. tnt-remote --status). APPLaunch runs Exec without a shell, so the
+# APPLaunch entry point for TNT MCP Link (also /usr/bin/tnt-mcp-link for SSH use,
+# e.g. tnt-mcp-link --status; /usr/bin/tnt-remote is the old name).
+# APPLaunch runs Exec without a shell, so the
 # environment is set up here.
-APP_DIR=/usr/share/APPLaunch/lib/tnt-remote
+APP_DIR=/usr/share/APPLaunch/lib/tnt-mcp-link
 export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
 export PYGAME_HIDE_SUPPORT_PROMPT=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
 export PATH="${PATH:-/usr/bin:/bin}:/usr/sbin:/sbin"

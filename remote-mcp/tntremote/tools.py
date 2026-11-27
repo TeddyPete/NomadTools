@@ -1,4 +1,4 @@
-"""The tools Claude can call on the CardputerZero.
+"""The tools an AI app (Claude, ChatGPT, Codex) can call on the CardputerZero.
 
 Everything runs as the pi user (never root). Output is capped so a chatty
 command can't flood the phone app or use up the Pi's memory.
@@ -31,13 +31,13 @@ PROTECTED = (C.CONF_DIR, C.STATE_DIR, C.RUN_DIR)
 
 
 def _wpath(p: str, cfg: dict) -> str:
-    """A path Claude may change: not TNT Remote's own settings, tokens or log."""
+    """A path the AI may change: not TNT MCP Link's own settings, tokens or log."""
     norm = _path(p, cfg)
     for full in {norm, os.path.realpath(norm)}:
         for d in PROTECTED:
             d = os.path.realpath(d)
             if full == d or full.startswith(d + os.sep):
-                raise ToolError("TNT Remote's own settings, sign-ins and log can only be changed on the device")
+                raise ToolError("TNT MCP Link's own settings, sign-ins and log can only be changed on the device")
     return norm
 
 
@@ -117,7 +117,7 @@ def device_status(args: dict, cfg: dict, ctx) -> str:
 
 def _need(cfg: dict, key: str, what: str) -> None:
     if not cfg.get(key):
-        raise ToolError(f"{what} is switched off on the device (TNT Remote > Permissions).")
+        raise ToolError(f"{what} is switched off on the device (TNT MCP Link > Permissions).")
 
 
 ROOTRUN = "/usr/lib/tnt-remote/rootrun"
@@ -127,9 +127,9 @@ def _argv(cmd: str, args: dict, cfg: dict) -> list[str]:
     """bash -lc cmd, or as root through the sudo helper when asked and allowed."""
     if args.get("sudo"):
         if not cfg.get("allow_sudo"):
-            raise ToolError("Admin (sudo) is switched off. Ask Ted to turn on TNT Remote > Permissions > Admin (sudo) on the device.")
+            raise ToolError("Admin (sudo) is switched off. Ask Ted to turn on TNT MCP Link > Permissions > Admin (sudo) on the device.")
         if not os.access(ROOTRUN, os.X_OK):
-            raise ToolError("the sudo helper is missing; reinstall the tnt-remote package")
+            raise ToolError("the sudo helper is missing; reinstall the tnt-mcp-link package")
         return ["sudo", "-n", ROOTRUN, cmd]
     return ["/bin/bash", "-lc", cmd]
 

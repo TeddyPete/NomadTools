@@ -1,16 +1,20 @@
-"""Command line for TNT Remote.
+"""Command line for TNT MCP Link.
 
-  tnt-remote                     the app (LCD + keyboard)
-  tnt-remote --serve             the server (run by tnt-remote.service)
-  tnt-remote --status            server, tunnel and connection status
-  tnt-remote --on / --off        start (and start at boot) / stop the server
-  tnt-remote --pair              make a pairing code (to approve Claude)
-  tnt-remote --set-url URL       public address, e.g. https://cp0.ted4ff.workers.dev
-  tnt-remote --set-token         read the Cloudflare tunnel token from stdin
-  tnt-remote --install-cloudflared
-  tnt-remote --revoke-all        disconnect every client
-  tnt-remote --log               last tool calls
-  tnt-remote --screens DIR       render sample LCD screens to PNG
+  tnt-mcp-link                     the app (LCD + keyboard)
+  tnt-mcp-link --serve             the server (run by tnt-remote.service)
+  tnt-mcp-link --status            server, tunnel and connection status
+  tnt-mcp-link --on / --off        start (and start at boot) / stop the server
+  tnt-mcp-link --pair              make a pairing code (approves Claude, ChatGPT, Codex...)
+  tnt-mcp-link --url               print the connector address (https://.../mcp)
+  tnt-mcp-link --tunnel KIND       ngrok | cloudflare | quick
+  tnt-mcp-link --set-ngrok-token   read the ngrok authtoken from stdin
+  tnt-mcp-link --install-ngrok
+  tnt-mcp-link --set-url URL       Cloudflare: public address, e.g. https://cp0.example.workers.dev
+  tnt-mcp-link --set-token         Cloudflare: read the tunnel token from stdin
+  tnt-mcp-link --install-cloudflared
+  tnt-mcp-link --revoke-all        disconnect every client
+  tnt-mcp-link --log               last tool calls
+  tnt-mcp-link --screens DIR       render sample LCD screens to PNG
 """
 from __future__ import annotations
 
@@ -22,8 +26,9 @@ import sys
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for flag in ("--serve", "--status", "--on", "--off", "--pair", "--set-token", "--install-cloudflared",
-                 "--revoke-all", "--log"):
+                 "--revoke-all", "--log", "--url", "--set-ngrok-token", "--install-ngrok"):
         ap.add_argument(flag, action="store_true")
+    ap.add_argument("--tunnel", choices=("ngrok", "cloudflare", "quick"))
     ap.add_argument("--set-url")
     ap.add_argument("--screens", metavar="DIR")
     a = ap.parse_args(argv)
@@ -34,9 +39,12 @@ def main(argv=None) -> int:
     if a.status:
         st = C.read_json(C.STATUS_FILE) or {}
         cfg = C.load()
-        print(json.dumps({"running": control.is_on(), "public_url": cfg["public_url"], "mcp_url": (cfg["public_url"] + "/mcp") if cfg["public_url"] else "",
+        base = cfg["public_url"] if cfg["tunnel_kind"] == "cloudflare" else st.get("public_url", "")
+        print(json.dumps({"running": control.is_on(), "tunnel_kind": cfg["tunnel_kind"], "public_url": base,
+                          "mcp_url": (base + "/mcp") if base else "",
                           "tunnel": st.get("tunnel"), "tunnel_detail": st.get("tunnel_detail"),
-                          "token_set": bool(C.tunnel_token()), "cloudflared": control.cloudflared_version(),
+                          "token_set": bool(C.tunnel_token()), "ngrok_token_set": bool(C.ngrok_token()),
+                          "cloudflared": control.cloudflared_version(), "ngrok": control.ngrok_version(),
                           "clients": [c["name"] for c in oauth.Store().summary()], "pairing": oauth.pairing_state(),
                           "allow_sudo": cfg["allow_sudo"], "recent": st.get("recent", [])[:5]}, indent=1))
         return 0
@@ -44,6 +52,31 @@ def main(argv=None) -> int:
         err = control.set_on(bool(a.on))
         print(err or ("on" if a.on else "off"))
         return 1 if err else 0
+    if a.url:
+        st = C.read_json(C.STATUS_FILE) or {}
+        cfg = C.load()
+        base = cfg["public_url"] if cfg["tunnel_kind"] == "cloudflare" else st.get("public_url", "")
+        if not base:
+            print("no address yet (is it on and connected? see --status)", file=sys.stderr)
+            return 1
+        print(base + "/mcp")
+        return 0
+    if a.tunnel:
+        control.set_tunnel_kind(a.tunnel)
+        print("tunnel:", a.tunnel, "(the running server switches within a few seconds)")
+        return 0
+    if a.set_ngrok_token:
+        words = sys.stdin.read().split()
+        try:
+            C.set_ngrok_token(words[-1] if words else "")
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 1
+        print("ngrok authtoken saved")
+        return 0
+    if a.install_ngrok:
+        control.install_ngrok()
+        return 0
     if a.pair:
         print(oauth.new_pairing_code(), "(valid 10 minutes, one use)")
         return 0
@@ -61,7 +94,7 @@ def main(argv=None) -> int:
             print("that doesn't look like a tunnel token", file=sys.stderr)
             return 1
         C.set_tunnel_token(tok)
-        print("tunnel token saved;", control.restart() or "server restarted if it was on")
+        print("tunnel token saved; the running server picks it up within a few seconds")
         return 0
     if a.install_cloudflared:
         control.install_cloudflared()
