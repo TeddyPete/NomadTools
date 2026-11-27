@@ -19,4 +19,4 @@ its old `tnt-*` package when installed, and the app moves its old settings
 (`~/.config/tnt-*`, `~/TNT-Captures`, `~/TNT-Net-Reports`) to the new names the first time it starts.
 
 Icons come from [`branding/nomad_icons.py`](branding/nomad_icons.py)
-(`python3 branding/nomad_icons.py --style device --out DIR`).
+(`python3 branding/nomad_icons.py --style labeled --out DIR`).

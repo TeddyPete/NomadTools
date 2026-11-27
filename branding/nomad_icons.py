@@ -258,9 +258,10 @@ GLYPH = {"av-tester": g_av, "net-tools": g_net, "wifi-share": g_wifi, "packet-ca
 
 
 # ---------- styles ----------
-def style_device(key, accent):
+def style_device(key, accent, with_bg=True):
     img = layer()
-    background(img, accent)
+    if with_bg:
+        background(img, accent)
     if key == "display-control":
         # TV on a stand
         d = ImageDraw.Draw(img)
@@ -300,7 +301,52 @@ def style_device(key, accent):
         inner = (scr[0] + 40, scr[1] + 40, scr[2] - 40, scr[3] - 40)
         GLYPH[key](img, inner, accent)
         screen_glass(img, scr, 26)
-    compass_badge(img, 830, 190, 78, accent)
+    return img
+
+
+# Name shown on the icon (Ted: the app name on the button, no compass badge).
+SHORT = {"av-tester": "AV TESTER", "net-tools": "NET TOOLS", "wifi-share": "WIFI SHARE",
+         "packet-capture": "PCAP", "display-control": "DISPLAY", "mcp": "MCP"}
+
+
+def fit_font(text, maxw, start, minsize=60):
+    size = start
+    while size > minsize:
+        f = ImageFont.truetype(FONT, size)
+        if f.getlength(text) <= maxw:
+            return f
+        size -= 4
+    return ImageFont.truetype(FONT, minsize)
+
+
+def text_glow(img, xy, text, font, fill, glow, anchor="mm"):
+    l = layer()
+    ImageDraw.Draw(l).text(xy, text, font=font, fill=glow + (230,), anchor=anchor)
+    img.alpha_composite(l.filter(ImageFilter.GaussianBlur(14)))
+    sh = layer()
+    ImageDraw.Draw(sh).text((xy[0] + 4, xy[1] + 8), text, font=font, fill=(0, 0, 0, 200), anchor=anchor)
+    img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(5)))
+    ImageDraw.Draw(img).text(xy, text, font=font, fill=fill, anchor=anchor)
+
+
+def style_labeled(key, accent, name_on_top=False):
+    """Device art, scaled down, with NOMAD and the app name as text.
+    Default: NOMAD on top, app name across the bottom. name_on_top swaps them."""
+    img = layer()
+    background(img, accent)
+    dev = style_device(key, accent, with_bg=False)
+    k = 0.64
+    dev = dev.resize((int(S * k), int(S * k)), Image.LANCZOS)
+    img.alpha_composite(dev, (int((S - S * k) / 2), 205 if not name_on_top else 235))
+    brand = ImageFont.truetype(FONT, 118)
+    name = SHORT[key]
+    f = fit_font(name, S - 170, 168)
+    if name_on_top:
+        text_glow(img, (S / 2, 190), name, f, accent + (255,), accent)
+        text_glow(img, (S / 2, 878), "NOMAD", brand, (240, 244, 250, 255), accent)
+    else:
+        text_glow(img, (S / 2, 178), "NOMAD", brand, (240, 244, 250, 255), accent)
+        text_glow(img, (S / 2, 868), name, f, accent + (255,), accent)
     return img
 
 
@@ -330,13 +376,15 @@ def style_compass(key, accent):
 
 
 def render(style, key, accent):
-    img = (style_device if style == "device" else style_compass)(key, accent)
+    fn = {"device": style_device, "compass": style_compass, "labeled": style_labeled,
+          "labeled-top": lambda k, a: style_labeled(k, a, True)}[style]
+    img = fn(key, accent)
     return img
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--style", choices=["device", "compass"], default="device")
+    ap.add_argument("--style", choices=["labeled", "labeled-top", "device", "compass"], default="labeled")
     ap.add_argument("--out", required=True)
     ap.add_argument("--sheet")
     ap.add_argument("--only")
