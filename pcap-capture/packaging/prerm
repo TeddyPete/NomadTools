@@ -1,0 +1,14 @@
+#!/bin/sh
+# Stop a capture that is still running before the app's files go away.
+set +e
+for d in /run/user/*/tnt-packet-capture /tmp/tnt-packet-capture; do
+  [ -f "$d/state.json" ] || continue
+  pid=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('pid') or '')" "$d/state.json" 2>/dev/null)
+  [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
+done
+sleep 1
+# take any inline-tap bridge down (gives the ports back to NetworkManager)
+for u in $(systemctl list-units --plain --no-legend 'tnt-packet-capture-tap@*' 2>/dev/null | awk '{print $1}'); do
+  systemctl stop "$u"
+done
+exit 0

@@ -1,0 +1,12 @@
+# TNT WiFi Share: NAT and IP forwarding for the shared interface %i.
+# Started and stopped by the app only; never enabled, so nothing of it
+# survives a reboot.
+[Unit]
+Description=TNT WiFi Share NAT on %i
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/tnt-wifi-share/nat-helper start %i
+ExecStop=/usr/lib/tnt-wifi-share/nat-helper stop %i

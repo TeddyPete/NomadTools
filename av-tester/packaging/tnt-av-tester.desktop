@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=TNT AV Tester
+Exec=bin/tnt-av-tester
+Terminal=false
+Icon=share/images/tnt-av-tester.png
+Type=Application
