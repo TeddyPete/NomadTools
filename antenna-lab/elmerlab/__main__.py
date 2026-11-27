@@ -56,7 +56,7 @@ def main(argv=None) -> int:
         print(f"  Z = {r.zr:.1f} {r.zi:+.1f}j ohm   SWR {r.swr:.2f} via {lab.DEVICES[t.device][0]}")
         print(f"  resonances {[round(x, 4) for x in r.resonances]}  min SWR {r.min_swr[1]:.2f} @ {r.min_swr[0]:.4f}")
         if r.gain is not None:
-            print(f"  gain {r.gain:.2f} dBi  takeoff {r.takeoff:.0f} deg  F/B {r.fb}  eff {r.efficiency}")
+            print(f"  gain {r.gain:.2f} dBi  takeoff {r.takeoff:.0f} deg  F/B {r.fb:.1f}  eff {r.efficiency:.0f}%")
         for c in t.build(p, mhz).cut:
             print(f"  cut: {c.part}: {'' if c.length is None else f'{c.length:.3f} m'} {'x' + str(c.qty) if c.qty else ''}")
         for w in r.warnings + r.errors:
