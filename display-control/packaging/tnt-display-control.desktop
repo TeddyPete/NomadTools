@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=TNT Display Control
+Exec=bin/tnt-display-control
+Terminal=false
+Icon=share/images/tnt-display-control.png
+Type=Application
