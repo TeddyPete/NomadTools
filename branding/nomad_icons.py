@@ -329,15 +329,119 @@ def text_glow(img, xy, text, font, fill, glow, anchor="mm"):
     ImageDraw.Draw(img).text(xy, text, font=font, fill=fill, anchor=anchor)
 
 
-def style_labeled(key, accent, name_on_top=False):
+# ---------- Nomad MCP scene concepts (what it does) ----------
+def cardputer(img, box, accent):
+    """Little CardputerZero: screen on the left, keyboard grid on the right."""
+    x0, y0, x1, y1 = box
+    device_body(img, box, 40, 24, (92, 98, 110), (36, 40, 48))
+    w, h = x1 - x0, y1 - y0
+    scr = (x0 + w * 0.07, y0 + h * 0.14, x0 + w * 0.47, y0 + h * 0.86)
+    screen(img, scr, 14)
+    d = ImageDraw.Draw(img)
+    kx0, ky0 = x0 + w * 0.53, y0 + h * 0.16
+    kw, kh = w * 0.42 / 5, h * 0.68 / 4
+    for r in range(4):
+        for c in range(5):
+            d.rounded_rectangle((kx0 + c * kw + 3, ky0 + r * kh + 3, kx0 + (c + 1) * kw - 3, ky0 + (r + 1) * kh - 3), 6,
+                                fill=(24, 26, 32, 255))
+    return scr
+
+
+def spark(d, cx, cy, r, c):
+    """Four-point AI sparkle."""
+    k = r * 0.28
+    d.polygon([(cx, cy - r), (cx + k, cy - k), (cx + r, cy), (cx + k, cy + k), (cx, cy + r), (cx - k, cy + k),
+               (cx - r, cy), (cx - k, cy - k)], fill=c)
+
+
+def mcp_link(key, accent):
+    """Concept 1: the CardputerZero linked by a glowing signal to an AI chat bubble."""
+    img = layer()
+    scr = cardputer(img, (40, 540, 640, 900), accent)
+    # AI chat bubble, top right
+    bx = (480, 60, 990, 440)
+    shadow(img, bx, 90, off=(10, 30), blur=34, alpha=180)
+    fill_grad(img, bx, 90, (70, 76, 90), (26, 29, 36))
+    d = ImageDraw.Draw(img)
+    d.polygon([(580, 420), (520, 530), (690, 432)], fill=(30, 33, 41, 255))
+    gloss(img, bx, 90, 70)
+    rim(img, bx, 90, (255, 255, 255, 60), 5)
+    glow_draw(img, lambda dd, c: spark(dd, 735, 250, 130, c), accent)
+    glow_draw(img, lambda dd, c: spark(dd, 890, 140, 44, c), accent, blur=(14, 6))
+    # signal arc from the device screen to the bubble
+    pts = [(250 + t * 270 - 40 * math.sin(math.pi * t), 610 - t * 150 - 140 * math.sin(math.pi * t)) for t in [i / 40 for i in range(41)]]
+
+    def f(dd, c):
+        for i in range(0, 40, 5):
+            dd.line(pts[i:i + 4], fill=c, width=30)
+    glow_draw(img, f, accent, blur=(22, 8))
+    glow_draw(img, lambda dd, c: spark(dd, (scr[0] + scr[2]) / 2, (scr[1] + scr[3]) / 2, 60, c), accent, blur=(16, 6))
+    screen_glass(img, scr, 14)
+    return img
+
+
+def mcp_nodes(key, accent):
+    """Concept 2: a hub with linked nodes (device, AI, tools), MCP-inspired but not its logo."""
+    img = layer()
+    cx, cy = 512, 520
+    ends = [(cx, cy - 330), (cx - 330, cy + 220), (cx + 330, cy + 220)]
+
+    def links(dd, c):
+        for e in ends:
+            dd.line(((cx, cy), e), fill=c, width=30)
+    glow_draw(img, links, accent, blur=(24, 9))
+    # hub
+    r = 150
+    shadow(img, (cx - r, cy - r, cx + r, cy + r), r, off=(8, 26), blur=30, alpha=200)
+    fill_grad(img, (cx - r, cy - r, cx + r, cy + r), r, (96, 102, 116), (34, 37, 45))
+    gloss(img, (cx - r, cy - r, cx + r, cy + r), r, 90)
+    glow_draw(img, lambda dd, c: spark(dd, cx, cy, 95, c), accent, blur=(18, 6))
+    # end nodes: AI spark, chat dots, wrench-ish tool
+    for i, (ex, ey) in enumerate(ends):
+        rr = 125
+        b = (ex - rr, ey - rr, ex + rr, ey + rr)
+        shadow(img, b, rr, off=(6, 20), blur=24, alpha=190)
+        fill_grad(img, b, 34, (84, 90, 104), (30, 33, 41))
+        gloss(img, b, 34, 80)
+        rim(img, b, 34, (255, 255, 255, 60), 4)
+        if i == 0:
+            glow_draw(img, lambda dd, c: [dd.ellipse((ex - 70 + k * 55, ey - 16, ex - 38 + k * 55, ey + 16), fill=c) for k in range(3)], accent, blur=(14, 5))
+        elif i == 1:
+            glow_draw(img, lambda dd, c: (dd.rounded_rectangle((ex - 70, ey - 50, ex + 70, ey + 40), 12, outline=c, width=16),
+                                          dd.line((ex - 40, ey + 68, ex + 40, ey + 68), fill=c, width=16)), accent, blur=(14, 5))
+        else:
+            glow_draw(img, lambda dd, c: (dd.line((ex - 60, ey + 60, ex + 26, ey - 26), fill=c, width=30),
+                                          dd.arc((ex - 4, ey - 94, ex + 94, ey + 4), 90, 360, fill=c, width=26)), accent, blur=(14, 5))
+    return img
+
+
+def mcp_pocket(key, accent):
+    """Concept 3: the CardputerZero with an AI spark on its screen and signal waves out."""
+    img = layer()
+    scr = cardputer(img, (130, 380, 894, 840), accent)
+    sx, sy = (scr[0] + scr[2]) / 2, (scr[1] + scr[3]) / 2
+    glow_draw(img, lambda dd, c: spark(dd, sx, sy, 100, c), accent)
+    screen_glass(img, scr, 14)
+
+    def waves(dd, c):
+        for i, rr in enumerate((90, 170, 250)):
+            dd.arc((512 - rr, 330 - rr, 512 + rr, 330 + rr), 225, 315, fill=c, width=24)
+    glow_draw(img, waves, accent)
+    return img
+
+
+MCP_SCENES = {"link": mcp_link, "nodes": mcp_nodes, "pocket": mcp_pocket}
+
+
+def style_labeled(key, accent, name_on_top=False, scene=None):
     """Device art, scaled down, with NOMAD and the app name as text.
     Default: NOMAD on top, app name across the bottom. name_on_top swaps them."""
     img = layer()
     background(img, accent)
-    dev = style_device(key, accent, with_bg=False)
-    k = 0.64
+    dev = MCP_SCENES[scene](key, accent) if scene else style_device(key, accent, with_bg=False)
+    k = 0.68 if scene else 0.64
     dev = dev.resize((int(S * k), int(S * k)), Image.LANCZOS)
-    img.alpha_composite(dev, (int((S - S * k) / 2), 205 if not name_on_top else 235))
+    img.alpha_composite(dev, (int((S - S * k) / 2), (205 if not scene else 195) if not name_on_top else 235))
     brand = ImageFont.truetype(FONT, 118)
     name = SHORT[key]
     f = fit_font(name, S - 170, 168)
@@ -388,13 +492,17 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--sheet")
     ap.add_argument("--only")
+    ap.add_argument("--mcp-scene", choices=sorted(MCP_SCENES), help="Nomad MCP art: link, nodes or pocket")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     tiles = []
     for key, label, accent in APPS:
         if a.only and key != a.only:
             continue
-        big = render(a.style, key, accent)
+        if key == "mcp" and a.mcp_scene and a.style.startswith("labeled"):
+            big = style_labeled(key, accent, a.style == "labeled-top", a.mcp_scene)
+        else:
+            big = render(a.style, key, accent)
         i256 = big.resize((256, 256), Image.LANCZOS)
         i256.save(os.path.join(a.out, f"{key}.png"))
         big.resize((100, 100), Image.LANCZOS).save(os.path.join(a.out, f"{key}_100.png"))
