@@ -9,8 +9,8 @@ and a phone/web page for reports come next.
 The app installs like a Store app: it appears on the HOME screen as **Nomad AV Tester**.
 
 ```bash
-git clone https://github.com/TeddyPete/ZeroAVTools.git
-cd ZeroAVTools/av-tester
+git clone https://github.com/TeddyPete/NomadTools.git
+cd NomadTools/av-tester
 sudo apt install python3-pygame python3-numpy dpkg-dev
 ./scripts/build_deb.sh                        # -> build/nomad-av-tester_<ver>_all.deb
 sudo apt install ./build/nomad-av-tester_*_all.deb

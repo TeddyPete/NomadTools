@@ -1,4 +1,4 @@
-# ZeroAVTools: the Nomad apps
+# NomadTools: the Nomad apps
 
 Field tools for AV work on the [M5Stack CardputerZero](https://docs.m5stack.com/en/CardputerZero),
 a pocket Raspberry Pi CM0 Linux handheld with HDMI out, a camera, a mic and a keyboard.
@@ -14,6 +14,9 @@ The **Nomad** apps are by Tech Nomad Ted, [TheTechNomad.com](https://TheTechNoma
 | Nomad AI Bridge: let your AI connect to and control your CardputerZero (MCP) | `nomad-ai-bridge/` (own PR) | `nomad-ai-bridge` | NMAB |
 
 Each app lives in its own folder with its own README and install steps.
+
+The ham radio apps (Ask Elmer Ham Tools, Ham Exam and Morse) live in
+[TeddyPete/ElmerTools](https://github.com/TeddyPete/ElmerTools).
 
 These apps used to be called "TNT ..." (packages `tnt-*`). Each Nomad package replaces
 its old `tnt-*` package when installed, and the app moves its old settings

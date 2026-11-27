@@ -19,8 +19,8 @@
       "screenshots/lcd_4.png"
     ],
     "icon": "packaging/icon.png",
-    "license": "MIT",
-    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "license": "GPL-3.0-only",
+    "source_repo": "https://github.com/TeddyPete/NomadTools",
     "author": {
       "github": "TeddyPete",
       "display_name": "Tech Nomad Ted"
