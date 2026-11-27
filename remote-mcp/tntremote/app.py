@@ -409,7 +409,7 @@ class ConnectorScreen(QRScreen):
     title = "Connector address"
 
     def __init__(self, app):
-        super().__init__(app, "Connector address", "", "")
+        super().__init__(app, "Connector address", "", "", lambda: app.push(PairScreen(app)), "pair an app")
 
     def content(self):
         app = self.app
@@ -503,6 +503,28 @@ def start_ngrok_wizard(app, again: bool = False) -> None:
                       "Scan with your phone and make a free ngrok account (or sign in). Then press OK.", step2))
 
 
+class WelcomeScreen(Screen):
+    """First start with no tunnel set up: offer the ngrok setup wizard."""
+    title = "Welcome"
+
+    def rows(self):
+        return [(l, T.FG) for l in wrap(
+            f"Let's put {brand.APP_NAME} online. It takes a free ngrok account and your phone: "
+            "3 quick QR steps, then you pair your AI app.", 30)][:T.ROWS]
+
+    def hint(self):
+        return "OK start   ESC later"
+
+    def key(self, k):
+        if k.name == "enter":
+            app = self.app
+            app.pop()
+            app.wizard = True
+            start_ngrok_wizard(app, again=True)
+        else:
+            super().key(k)
+
+
 class NgrokTokenScreen(QRScreen):
     """Step 3: a page on this device where the phone pastes the token."""
 
@@ -528,11 +550,20 @@ class NgrokTokenScreen(QRScreen):
 
     def content(self):
         if self.done and not self.install:
+            app = self.app
             self.web.stop()
             control.set_tunnel_kind("ngrok")
-            self.app.refresh(now=True)
-            self.app.pop()
-            self.app.push(ConnectorScreen(self.app))
+            if app.wizard:
+                # first-run setup: switch remote access on and go straight to the address, then pairing
+                if not control.is_on():
+                    control.set_on(True)
+                app.wizard = False
+                while len(app.stack) > 1:
+                    app.pop()
+            else:
+                app.pop()
+            app.refresh(now=True)
+            app.push(ConnectorScreen(app))
             return "", "", T.FG
         if self.install.startswith("ngrok download failed"):
             return "", self.install, T.BAD
@@ -651,7 +682,10 @@ class App:
         self._toast = ("", 0.0)
         self._last = 0.0
         self.refresh(now=True)
+        self.wizard = False
         self.push(Home(self))
+        if brand.FIRST_RUN_WIZARD and not tunnel_ready(self.cfg):
+            self.push(WelcomeScreen(self))
 
     def push(self, s: Screen) -> None:
         self.stack.append(s)

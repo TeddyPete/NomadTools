@@ -17,3 +17,4 @@ PORT = 8765                     # server, 127.0.0.1 only
 SETUP_PORT = 8766               # one-time ngrok token page on the LAN
 ROOTRUN = "/usr/lib/tnt-remote/rootrun"
 MIGRATE_CLOUDFLARE = True       # an existing Cloudflare token keeps the device on Cloudflare
+FIRST_RUN_WIZARD = False        # open the ngrok setup wizard when no tunnel is set up

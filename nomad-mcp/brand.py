@@ -10,3 +10,4 @@ PORT = 8775
 SETUP_PORT = 8776
 ROOTRUN = "/usr/lib/nomad-mcp/rootrun"
 MIGRATE_CLOUDFLARE = False      # new app: always starts on ngrok
+FIRST_RUN_WIZARD = True         # no tunnel yet: open straight into the ngrok setup wizard
