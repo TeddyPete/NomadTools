@@ -334,9 +334,12 @@ def fonts() -> dict:
 
 
 _title_fonts: dict = {}
+# The launcher draws its status icons (signal, clock, battery) over the
+# right end of the title bar, from about x=232, so titles fit left of that.
+TITLE_MAX_W = 222
 
 
-def title_image(text: str, maxw: int = W - 12, f: dict | None = None):
+def title_image(text: str, maxw: int = TITLE_MAX_W, f: dict | None = None):
     """The title in the title font, stepped down a size or two when a long
     name ("Nomad Display Control") would not fit, so it is never cut off."""
     f = f or fonts()
@@ -372,7 +375,7 @@ def render(surf, title: str, rows: list, hint: str = "", selected: int | None = 
         rows = rows[:ROWS_KEYS]
     surf.fill(BG)
     surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
-    img = title_image(title, W - 12, f)
+    img = title_image(title, f=f)
     surf.blit(img, (6, max(0, (TITLE_H - img.get_height()) // 2)), (0, 0, W - 12, TITLE_H))
     if right:
         img = f["small"].render(right, True, TITLE_RIGHT)
@@ -524,7 +527,7 @@ class HelpView:
         ls = self.lines(f)
         surf.fill(BG)
         surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
-        img = title_image(self.title, W - 12, f)
+        img = title_image(self.title, f=f)
         surf.blit(img, (6, max(0, (TITLE_H - img.get_height()) // 2)), (0, 0, W - 12, TITLE_H))
         y = TITLE_H + 2
         for text, color in ls[self.top:self.top + self.rows()]:
