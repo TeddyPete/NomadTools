@@ -14,12 +14,12 @@ import unittest
 
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()
 
-from tntdisp import ops, store, wol  # noqa: E402
-from tntdisp.base import Display, DisplayError  # noqa: E402
-from tntdisp.lgwebos import LGWebOS, app_label  # noqa: E402
-from tntdisp.pjlink import PJLink  # noqa: E402
-from tntdisp.roku import Roku  # noqa: E402
-from tntdisp.sony import Sony, uri_label  # noqa: E402
+from nomaddisp import ops, store, wol  # noqa: E402
+from nomaddisp.base import Display, DisplayError  # noqa: E402
+from nomaddisp.lgwebos import LGWebOS, app_label  # noqa: E402
+from nomaddisp.pjlink import PJLink  # noqa: E402
+from nomaddisp.roku import Roku  # noqa: E402
+from nomaddisp.sony import Sony, uri_label  # noqa: E402
 
 
 def free_port():
@@ -222,8 +222,8 @@ class SonyRoku(unittest.TestCase):
         self.assertEqual(Handler.calls[-1][1], "/launch/tvinput.hdmi1")
         r.remote("ok")
         self.assertEqual(Handler.calls[-1][1], "/keypress/Select")
-        from tntdisp.base import REMOTE_BUTTONS
-        from tntdisp.samsung import Samsung
+        from nomaddisp.base import REMOTE_BUTTONS
+        from nomaddisp.samsung import Samsung
         for drv in (Roku, Samsung, Sony, LGWebOS):
             self.assertTrue(set(REMOTE_BUTTONS) <= set(drv.REMOTE), drv)
 
@@ -313,7 +313,7 @@ class LGTest(unittest.TestCase):
         d = Display("TV", "lg", "127.0.0.1", 3000, secret="goodkey")
         lg = LGWebOS(d)
         lg.d.port = port
-        import tntdisp.lgwebos as M
+        import nomaddisp.lgwebos as M
         orig = M.WebSocket.__init__
 
         def plain(self, host, p, path="/", tls=False, timeout=5.0):
@@ -374,9 +374,9 @@ class Misc(unittest.TestCase):
         self.assertEqual(ops.summary(res), "1 of 3 OK")
 
     def test_check_nothing(self):
-        from tntdisp import check
-        from tntdisp.app import App, CheckResult
-        from tntdisp import lcd as L
+        from nomaddisp import check
+        from nomaddisp.app import App, CheckResult
+        from nomaddisp import lcd as L
         r = check.check("127.0.0.1")
         self.assertEqual(r["kinds"], [])
         self.assertIsNone(check.to_display("127.0.0.1", r))
@@ -391,7 +391,7 @@ class Misc(unittest.TestCase):
         self.assertEqual(scr.keybar()[0], "Add")
 
     def test_screens(self):
-        from tntdisp.demo import render_screens
+        from nomaddisp.demo import render_screens
         files = render_screens(tempfile.mkdtemp())
         self.assertEqual(len(files), 7)
 

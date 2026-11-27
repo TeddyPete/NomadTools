@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nomad AV Tester
+Exec=bin/nomad-av-tester
+Terminal=false
+Icon=share/images/nomad-av-tester.png
+Type=Application

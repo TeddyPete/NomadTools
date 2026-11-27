@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nomad Display Control
+Exec=bin/nomad-display-control
+Terminal=false
+Icon=share/images/nomad-display-control.png
+Type=Application

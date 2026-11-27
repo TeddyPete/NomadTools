@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nomad WiFi Share
+Exec=bin/nomad-wifi-share
+Terminal=false
+Icon=share/images/nomad-wifi-share.png
+Type=Application
