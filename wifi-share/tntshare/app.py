@@ -56,6 +56,8 @@ class App:
         self._poll_now.set()
 
     def mode_badge(self) -> str:
+        if self.status.get("lost"):
+            return "STOPPED"
         m = self.status.get("mode")
         return {"wifi2eth": "SHARING", "hotspot": "HOTSPOT"}.get(m, "")
 
@@ -260,6 +262,8 @@ class Status(Screen):
         mode = st.get("mode")
         mname = {"wifi2eth": "Wi-Fi > Ethernet", "hotspot": "Hotspot (bridge)" if st.get("bridge") else "Hotspot"}.get(mode, "Off")
         rows = [("Mode", L.OK if mode else L.FG, mname)]
+        if st.get("lost"):
+            rows.append(("Network stopped it: use Stop", L.BAD))
         text, color = inet_row(app)
         rows.append(("Internet", color, text.split(": ", 1)[1].replace(" (portal)", "")))
         if st.get("wifi"):
@@ -278,7 +282,8 @@ class Status(Screen):
             if not st.get("eth_carrier"):
                 rows.append(("Ethernet", L.WARN, "no cable"))
             else:
-                rows.append(("Ethernet", L.FG, ip_short(st.get("eth_ip")).split("/")[0] or st.get("eth_state", "")))
+                ips = st.get("lan_ip") if st.get("vlan") else st.get("eth_ip")
+                rows.append(("Ethernet", L.FG, ip_short(ips).split("/")[0] or st.get("eth_state", "")))
         if st.get("vlan"):
             rows.append(("VLAN tag", L.FG, st["vlan"]))
         if st.get("bridge_ip"):

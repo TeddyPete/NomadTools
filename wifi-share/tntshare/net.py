@@ -444,7 +444,9 @@ def _start_bridge_hotspot(cfg: dict, w: str, e: str | None) -> str:
     br = ["type", "bridge", "ifname", BRIDGE_IF, "con-name", CON_BR, "autoconnect", "no",
           "bridge.stp", "no", "ipv6.method", "disabled", "connection.lldp", "enable"]
     if cfg["uplink_dhcp"]:
-        br += ["ipv4.method", "auto"]
+        # Keep the bridge (and the hotspot on it) up even when the wired
+        # network's DHCP is slow or missing; NM's default gives up after 45 s.
+        br += ["ipv4.method", "auto", "ipv4.dhcp-timeout", "infinity", "ipv4.may-fail", "yes"]
     else:
         br += ["ipv4.method", "manual", "ipv4.addresses", _cidr(cfg["uplink_ip"], cfg["uplink_mask"])]
         if S.valid_ip(cfg["uplink_gw"]):
@@ -554,6 +556,20 @@ def status() -> dict:
         out["eth_carrier"] = carrier(e)
     side = st.get("lan") or {"wifi2eth": e, "hotspot": w}.get(st.get("mode"))
     out["lan"] = side
+    out["lan_ip"] = ipv4(side) if side else []
+    # Did NetworkManager drop our mode by itself (e.g. a failed bridge)?
+    want = {"wifi2eth": CON_VLAN if side and "." in side else CON_ETH, "hotspot": CON_HOTSPOT}.get(st.get("mode"))
+    if want:
+        active = {r[0] for r in terse("-f", "NAME", "connection", "show", "--active") if r}
+        out["lost"] = want not in active and want not in {d_["con"] for d_ in devs}
+    else:
+        out["lost"] = False
+    if out["lost"]:
+        out["clients"] = []
+        out["vlan"] = ""
+        out["bridge"] = bool(st.get("bridge"))
+        out["vpn"] = vpn_state()
+        return out
     out["bridge"] = bool(st.get("bridge"))
     if st.get("mode") == "hotspot" and st.get("bridge"):
         out["clients"] = clients(BRIDGE_IF, ap=True, stations_dev=w)
