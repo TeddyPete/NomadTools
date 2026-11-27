@@ -45,4 +45,26 @@ def render_screens(out_dir: str) -> list:
     app.pop()
     app.push(CutList(app, d))
     shot("lcd_5_cut")
+    app.pop()
+    # 0.2: feed line loss in the results, a measured sweep over the model, the beam optimizer
+    from . import extras as X
+    from .app import Optimized
+    app.st.cable, app.st.cable_ft = "RG-8X", 75
+    r = d.result
+    app.measured[t.id] = [(f, s * 1.08 + 0.05, 0, 0) for f, s, _zr, _zi in r.sweep]
+    rs = Results(app, d)
+    rs.top = 8
+    app.push(rs)
+    shot("lcd_x_feedline")
+    app.pop()
+    app.push(SwrChart(app, d))
+    shot("lcd_6_measured")
+    app.pop()
+    y = TP.by_id("yagi")
+    dy = Design(app, y)
+    dy.mhz = 14.15
+    dy.p = TP.yagi_defaults(14.15, 3)
+    res = X.optimize_beam(y, dy.p, 14.15, "copper", "Balanced", rounds=6)
+    app.push(Optimized(app, dy, res))
+    shot("lcd_7_optimize")
     return files

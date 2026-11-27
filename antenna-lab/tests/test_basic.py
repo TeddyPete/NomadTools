@@ -45,3 +45,29 @@ def test_tune_makes_dipole_resonant():
     p = t.defaults(7.15)
     q, r = lab.tune(t, p, 7.15, nec.ground_of("average"), "copper", t.device)
     assert r is not None and abs(r[1][1]) < 2
+
+
+def test_feed_line_loss():
+    from elmerlab import extras as X
+    m = X.line_loss("RG-58", 100, 14.2, 1.0)
+    assert 1.2 < m["matched"] < 1.5 and abs(m["total"] - m["matched"]) < 1e-9 and abs(m["swr_in"] - 1) < 1e-9
+    h = X.line_loss("RG-58", 100, 14.2, 3.0)
+    assert h["total"] > m["total"] and 1.9 < h["swr_in"] < 3.0   # loss hides some SWR from the radio
+
+
+def test_s1p_reader(tmp_path):
+    from elmerlab import extras as X
+    f = tmp_path / "a.s1p"
+    f.write_text("# MHZ S RI R 50\n14.0 0 0\n14.1 0.5 0\n")
+    pts = X.read_s1p(str(f))
+    assert pts[0][:3] == (14.0, 1.0, 50.0) and abs(pts[1][1] - 3.0) < 1e-9
+
+
+def test_beam_optimizer_improves_a_yagi():
+    from elmerlab import extras as X
+    from elmerlab import templates as TP
+    t = TP.by_id("yagi")
+    p = TP.yagi_defaults(14.15, 3)
+    r = X.optimize_beam(t, p, 14.15, "copper", "Best front/back", rounds=6)
+    assert r["after"][1] > r["before"][1] + 2
+    assert r["params"]["pos2"] <= p["pos2"] * 1.02 + 1e-9    # the boom didn't grow

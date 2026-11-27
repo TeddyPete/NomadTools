@@ -22,6 +22,14 @@ Package `askelmer-antenna-lab`, share code `AEAL`, Python package `elmerlab`
   enough to see a multiband wire's other bands.
 * **Pattern (7)**: azimuth and elevation cuts through the main lobe.
 * **Cut (8)**: what to cut and build, with coil recipes for traps and loading coils.
+* **Optimize the beam** (Yagi, new in 0.2): for most gain, best front/back or a balance. It
+  searches the reflector and director lengths and the spacings in free space without making
+  the boom longer, keeps the feed resistance usable, then tunes the driven element.
+* **Feed line** (0.2): pick RG-58, RG-8X, RG-213 or LMR-400 and a length in Settings; Results
+  add the coax loss with the antenna's SWR, the SWR the radio sees, and the power that gets out.
+* **Measure** (0.2, key 6 on the SWR chart): a real sweep laid over the model in green, from a
+  NanoVNA on the USB port (its `scan` command) or a Touchstone `.s1p` file in the home folder
+  or on a USB stick.
 * Ground and conductor material in Settings; every antenna remembers its last design in
   `~/.config/askelmer-antenna-lab/state.json`.
 
@@ -44,9 +52,8 @@ python3 -m pytest tests              # needs nec2c installed
 
 ## Not yet
 
-* NanoVNA sweep overlaid on the model's SWR curve (USB serial).
 * The 3D wire view and full-size charts on an HDMI monitor.
-* Optimizer for beams (gain / front-to-back) and coax loss to the shack.
+* The optimizer for quads and Moxons (they have Tune for now).
 
 ## Look
 

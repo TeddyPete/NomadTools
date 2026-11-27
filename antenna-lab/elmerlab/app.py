@@ -8,6 +8,7 @@ import time
 
 import pygame
 
+from . import extras as X
 from . import lab, nec
 from . import lcd as L
 from . import nomadui as T
@@ -27,7 +28,10 @@ HELP_MAIN = ("Ask Elmer Antenna Lab models real antennas with the NEC2 engine. P
 HELP_DESIGN = ("Up/Down pick a setting, OK or Right edits it (red), OK saves. Lengths are in your units "
                "(Settings). Changing the frequency offers new starting sizes. 4 Run, 5 Tune, 6 SWR chart, "
                "7 Pattern, 8 Cut list.")
-HELP_SWR = "SWR against frequency into 50 ohm coax, through the matching device. The dashed line marks your design frequency; the green band is 2:1 or better."
+HELP_SWR = ("SWR against frequency into 50 ohm coax, through the matching device. The dashed line marks your "
+            "design frequency; the green band is 2:1 or better. 5 sweeps wide. 6 Measure lays a real sweep over "
+            "the model in green: from a NanoVNA on the USB port, or a Touchstone .s1p file from your home "
+            "folder or a USB stick. A measurement through coax shows the SWR at the radio end.")
 HELP_PATTERN = "Left: azimuth (seen from above) at the main lobe's elevation. Right: elevation through the main lobe; the horizon is the bottom line. Rings are -3, -10 and -20 dB from the peak."
 
 
@@ -41,6 +45,7 @@ class State:
         self.path = os.path.join(config_dir(), "state.json")
         self.units, self.ground, self.material = "ft", "average", "copper"
         self.tpl, self.mhz, self.params, self.device = "dipole", None, {}, {}
+        self.cable, self.cable_ft = "RG-8X", 50.0
         try:
             d = json.load(open(self.path))
             self.units = d.get("units", self.units)
@@ -50,6 +55,8 @@ class State:
             self.mhz = d.get("mhz", {})
             self.params = d.get("params", {})
             self.device = d.get("device", {})
+            self.cable = d.get("cable", self.cable)
+            self.cable_ft = float(d.get("cable_ft", self.cable_ft))
         except (OSError, ValueError):
             self.mhz = {}
 
@@ -59,7 +66,8 @@ class State:
             tmp = self.path + ".tmp"
             with open(tmp, "w") as fh:
                 json.dump({"units": self.units, "ground": self.ground, "material": self.material,
-                           "tpl": self.tpl, "mhz": self.mhz, "params": self.params, "device": self.device}, fh)
+                           "tpl": self.tpl, "mhz": self.mhz, "params": self.params, "device": self.device,
+                           "cable": self.cable, "cable_ft": self.cable_ft}, fh)
             os.replace(tmp, self.path)
         except OSError:
             pass
@@ -138,6 +146,7 @@ class App:
         self.helpview = None
         self.dirty = True
         self.quit = False
+        self.measured: dict = {}    # design id -> [(mhz, swr, zr, zi)] from a NanoVNA or .s1p
 
     def push(self, s):
         self.stack.append(s)
@@ -249,7 +258,8 @@ def open_design(app, tid):
 
 class Settings(Screen):
     title = "Settings"
-    help = "Units for every length. Ground and conductor material apply to every antenna."
+    help = ("Units for every length. Ground and conductor material apply to every antenna. The feed line "
+            "(type and length) adds coax loss and the SWR at the radio to the results.")
 
     def __init__(self, app):
         super().__init__(app)
@@ -260,8 +270,16 @@ class Settings(Screen):
             Field("units", "Units", "choice", ["feet", "metres"]),
             Field("ground", "Ground", "choice", list(self.glabels.values())),
             Field("material", "Conductor", "choice", list(self.mlabels.values())),
+            Field("cable", "Feed line", "choice", ["None"] + list(X.CABLES)),
+            Field("cable_len", f"Feed line {st.units}", "decimal", maxlen=8,
+                  visible=lambda v: v["cable"] != "None"),
         ], {"units": "feet" if st.units == "ft" else "metres", "ground": self.glabels.get(st.ground, "Average"),
-            "material": self.mlabels.get(st.material, "Copper")})
+            "material": self.mlabels.get(st.material, "Copper"), "cable": st.cable,
+            "cable_len": f"{st.cable_ft if st.units == 'ft' else st.cable_ft / FT:.4g}"})
+
+    @property
+    def text_entry(self):
+        return self.form.editing
 
     @property
     def hint(self):
@@ -277,6 +295,13 @@ class Settings(Screen):
         st.units = "ft" if v["units"] == "feet" else "m"
         st.ground = next(k_ for k_, lab_ in self.glabels.items() if lab_ == v["ground"])
         st.material = next(k_ for k_, lab_ in self.mlabels.items() if lab_ == v["material"])
+        st.cable = v["cable"]
+        try:
+            ln = float(v["cable_len"])
+            if ln >= 0:
+                st.cable_ft = ln if st.units == "ft" else ln * FT
+        except ValueError:
+            pass
         if ev == "back":
             st.save()
             self.app.pop(self)
@@ -315,8 +340,10 @@ class Design(Screen):
             values[pd.id] = to_display(pd, self.p.get(pd.id, 0), u)
         fields.append(Field("device", "Match", "choice", [v[0] for v in lab.DEVICES.values()]))
         values["device"] = lab.DEVICES.get(self.device, lab.DEVICES["choke-1-1"])[0]
-        fields += [Field("run", "Run the model", "action"), Field("tune", "Tune for me", "action"),
-                   Field("defaults", "Starting sizes for this frequency", "action")]
+        fields += [Field("run", "Run the model", "action"), Field("tune", "Tune for me", "action")]
+        if self.t.id == "yagi":
+            fields.append(Field("optimize", "Optimize the beam", "action"))
+        fields.append(Field("defaults", "Starting sizes for this frequency", "action"))
         if not self.t.tune:
             fields = [f for f in fields if f.key != "tune"]
         old = getattr(self, "form", None)
@@ -362,7 +389,7 @@ class Design(Screen):
             self.save()
             self.app.pop(self)
         elif kind == "action":
-            {"run": self.run, "tune": self.tune, "defaults": self.reset}[key]()
+            {"run": self.run, "tune": self.tune, "defaults": self.reset, "optimize": self.optimize}[key]()
         elif kind == "changed":
             self.changed(key)
 
@@ -444,6 +471,13 @@ class Design(Screen):
             self.save()
             self.run()
         self.app.task(f"Tune {t.tune['label']}", "Tuning", lambda: lab.tune(t, p, mhz, g, mat, dev), done)
+
+    def optimize(self):
+        def go(goal):
+            t, p, mhz, mat = self.t, dict(self.p), self.mhz, self.app.st.material
+            self.app.task("Optimize", f"{goal}: searching",
+                          lambda: X.optimize_beam(t, p, mhz, mat, goal), lambda r: self.app.push(Optimized(self.app, self, r)))
+        self.app.push(Menu(self.app, "Optimize for", [(g, (lambda g=g: (self.app.pop(), go(g)))) for g in X.GOALS]))
 
     def show(self, cls):
         if self.result is None:
@@ -528,6 +562,14 @@ class Results(Screen):
             out.append(("Polarization", L.FG, r.polarization))
         if r.efficiency is not None:
             out.append(("Efficiency", L.FG, f"{r.efficiency:.0f}%"))
+        st = self.app.st
+        if st.cable in X.CABLES and st.cable_ft > 0 and r.swr < 900:
+            fl = X.line_loss(st.cable, st.cable_ft, r.mhz, r.swr)
+            ln = f"{st.cable_ft:.0f} ft" if u == "ft" else f"{st.cable_ft / FT:.0f} m"
+            out.append((f"{st.cable} {ln}", L.FG,
+                        f"{fl['total']:.1f} dB loss"))
+            out.append(("  SWR at radio", swr_color(fl["swr_in"]), f"{fmt_swr(fl['swr_in'])} : 1"))
+            out.append(("  Power out", L.FG, f"{fl['delivered_pct']:.0f}%"))
         out.append(("Engine time", L.DIM, f"{r.secs:.1f} s"))
         for w in r.warnings + r.errors:
             out += [(x, L.WARN) for x in wrap(self.app.panel, w)]
@@ -548,6 +590,38 @@ class Results(Screen):
             self.top = max(0, self.top - 1)
         elif k.name in DOWN:
             self.top += 1
+        elif k.name in BACK:
+            self.app.pop(self)
+
+
+class Optimized(Screen):
+    title = "Optimized"
+    help = ("The beam optimizer changed the reflector and director lengths and the spacings, in free space, "
+            "without making the boom longer. OK keeps the new sizes and tunes the driven element for "
+            "resonance; ESC keeps your old ones.")
+    hint = "OK use these  ESC keep mine"
+
+    def __init__(self, app, design, r):
+        super().__init__(app)
+        self.d, self.r = design, r
+
+    def rows(self):
+        b, a = self.r["before"], self.r["after"]
+        if not a or not b:
+            return [("The engine didn't return a pattern.", L.BAD)], None
+        return [(self.r["goal"] + ", free space", L.DIM),
+                ("Gain dBi", L.FG, f"{b[0]:.1f} \u2192 {a[0]:.1f}"),
+                ("Front/rear dB", L.FG, f"{b[1]:.1f} \u2192 {a[1]:.1f}"),
+                ("Feed R ohm", L.FG, f"{b[2]:.0f} \u2192 {a[2]:.0f}"),
+                ("Then: tune the driven element", L.DIM)], None
+
+    def key(self, k):
+        if k.name in SELECT and self.r["after"]:
+            self.app.pop(self)
+            self.d.p = {**self.d.p, **self.r["params"]}
+            self.d.build_form()
+            self.d.save()
+            self.d.tune()
         elif k.name in BACK:
             self.app.pop(self)
 
@@ -657,6 +731,43 @@ class SwrChart(Chart):
         super().__init__(app, design)
         self.wide = None   # Result of a wide sweep
 
+    def softkeys(self):
+        d = self.d
+        return [("Design", self.to_design), ("Wide", self.toggle_wide), ("Measure", self.measure),
+                ("Pattern", lambda: self.swap(Pattern)), ("Cut", d.cutlist)]
+
+    @property
+    def measured(self):
+        return self.app.measured.get(self.d.t.id)
+
+    def measure(self):
+        r = self.wide or self.d.result
+        lo, hi = (r.sweep[0][0], r.sweep[-1][0]) if r and r.sweep else (self.d.mhz * 0.95, self.d.mhz * 1.05)
+        tid = self.d.t.id
+
+        def got(pts):
+            self.app.measured[tid] = pts
+
+        def vna():
+            self.app.pop()
+            self.app.task("NanoVNA", "Sweeping", lambda: X.nanovna_sweep(lo, hi, 101), got)
+
+        def s1p():
+            self.app.pop()
+            files = X.find_s1p()
+            if not files:
+                self.app.push(Message(self.app, "No .s1p files", "Save a Touchstone .s1p file from your analyzer "
+                                      "to the home folder or a USB stick, then try again.", L.WARN))
+                return
+            self.app.push(Menu(self.app, "Load .s1p", [(os.path.basename(f), (lambda f=f: (
+                self.app.pop(), self.app.task("Load", "Reading", lambda: X.read_s1p(f), got)))) for f in files[:20]]))
+
+        def clear():
+            self.app.pop()
+            self.app.measured.pop(tid, None)
+        self.app.push(Menu(self.app, "Measure", [("NanoVNA sweep (USB)", vna), ("Load .s1p file", s1p),
+                                                 ("Clear measurement", clear)]))
+
     def toggle_wide(self):
         if self.wide is not None:
             self.wide = None
@@ -681,7 +792,7 @@ class SwrChart(Chart):
         lo, hi = pts[0][0], pts[-1][0]
         smax = 5.0
 
-        def X(mhz):
+        def X_(mhz):
             return x0 + (mhz - lo) / (hi - lo) * (x1 - x0)
 
         def Y(s):
@@ -697,11 +808,11 @@ class SwrChart(Chart):
         if b and not self.wide:
             for edge in (b[2], b[3]):
                 if lo <= edge <= hi:
-                    pygame.draw.line(surf, (90, 70, 40), (X(edge), y0), (X(edge), y1))
-        xd = X(self.d.mhz)
+                    pygame.draw.line(surf, (90, 70, 40), (X_(edge), y0), (X_(edge), y1))
+        xd = X_(self.d.mhz)
         for yy in range(int(y0), int(y1), 6):
             pygame.draw.line(surf, (200, 200, 120), (xd, yy), (xd, yy + 3))
-        line = [(X(p[0]), Y(p[1])) for p in pts]
+        line = [(X_(p[0]), Y(p[1])) for p in pts]
         pygame.draw.lines(surf, TRACE, False, line, 2)
         for txt, x, anchor in ((fmt_mhz(lo), x0, 0), (fmt_mhz(hi), x1, 1)):
             img = tiny.render(txt, True, AXIS)
@@ -712,6 +823,13 @@ class SwrChart(Chart):
         surf.blit(img, ((x0 + x1) // 2 - img.get_width() // 2, y1 + 2))
         if self.wide:
             surf.blit(tiny.render("wide sweep", True, L.WARN), (x0 + 4, y0))
+        m = self.measured
+        if m:
+            seg = [(X_(p[0]), Y(p[1])) for p in m if lo <= p[0] <= hi]
+            if len(seg) >= 2:
+                pygame.draw.lines(surf, L.OK, False, seg, 2)
+            img = tiny.render("measured", True, L.OK)
+            surf.blit(img, (x1 - img.get_width() - 2, y0))
 
 
 class Pattern(Chart):
