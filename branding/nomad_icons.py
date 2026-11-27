@@ -24,6 +24,7 @@ APPS = [
     ("packet-capture", "PACKET CAPTURE", (255, 90, 190)),
     ("display-control", "DISPLAY CONTROL", (170, 130, 255)),
     ("mcp", "MCP", (255, 140, 60)),
+    ("label-scanner", "LABEL SCANNER", (120, 190, 255)),
 ]
 
 
@@ -253,8 +254,34 @@ def g_mcp(img, box, col):
     glow_draw(img, f, col)
 
 
+def g_scan(img, box, col):
+    """Barcode in the viewfinder with a red scan line across it."""
+    x0, y0, x1, y1 = box
+    w, h = x1 - x0, y1 - y0
+    d = ImageDraw.Draw(img)
+    pat = [3, 1, 1, 2, 1, 3, 2, 1, 1, 1, 3, 1, 2, 2, 1, 1, 3, 1, 1, 2, 1, 1, 2, 3]
+    unit = (w * 0.84) / (sum(pat) * 1.6)
+    x = x0 + w * 0.08
+    for i, p in enumerate(pat):
+        bw = p * unit
+        if i % 2 == 0:
+            d.rectangle((x, y0 + h * 0.10, x + bw, y1 - h * 0.10), fill=(235, 240, 248, 255))
+        x += bw + unit * 0.6 * (1 + (i % 3 == 0))
+    # corner brackets of the viewfinder, in the accent colour
+    L = min(w, h) * 0.22
+
+    def br(dd, c):
+        for cx, cy, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
+            dd.line((cx, cy, cx + sx * L, cy), fill=c, width=16)
+            dd.line((cx, cy, cx, cy + sy * L), fill=c, width=16)
+    glow_draw(img, br, col, blur=(18, 6))
+    yy = (y0 + y1) / 2
+    glow_draw(img, lambda dd, c: dd.line((x0 - 10, yy, x1 + 10, yy), fill=c, width=12), (255, 70, 60))
+
+
 GLYPH = {"av-tester": g_av, "net-tools": g_net, "wifi-share": g_wifi, "packet-capture": g_pcap,
-         "display-control": g_display, "mcp": g_mcp}
+         "display-control": g_display, "mcp": g_mcp,
+         "label-scanner": g_scan}
 
 
 # ---------- styles ----------
@@ -306,7 +333,8 @@ def style_device(key, accent, with_bg=True):
 
 # Name shown on the icon (Ted: the app name on the button, no compass badge).
 SHORT = {"av-tester": "AV TESTER", "net-tools": "NET TOOLS", "wifi-share": "WIFI SHARE",
-         "packet-capture": "PCAP", "display-control": "DISPLAY", "mcp": "AI BRIDGE"}
+         "packet-capture": "PCAP", "display-control": "DISPLAY", "mcp": "AI BRIDGE",
+         "label-scanner": "SCANNER"}
 
 
 def fit_font(text, maxw, start, minsize=60):

@@ -1,0 +1,40 @@
+{
+  "package_name": "nomad-label-scanner",
+  "version": "0.1.0",
+  "app_name": "Nomad Label Scanner",
+  "bin_name": "nomad-label-scanner",
+  "description": "Scan gear labels: barcodes, MAC, IP, serial and model into an Excel inventory",
+  "store": {
+    "summary": "Nomad Label Scanner: scan AV gear labels into an Excel/CSV inventory with MAC lookup and network find",
+    "description": "Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com. Point the camera at an equipment label: barcodes and QR codes are read live, and OK takes a shot that also reads the printed text on the device (OCR) to pick out the MAC address, IP address, serial and model number. The MAC maker is looked up, and Find sweeps the local network to show the device's IP and whether it answers. Every scan goes into a job (a site, room or rack) with room and notes. Export each job as Excel (.xlsx, one sheet per job) or CSV from a web page you open by scanning a QR code on the screen, or copy everything to a USB stick. Works offline; nothing leaves the device unless you turn on the download page. Keys 4-8: Shot, Zoom, Text on/off, Flip, Done. Fn+H shows help.",
+    "categories": [
+      "Hardware & IoT",
+      "Productivity"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0.png",
+      "screenshots/lcd_1.png",
+      "screenshots/lcd_2.png",
+      "screenshots/lcd_3.png",
+      "screenshots/lcd_4.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Tech Nomad Ted"
+    },
+    "share_code": "NMLS",
+    "permissions": {
+      "camera": true,
+      "microphone": false,
+      "imu": false,
+      "network": true,
+      "additional_hardware": false,
+      "background_service": false,
+      "external_display": false
+    },
+    "locales": {}
+  }
+}

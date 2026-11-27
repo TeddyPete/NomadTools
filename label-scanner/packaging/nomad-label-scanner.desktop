@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nomad Label Scanner
+Exec=bin/nomad-label-scanner
+Terminal=false
+Icon=share/images/nomad-label-scanner.png
+Type=Application
