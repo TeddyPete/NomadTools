@@ -98,18 +98,27 @@ def _sh(argv: list[str], t: float = 2) -> str:
 
 
 def _wifi() -> str:
-    """SSID and signal of the Wi-Fi link, '' when not on Wi-Fi."""
-    link = _sh(["iw", "dev", "wlan0", "link"])
-    ssid = sig = ""
-    for line in link.splitlines():
-        line = line.strip()
-        if line.startswith("SSID:"):
-            ssid = line[5:].strip()
-        elif line.startswith("signal:"):
-            sig = line[7:].strip()
+    """Network name and signal of the Wi-Fi link, '' when not on Wi-Fi."""
+    ssid = ""
+    out = _sh(["nmcli", "-t", "-f", "GENERAL.CONNECTION", "dev", "show", "wlan0"])
+    if out.startswith("GENERAL.CONNECTION:"):
+        ssid = out.split(":", 1)[1].strip()
     if not ssid:
-        ssid = _sh(["iwgetid", "-r"]).strip()
-    return f"{ssid} ({sig})" if ssid and sig else ssid
+        for line in _sh(["iw", "dev", "wlan0", "link"]).splitlines():
+            if line.strip().startswith("SSID:"):
+                ssid = line.strip()[5:].strip()
+    sig = ""
+    for line in _read("/proc/net/wireless").splitlines():
+        parts = line.split()
+        if parts and parts[0] == "wlan0:" and len(parts) > 3:
+            try:
+                dbm = int(float(parts[3]))
+                sig = f"{dbm} dBm, " + ("excellent" if dbm >= -50 else "good" if dbm >= -65 else "fair" if dbm >= -75 else "weak")
+            except ValueError:
+                pass
+    if not ssid or ssid == "--":
+        return ""
+    return f"{ssid} ({sig})" if sig else ssid
 
 
 def _apps() -> list[tuple[str, str]]:
