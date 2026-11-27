@@ -17,7 +17,7 @@ The connected app can:
 
 ## Setup on the device (about 3 minutes)
 
-1. Open **Nomad MCP**. The first time, it opens straight into the setup wizard (press OK). Later you can rerun it from **Setup > ngrok setup**. Three QR codes follow:
+1. Open **Nomad MCP**. The first time, it shows what the app does and how, with **Start setup** already selected. Press OK. Later you can rerun it from **Setup > ngrok setup**. Three QR codes follow:
    1. Scan it and make a free ngrok account, or sign in. Then press OK.
    2. Scan it to open your ngrok authtoken page and tap **Copy**. Then press OK.
    3. Scan it with your phone, on the same Wi-Fi/LAN as the device. Paste the token and tap Save. If your phone can't reach the device, press OK and type the token on the keyboard instead.

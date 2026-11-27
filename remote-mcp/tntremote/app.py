@@ -504,23 +504,52 @@ def start_ngrok_wizard(app, again: bool = False) -> None:
 
 
 class WelcomeScreen(Screen):
-    """First start with no tunnel set up: offer the ngrok setup wizard."""
-    title = "Welcome"
+    """First start with no tunnel set up: what the app does and how, then a
+    pre-selected [ Start setup ] button. OK goes straight to the ngrok account step."""
+    title = "Welcome to " + brand.APP_NAME
+
+    ABOUT = (
+        "{app} lets AI apps (Claude, ChatGPT, Codex) use this CardputerZero from anywhere: "
+        "run commands, change files, install programs and run network checks.\n"
+        "How: the device connects out through a secure ngrok tunnel, so no ports are opened "
+        "on the network. Each AI app must be approved with a one-time code shown on this "
+        "screen, and you can switch it off or disconnect everyone at any time.\n"
+        "Setup takes a free ngrok account and your phone: 3 QR steps, then you pair your AI app."
+    )
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.top = 0
+
+    def lines(self) -> list:
+        if not hasattr(self, "_lines"):
+            font = self.app.panel.fonts["row"]
+            self._lines = QRScreen._wrap(font, self.ABOUT.format(app=brand.APP_NAME), T.W - 14)
+        return self._lines
 
     def rows(self):
-        return [(l, T.FG) for l in wrap(
-            f"Let's put {brand.APP_NAME} online. It takes a free ngrok account and your phone: "
-            "3 quick QR steps, then you pair your AI app.", 30)][:T.ROWS]
+        n = T.ROWS - 1                                  # last row is the button
+        ls = self.lines()
+        self.top = max(0, min(self.top, len(ls) - n))
+        rows = [T.RowView(l, "", "normal", T.FG) for l in ls[self.top:self.top + n]]
+        rows += [T.RowView("", "", "normal")] * (n - len(rows))
+        rows.append(T.RowView("[ Start setup ]", "OK", "selected", T.FG))
+        return rows
 
     def hint(self):
-        return "OK start   ESC later"
+        return "↑↓ read more  OK start  ESC later"
 
     def key(self, k):
-        if k.name == "enter":
+        n = T.nav_name(k.name, k.char)
+        if k.name == "enter" or n == "right":
             app = self.app
             app.pop()
             app.wizard = True
             start_ngrok_wizard(app, again=True)
+        elif n in T.UP:
+            self.top -= 1
+        elif n in T.DOWN:
+            self.top += 1
         else:
             super().key(k)
 
