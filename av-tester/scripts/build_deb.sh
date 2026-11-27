@@ -28,7 +28,7 @@ Recommends: polkitd, edid-decode, libdrm-tests
 Installed-Size: $SIZE
 Section: utils
 Priority: optional
-Homepage: https://TheTechNomad.com
+Homepage: https://www.TheTechNomad.com
 Replaces: zeroav-tester, tnt-av-tester
 Conflicts: zeroav-tester, tnt-av-tester
 Provides: zeroav-tester

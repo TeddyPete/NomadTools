@@ -14,6 +14,11 @@ import signal
 import sys
 import time
 
+from . import __version__
+from . import nomadui as _nomadui
+
+_nomadui.set_about("Nomad AV Tester", __version__)
+
 # Navigation follows the Nomad standard (CardputerZero arrows are on the Fn
 # layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right; OK is Enter):
 #   Up/Down move, Right or OK select, Left back one level,
@@ -37,7 +42,7 @@ SYM_SCANCODES = {85: "~", 83: "`", 71: "_", 95: "-", 96: "+", 97: "=", 86: "[", 
 PLAIN_ARROWS = {}     # filled in run() once pygame is imported: f x z c -> up down left right
 MENU = [("patterns", "Test patterns"), ("modes", "Video mode"), ("audio", "Audio output"),
         ("sync", "Lip-sync test"), ("meter", "Audio meter / RTA"), ("edid", "Display EDID"),
-        ("link", "HDMI link status"), ("room", "Room report")]
+        ("link", "HDMI link status"), ("room", "Room report"), ("about", "About")]
 # Number keys 4..8 under the screen (official CardputerZero key spec): labels
 # drawn at the bottom of the LCD, and what each key does on each screen as
 # (pygame key, typed char) fed through the normal key handling below.
@@ -635,6 +640,12 @@ def run(args) -> None:
                     elif item == "audio":
                         screen = "audio"
                         pick_sel = next((i for i, (m, _) in enumerate(AUDIO_MODES) if m == tones.mode), 0)
+                    elif item == "about":            # About: shown like Fn+H help, ESC closes it
+                        from . import nomadui
+                        help_view = nomadui.AboutView()
+                        lcd.show_help(help_view)
+                        skip_gap = True
+                        continue
                     else:
                         ch = {"sync": "l", "meter": "a", "edid": "e", "link": "h", "room": "n"}[item]
                         k = None

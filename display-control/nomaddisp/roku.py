@@ -119,6 +119,21 @@ class Roku(Driver):
         self.key(self.REMOTE[button])
         return button
 
+    MENUS = [("secret", "Platform secret screen", "Home x5, FF x3, Rew x2"),
+             ("wifi", "Wi-Fi secret screen", "Home x5, Up, Right, Down, Left, Up")]
+    SEQ = {"secret": ["Home"] * 5 + ["Fwd"] * 3 + ["Rev"] * 2,
+           "wifi": ["Home"] * 5 + ["Up", "Right", "Down", "Left", "Up"]}
+
+    def service_menus(self):
+        return list(self.MENUS)
+
+    def open_service_menu(self, menu_id):
+        import time
+        for k in self.SEQ[menu_id]:
+            self.key(k)
+            time.sleep(0.35)
+        return "Keys sent. Back or Home closes it"
+
     def info(self):
         out = super().info()
         di = self.device_info()

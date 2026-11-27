@@ -6,6 +6,7 @@ import signal
 import threading
 import time
 
+from . import __version__
 from . import capture as C
 from . import files as F
 from . import lcd as L
@@ -16,6 +17,7 @@ from .keys import Keyboard
 from .ui import BACK, DOWN, SELECT, UP, Busy, Confirm, Form, Menu, Message, Prompt, Screen, nav_key, wrap
 
 APP_TITLE = "Nomad Packet Capture"
+T.set_about(APP_TITLE, __version__)
 
 HELP = (
     "Two modes:\n"
@@ -74,6 +76,11 @@ class App:
                 self.stack.pop()
         elif s in self.stack:
             self.stack.remove(s)
+        self.dirty = True
+
+    def open_about(self) -> None:
+        """The About screen (shown like Fn+H help, ESC closes it)."""
+        self.helpview = T.AboutView()
         self.dirty = True
 
     def wake(self) -> None:
@@ -272,6 +279,7 @@ class Home(Menu):
             ("Saved captures", lambda: app.push(FilesMenu(app)), lambda: str(len(F.listing()))),
             ("Share files (QR)", lambda: app.push(ShareScreen(app)), lambda: "ON" if app.share.on else ""),
             ("Help", lambda: app.push(Message(app, "Help", HELP))),
+            ("About", lambda: app.open_about()),
         ]
         super().__init__(app, APP_TITLE, items, "↑↓ move  OK/→ open  ESC quit")
 

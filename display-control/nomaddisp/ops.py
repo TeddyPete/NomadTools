@@ -51,6 +51,10 @@ def run(d: Display, cmd: str, arg=None):
             return drv.info()
         if cmd == "pair":
             return drv.pair()
+        if cmd == "menus":
+            return drv.service_menus()
+        if cmd == "svcmenu":
+            return drv.open_service_menu(str(arg))
         if cmd == "remote":
             return drv.remote(str(arg))
     raise DisplayError(f"Unknown command {cmd}")

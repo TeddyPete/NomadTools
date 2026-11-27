@@ -177,6 +177,8 @@ class HelpScreen(Screen):
         if soft:
             self.lines += [Line("Number keys", HEAD)] + [Line(t) for t in soft] + [Line("")]
         self.lines += [Line(T.KEYS_HELP[0], HEAD)] + [Line(t) for t in T.KEYS_HELP[1:]]
+        self.lines += [Line(""), Line("About", HEAD), Line(f"{T.ABOUT_KEY.upper()}  About this app"),
+                       Line(f"Developed by {T.DEVELOPER}"), Line(T.WEBSITE)]
         self.top = 0
 
     def view(self, rows: int) -> View:
@@ -184,7 +186,10 @@ class HelpScreen(Screen):
         return View(self.title, self.lines[self.top:], self.hint)
 
     def on_key(self, k: Key, app) -> None:
-        if k.name in ("help", "esc", "enter", "bksp") or k.nav == "left":
+        if (k.char or "").lower() == T.ABOUT_KEY:
+            app.pop()
+            app.push(AboutScreen())
+        elif k.name in ("help", "esc", "enter", "bksp") or k.nav == "left":
             app.pop()
         elif k.up:
             self.top = max(0, self.top - 1)
@@ -289,6 +294,22 @@ class Form(Screen):
             self.before = f.value
             self.editing = True
         elif nav == "left":
+            app.pop()
+
+
+class AboutScreen(Screen):
+    """The standard About screen (nomadui.about_lines) with the website QR code."""
+    title = "About"
+    hint = "Scan for the website  Esc back"
+
+    def view(self, rows: int) -> View:
+        a = T.ABOUT    # short lines: the QR code takes the left half of the LCD
+        lines = [Line(a["name"], HEAD), Line(f"v{a['version']}  {a['license']}", DIM),
+                 Line("Developed by"), Line(T.DEVELOPER), Line(T.WEBSITE), Line(T.GITHUB)]
+        return View(self.title, lines, self.hint, qr=T.WEBSITE_URL)
+
+    def on_key(self, k: Key, app) -> None:
+        if k.nav != "right":
             app.pop()
 
 

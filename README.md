@@ -24,3 +24,8 @@ its old `tnt-*` package when installed, and the app moves its old settings
 
 Icons come from [`branding/nomad_icons.py`](branding/nomad_icons.py)
 (`python3 branding/nomad_icons.py --style labeled --out DIR`; AI Bridge art: `--only mcp --mcp-scene cloud`).
+
+## License
+
+GPL-3.0-only, see [LICENSE](LICENSE) and [COPYRIGHT](COPYRIGHT).
+Copyright (C) 2026 TheTechNomad.

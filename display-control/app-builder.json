@@ -1,6 +1,6 @@
 {
   "package_name": "nomad-display-control",
-  "version": "0.3.0",
+  "version": "0.4.2",
   "app_name": "Nomad Display Control",
   "bin_name": "nomad-display-control",
   "description": "Control projectors and TVs over the network",
@@ -23,7 +23,8 @@
     "source_repo": "https://github.com/TeddyPete/NomadTools",
     "author": {
       "github": "TeddyPete",
-      "display_name": "Tech Nomad Ted"
+      "display_name": "TheTechNomad",
+      "website": "https://www.TheTechNomad.com"
     },
     "share_code": "NMDC",
     "permissions": {

@@ -5,6 +5,7 @@ import signal
 import threading
 import time
 
+from . import __version__
 from . import lcd as L
 from . import ops, store
 from . import nomadui as T
@@ -15,6 +16,7 @@ from .lgwebos import legacy_key
 from .ui import BACK, DOWN, SELECT, UP, Busy, Confirm, Form, Message, Prompt, Screen, nav_key, wrap
 
 APP_TITLE = "Nomad Display Control"
+T.set_about(APP_TITLE, __version__)
 HELP_MAIN = ("Nomad Display Control turns projectors and TVs on and off, switches inputs and sets "
              "volume over the network: PJLink projectors, LG webOS, Samsung, Sony Bravia and "
              "Roku TVs. Find displays scans this network; Rooms switches a whole room at once. "
@@ -52,6 +54,11 @@ class App:
                 self.quit = True
         elif s in self.stack:
             self.stack.remove(s)
+        self.dirty = True
+
+    def open_about(self) -> None:
+        """The About screen (shown like Fn+H help, ESC closes it)."""
+        self.helpview = T.AboutView()
         self.dirty = True
 
     def wake(self) -> None:
@@ -246,7 +253,8 @@ class Home(List):
                 ("Check a display (IP)", lambda: check_prompt(app), "", L.OK),
                 ("Add by IP address", lambda: edit_display(app, None), "", L.OK),
                 ("Rooms (all on / off)", lambda: app.push(Rooms(app)), lambda: str(len(store.rooms(app.displays)) or ""), L.OK),
-                ("Wake-on-LAN", lambda: wake_prompt(app), "", L.OK)]
+                ("Wake-on-LAN", lambda: wake_prompt(app), "", L.OK),
+                ("About", lambda: app.open_about(), "", L.OK)]
         return out
 
     def header(self):
@@ -318,6 +326,8 @@ class DisplayScreen(List):
             out.append(("Input", lambda: choose_input(app, d), lambda: str(st.get("input") or "")[:12]))
         if "remote" in caps:
             out.append(("Remote (menu, arrows)", lambda: app.push(RemoteScreen(app, d)), "", L.OK))
+        if self.drv.service_menus():
+            out.append(("Installer / service menus", lambda: service_menus(app, d), "", L.WARN))
         if "volume" in caps:
             out.append(("Volume up", lambda: app.do(d, "vol", 1, "Volume up"),
                         lambda: "" if st.get("volume") is None else str(st["volume"])))
@@ -334,7 +344,9 @@ class DisplayScreen(List):
         if "message" in caps:
             out.append(("Show a message", lambda: message_prompt(app, d)))
         if self.drv.needs_pairing:
-            out.append(("Pair with this TV", lambda: pair(app, d), lambda: "paired" if d.secret else "not paired"))
+            out.append(("Pair with this TV", lambda: pair(app, d), lambda: ("paired" if d.secret else "not paired")
+                        if d.kind != "lg" or (d.extra or {}).get("manifest") == "full" or not d.secret
+                        else "redo for remote"))
         if d.mac:
             out.append(("Wake-on-LAN", lambda: app.do(d, "wol", label="Wake-on-LAN"), d.mac[-8:]))
         out += [("Info", lambda: show_info(app, d)),
@@ -482,6 +494,23 @@ def pair(app, d):
                  lambda r: (app.save(), app.push(Message(app, "Paired", f"{d.name}: {r}", L.OK)), app.poll(d)))
     app.push(Confirm(app, "Pair with TV", f"The TV will ask to allow Nomad Display Control. {hint}", go,
                      yes="OK pair", no="ESC back"))
+
+
+def service_menus(app, d):
+    """Hidden installer / service menus, behind a warning. Only opens them."""
+    menus = DRIVERS[d.kind](d).service_menus()
+
+    def opened(r):
+        app.push(RemoteScreen(app, d))      # drive the menu with the TV's remote
+        app.flash(r, L.WARN, 10)
+
+    def pick():
+        app.push(Pick(app, "Service menus", [(m[0], f"{m[1]}") for m in menus],
+                      lambda v: app.task(d.name, "Opening menu", lambda: ops.run(d, "svcmenu", v), opened)))
+    app.push(Confirm(app, "Warning", "Service and installer menus can change panel, power and firmware "
+                     "settings, break picture calibration and void the warranty. This only opens the menu; "
+                     "change nothing you don't know. Back/Exit closes it.", pick,
+                     yes="OK I understand", no="ESC back"))
 
 
 def check_prompt(app):
@@ -633,37 +662,59 @@ def find_displays(app):
             if busy.get("s"):
                 busy["s"].label = t
                 app.dirty = True
-        return discover.scan(progress=progress)
+        found = discover.scan(progress=progress)
+        hit = {(d.host, d.kind) for d in found}
+        miss = [d for d in app.displays if (d.host, d.kind) not in hit]
+        if miss:
+            progress(f"Retrying {len(miss)} saved")
+            found += discover.retry_saved(miss)
+        return found
 
     app.task("Find displays", "Scanning network", scan, lambda found: app.push(Found(app, found)))
     busy["s"] = app.stack[-1]
 
 
+SLEEP_HINT = ("TVs that are off sleep their network. Turn on: LG 'Turn on via Wi-Fi' (Quick Start+), "
+              "Samsung 'Network standby' / 'Power on with mobile', Sony 'Remote start'. Then Wake works.")
+
+
 class Found(List):
     title = "Found displays"
-    help = ("Displays found on this network. OK adds one (you can name it and give it a room). "
-            "Key 4 adds every new one at once. Projectors with a PJLink password show (password): "
-            "type it when you add them.")
+    help = ("Displays found on this network, then saved ones that did not answer (OFFLINE: off or asleep). "
+            "OK adds a new one, or opens a saved one. Key 4 adds every new one, key 5 wakes the highlighted "
+            "display by Wake-on-LAN. " + SLEEP_HINT)
 
     def __init__(self, app, found: list[Display]):
         super().__init__(app)
         self.found = found
+        hit = {(d.host, d.kind) for d in found}
+        self.offline = [d for d in app.displays if (d.host, d.kind) not in hit]
 
     def saved(self, d) -> bool:
         return any(x.host == d.host and x.kind == d.kind for x in self.app.displays)
+
+    def all(self) -> list:
+        return list(self.found) + self.offline
 
     def header(self):
         f = self.app.flash_line()
         if f:
             return [f]
         if not self.found:
-            return [("Nothing found. Same network? Add by IP", L.WARN)]
+            return [("No display answered. TV off? Its network sleeps", L.WARN)]
         return []
 
     def items(self):
-        return [(f"{d.name}"[:22], (lambda d=d: self.add(d)),
-                 lambda d=d: ("saved " if self.saved(d) else "") + KIND_SHORT.get(d.kind, ""),
-                 lambda d=d: L.DIM if self.saved(d) else L.FG) for d in self.found]
+        out = [(f"{d.name}"[:22], (lambda d=d: self.add(d)),
+                lambda d=d: ("saved " if self.saved(d) else "") + KIND_SHORT.get(d.kind, ""),
+                lambda d=d: L.DIM if self.saved(d) else L.FG) for d in self.found]
+        out += [(f"{d.name}"[:20], (lambda d=d: self.app.push(DisplayScreen(self.app, d))),
+                 "OFFLINE", L.WARN) for d in self.offline]
+        return out
+
+    def current(self):
+        a = self.all()
+        return a[self.sel] if 0 <= self.sel < len(a) else None
 
     def add(self, d):
         if self.saved(d):
@@ -683,8 +734,20 @@ class Found(List):
         self.app.flash(f"Added {n} display{'s' if n != 1 else ''}", L.OK)
         self.app.poll_all()
 
+    def wake(self):
+        d = self.current()
+        if not d:
+            return
+        if not d.mac:
+            self.app.flash(f"No MAC saved for {d.name}", L.BAD, 6)
+            return
+        self.app.do(d, "wol", label=f"Waking {d.name}")
+
     def softkeys(self):
-        return [("Add all", self.add_all), None, None, None, ("Rescan", lambda: (self.app.pop(self), find_displays(self.app)))]
+        d = self.current()
+        return [("Add all", self.add_all) if any(not self.saved(x) for x in self.found) else None,
+                ("Wake", self.wake) if d and d.mac else None, None, None,
+                ("Rescan", lambda: (self.app.pop(self), find_displays(self.app)))]
 
 
 # ---- rooms -----------------------------------------------------------------
