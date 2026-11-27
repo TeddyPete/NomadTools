@@ -352,6 +352,23 @@ class Misc(unittest.TestCase):
         self.assertIn("toggle-only", res[2][2])
         self.assertEqual(ops.summary(res), "1 of 3 OK")
 
+    def test_check_nothing(self):
+        from tntdisp import check
+        from tntdisp.app import App, CheckResult
+        from tntdisp import lcd as L
+        r = check.check("127.0.0.1")
+        self.assertEqual(r["kinds"], [])
+        self.assertIsNone(check.to_display("127.0.0.1", r))
+        app = App(L.Panel(headless=True), None)
+        scr = CheckResult(app, "127.0.0.1", {"lines": [(check.NEEDS, "PJLink: answers, needs the password"),
+                                                       (check.INFO, "MAC 00:11:22:33:44:55")],
+                                             "kinds": ["pjlink"], "mac": "00:11:22:33:44:55"},
+                          {check.NEEDS: L.WARN, check.INFO: L.DIM, check.READY: L.OK, check.NO: L.BAD},
+                          {check.NEEDS: "!", check.INFO: "-", check.READY: "OK", check.NO: "x"})
+        app.stack = [scr]
+        app.draw()
+        self.assertEqual(scr.keybar()[0], "Add")
+
     def test_screens(self):
         from tntdisp.demo import render_screens
         files = render_screens(tempfile.mkdtemp())
