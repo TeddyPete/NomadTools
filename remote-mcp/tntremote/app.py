@@ -41,7 +41,9 @@ def ago(t: float) -> str:
         return f"{s}s"
     if s < 3600:
         return f"{s // 60}m"
-    return f"{s // 3600}h"
+    if s < 172800:
+        return f"{s // 3600}h"
+    return f"{s // 86400}d"
 
 
 def wrap(text: str, width: int = 30) -> list[str]:
@@ -153,7 +155,7 @@ class Home(FormScreen):
         fields = [T.Field("remote", "Remote access", "bool"),
                   T.Field("pair", "Pair new connection", "action"),
                   T.Field("status", "Status & activity", "action"),
-                  T.Field("clients", "Connected", "action"),
+                  T.Field("clients", "Connected apps", "action"),
                   T.Field("perms", "Permissions", "action"),
                   T.Field("setup", "Setup", "action"),
                   T.Field("help", "Help", "action")]
@@ -170,7 +172,7 @@ class Home(FormScreen):
         for r in rows:
             if r.label == "Remote access":
                 r.color = T.OK if self.app.on else T.FG
-            if r.label == "[ Connected ]":
+            if r.label == "[ Connected apps ]":
                 r.value = str(len(self.app.clients))
         return rows
 
@@ -257,6 +259,9 @@ class PairScreen(Screen):
             app.push(PairedScreen(app, c.get("name") or "your AI app"))
             return []
         st = oauth.pairing_state()
+        if not st["active"] and st["used"] and time.time() - st["used"] < 120:
+            return [("Code accepted!", T.OK), ("", T.FG), ("Finishing sign-in with", T.FG),
+                    ("your AI app...", T.FG)]
         if not st["active"]:
             return [("Code used or expired.", T.WARN), ("", T.FG), ("OK = make a new code", T.FG)]
         return [("Authenticate in your app, type:" if self.wizard else "Type this on the Allow page:", T.DIM),
@@ -299,34 +304,81 @@ def big_font():
 
 
 class ClientsScreen(Screen):
-    title = "Connected"
+    """Connected apps: who, last used. OK on one shows details and Disconnect."""
+    title = "Connected apps"
+    live = True
 
     def __init__(self, app):
         super().__init__(app)
         self.sel = 0
 
-    def items(self):
-        return [(c["name"] or c["id"][:12], ago(c["last_auth"]) if c["last_auth"] else "") for c in self.app.clients]
-
     def rows(self):
-        its = self.items()
-        rows = [T.RowView(n, a, "selected" if False else "normal") for n, a in its[:T.ROWS - 1]]
-        if not its:
-            rows = [T.RowView("Nobody is connected", "", "normal", T.DIM)]
-        rows.append(T.RowView("[ Disconnect everyone ]", "", "selected", T.BAD))
-        return rows
+        cl = self.app.clients
+        n = len(cl) + 1                     # + Disconnect everyone
+        self.sel = max(0, min(self.sel, n - 1))
+        top = max(0, self.sel - (T.ROWS - 1))
+        rows = []
+        for i, c in enumerate(cl):
+            rows.append(T.RowView(c["name"] or c["id"][:12], "used " + ago(c["last_used"]) if c["last_used"] else "",
+                                  "selected" if i == self.sel else "normal"))
+        if not cl:
+            rows.append(T.RowView("No apps connected", "", "normal", T.DIM))
+        rows.append(T.RowView("[ Disconnect everyone ]", "", "selected" if self.sel == len(cl) else "normal", T.BAD))
+        return rows[top:top + T.ROWS]
 
     def hint(self):
-        return "OK disconnect everyone  ESC back"
+        return "OK select  ESC back"
 
     def key(self, k):
-        if k.name == "enter":
+        n = T.nav_name(k.name, k.char)
+        cl = self.app.clients
+        if n in T.UP:
+            self.sel -= 1
+        elif n in T.DOWN:
+            self.sel += 1
+        elif k.name == "enter" or n == "right":
+            if self.sel < len(cl):
+                self.app.push(ClientInfo(self.app, cl[self.sel]))
+                return
+
             def yes():
                 oauth.revoke_all()
                 self.app.refresh(now=True)
                 self.app.toast("Everyone disconnected. Each AI app must pair again.")
             self.app.push(Confirm(self.app, "Disconnect everyone",
                                   "Forget every sign-in (Claude, ChatGPT, Codex...)? Each one has to pair again with a new code.", yes))
+        else:
+            super().key(k)
+
+
+class ClientInfo(Screen):
+    """One connected app."""
+
+    def __init__(self, app, c: dict):
+        super().__init__(app)
+        self.c = c
+        self.title = c["name"] or "AI app"
+
+    def rows(self):
+        c = self.c
+        when = time.strftime("%b %d %H:%M", time.localtime(c["paired"])) if c.get("paired") else "?"
+        return [("Paired:     " + when, T.FG),
+                ("Last used:  " + (ago(c["last_used"]) + " ago" if c.get("last_used") else "never"), T.FG),
+                ("", T.FG),
+                ("OK = disconnect this app", T.BAD)]
+
+    def hint(self):
+        return "OK disconnect  ESC back"
+
+    def key(self, k):
+        if k.name == "enter":
+            def yes():
+                oauth.Store().revoke_client(self.c["id"])
+                self.app.pop()
+                self.app.refresh(now=True)
+                self.app.toast(f"{self.title} disconnected. It must pair again to come back.")
+            self.app.push(Confirm(self.app, "Disconnect " + self.title,
+                                  f"Sign {self.title} out of this device? It has to pair again with a new code.", yes))
         else:
             super().key(k)
 

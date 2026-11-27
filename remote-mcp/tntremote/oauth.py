@@ -79,7 +79,8 @@ def pairing_state() -> dict:
     """{"active": bool, "left": seconds} for the screens."""
     p = C.read_json(C.PAIR_FILE) or {}
     left = int(p.get("exp", 0) - time.time())
-    return {"active": bool(p.get("hash")) and left > 0, "left": max(0, left)}
+    return {"active": bool(p.get("hash")) and left > 0, "left": max(0, left),
+            "used": p.get("used", 0)}
 
 
 def clear_pairing() -> None:
@@ -100,7 +101,8 @@ def check_pairing(code: str) -> tuple[bool, str]:
         if not p.get("hash") or p.get("exp", 0) < time.time():
             return False, "No pairing code is active. On the CardputerZero open " + brand.APP_NAME + " and choose Pair new connection."
         if hmac.compare_digest(p["hash"], _h(code)):
-            clear_pairing()
+            # keep a marker so the device can say "accepted" instead of "used or expired"
+            C.write_json(C.PAIR_FILE, {"used": time.time()})
             return True, ""
         p["tries"] = p.get("tries", 0) + 1
         if p["tries"] >= PAIR_TRIES:
@@ -190,7 +192,9 @@ class Store:
         now = time.time()
         self.data["access"][_h(at)] = {"client": cid, "exp": now + ACCESS_TTL, "scope": scope, "resource": resource}
         self.data["refresh"][_h(rt)] = {"client": cid, "exp": now + REFRESH_TTL, "scope": scope, "resource": resource}
-        self.data["clients"].get(cid, {})["last_auth"] = int(now)
+        c = self.data["clients"].get(cid, {})
+        c["last_auth"] = int(now)
+        c.setdefault("paired", int(now))
         self._save()
         return {"access_token": at, "token_type": "Bearer", "expires_in": ACCESS_TTL,
                 "refresh_token": rt, "scope": scope}
@@ -239,7 +243,21 @@ class Store:
             a = self.data["access"].get(_h(token))
             if not a or a["exp"] < time.time() or a["client"] not in self.data["clients"]:
                 return None
-            return dict(a, client_name=self.data["clients"][a["client"]].get("name", ""))
+            c = self.data["clients"][a["client"]]
+            now = int(time.time())
+            if now - c.get("last_used", 0) >= 60:      # "last used" for the device, saved at most once a minute
+                c["last_used"] = now
+                self._save()
+            return dict(a, client_name=c.get("name", ""))
+
+    def revoke_client(self, cid: str) -> None:
+        """Forget one app: its registration and all its tokens."""
+        with self.lock:
+            self._load()
+            self.data["clients"].pop(cid, None)
+            for k in ("access", "refresh"):
+                self.data[k] = {h: v for h, v in self.data[k].items() if v.get("client") != cid}
+            self._save()
 
     def summary(self) -> list[dict]:
         """Connected clients for the device screen."""
@@ -252,7 +270,9 @@ class Store:
             out = []
             for cid, c in self.data["clients"].items():
                 if cid in live:
-                    out.append({"id": cid, "name": c.get("name", ""), "last_auth": c.get("last_auth", 0)})
+                    out.append({"id": cid, "name": c.get("name", ""), "last_auth": c.get("last_auth", 0),
+                                "paired": c.get("paired") or c.get("created", 0),
+                                "last_used": max(c.get("last_used", 0), c.get("last_auth", 0))})
             return sorted(out, key=lambda c: -c["last_auth"])
 
 

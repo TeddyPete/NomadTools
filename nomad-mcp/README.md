@@ -44,7 +44,8 @@ With the free ngrok plan, the first time a browser opens the Allow page (from Cl
 * The token page only runs while setup step 3 is on the screen, and a pasted token is used only after you press OK on the device.
 * Every app has to be approved with a one-time code shown on the device's own screen. A code is valid for 10 minutes and one use.
 * Tokens are stored only as hashes. Refresh tokens last 60 days and renew while the app is in use.
-* **Remote access Off** cuts everyone off at once. **Connected > Disconnect everyone** forgets all sign-ins.
+* **Connected apps** lists which AI apps are signed in (Claude, ChatGPT, Codex...), when each was paired and last used. Pick one to disconnect just that app, or choose **Disconnect everyone**.
+* **Remote access Off** cuts everyone off at once.
 * Admin (sudo) stays off until you switch it on at the device. The title bar dot turns red while it is on.
 * Every tool call is logged to `~/.local/state/nomad-mcp/audit.log`.
 * The switches are guardrails, not a hard boundary. Treat Remote access On as giving the connected app full control of the device.
