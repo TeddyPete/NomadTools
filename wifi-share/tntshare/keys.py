@@ -37,7 +37,7 @@ FN_KEY, SYM_KEY = 389, 383  # KEY_DVD, KEY_CD: layer keys, never text
 
 NAMED = {1: "esc", 14: "backspace", 15: "tab", 28: "enter", 96: "enter", 103: "up", 108: "down",
          105: "left", 106: "right", 111: "delete", 102: "home", 107: "end", 104: "pageup",
-         109: "pagedown"}
+         109: "pagedown", 138: "help"}   # 138 KEY_HELP = Fn+H
 SHIFT, CTRL, ALT, CAPS = {42, 54}, {29, 97}, {56, 100}, 58
 
 

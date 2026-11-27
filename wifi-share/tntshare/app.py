@@ -7,12 +7,15 @@ import threading
 import time
 
 from . import lcd as L
+from . import tntui as T
 from . import net, portal
 from . import settings as S
 from .keys import Key, Keyboard
 from .ui import BACK, SELECT, Busy, Confirm, Form, Menu, Message, Screen, Prompt, nav_key, wrap
 
 APP_TITLE = "TNT WiFi Share"
+HELP_MAIN = ("TNT WiFi Share shares internet between Wi-Fi and the Ethernet port. "
+             "Settings are changed right here on the keyboard. TheTechNomad.com")
 
 
 class App:
@@ -20,6 +23,7 @@ class App:
         self.panel, self.kb = panel, kb
         self.cfg = S.load()
         self.stack: list[Screen] = []
+        self.helpview = None    # Fn+H help view while it is shown
         self.dirty = True
         self.quit = False
         self.status: dict = {}
@@ -92,8 +96,7 @@ class App:
             keys = self.kb.poll(0.1) if self.kb else (time.sleep(0.1) or [])
             for k in keys:
                 if self.stack:
-                    top = self.stack[-1]
-                    top.key(k if top.text_entry else nav_key(k))
+                    self.dispatch(k)
                 self.dirty = True
             if self.stack:
                 self.stack[-1].tick()
@@ -103,12 +106,30 @@ class App:
                 last_draw = now
                 self.dirty = False
 
+    def dispatch(self, k) -> None:
+        """One key: Fn+H help, number keys 4..8, then the screen itself."""
+        top = self.stack[-1]
+        if self.helpview is not None:
+            if self.helpview.handle(k) == "close":
+                self.helpview = None
+            return
+        if k.name == "help":
+            self.helpview = T.HelpView(top.title, top.help or HELP_MAIN, top.keybar())
+            return
+        if not top.text_entry and top.soft(k):
+            return
+        top.key(k if top.text_entry else nav_key(k))
+
     def draw(self) -> None:
         if not self.stack:
             return
+        if self.helpview is not None:
+            self.helpview.render(self.panel.surf, self.panel.fonts)
+            self.panel.flush()
+            return
         s = self.stack[-1]
         rows, sel = s.rows()
-        self.panel.draw(s.title, rows, s.hint, sel, s.right())
+        self.panel.draw(s.title, rows, s.hint, sel, s.right(), s.keybar())
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +161,22 @@ class Home(Menu):
             ("Hotspot settings", lambda: edit_hotspot(app)),
             ("Stop sharing", self.stop, ""),
         ]
-        super().__init__(app, APP_TITLE, items, "\u2191\u2193 move  OK/\u2192 open  ESC quit", numbered=True)
+        super().__init__(app, APP_TITLE, items, "\u2191\u2193 move  OK/\u2192 open  ESC quit")
+
+    help = ("Share Wi-Fi to Ethernet gives a switch (and the gear on it) this device's Wi-Fi "
+            "internet. Hotspot from Ethernet makes a Wi-Fi hotspot from a wired network. "
+            "Guest Wi-Fi login opens a hotel or venue login page right here.")
+
+    def softkeys(self):
+        app = self.app
+        on = app.status.get("mode")
+        return [
+            (lambda: ("Share", L.OK) if on == "wifi2eth" else "Share", self.mode1),
+            (lambda: ("Hotspot", L.OK) if on == "hotspot" else "Hotspot", self.mode2),
+            ("Join", lambda: open_wifi_list(app)),
+            ("Status", lambda: app.push(Status(app))),
+            (("Stop", L.BAD), self.stop) if on else None,
+        ]
 
     def mode1(self):
         app, c = self.app, self.app.cfg
@@ -195,6 +231,10 @@ class Home(Menu):
 class Status(Screen):
     title = "Status"
     hint = "OK clients  R recheck  \u2190 back"
+    help = "What is running now, the internet check, addresses and how many clients are connected."
+
+    def softkeys(self):
+        return [("Recheck", self.app.refresh), ("Clients", lambda: self.app.push(Clients(self.app)))]
 
     def __init__(self, app):
         super().__init__(app)
@@ -232,8 +272,8 @@ class Status(Screen):
 
     def rows(self):
         rows = self.all_rows()
-        self.top = min(self.top, max(0, len(rows) - L.Panel.ROWS))
-        return rows[self.top:self.top + L.Panel.ROWS], None
+        self.top = min(self.top, max(0, len(rows) - self.nrows))
+        return rows[self.top:self.top + self.nrows], None
 
     def key(self, k):
         n = len(self.all_rows())
@@ -242,7 +282,7 @@ class Status(Screen):
         elif k.name == "up":
             self.top = max(0, self.top - 1)
         elif k.name == "down":
-            self.top = min(max(0, n - L.Panel.ROWS), self.top + 1)
+            self.top = min(max(0, n - self.nrows), self.top + 1)
         elif k.name in SELECT:
             self.app.push(Clients(self.app))
         else:
@@ -271,14 +311,14 @@ class Clients(Screen):
         for c in cl:
             name = c.get("name") or c["mac"]
             rows.append((name[:20], L.FG, c.get("ip") or "(no IP)"))
-        return rows[self.top:self.top + L.Panel.ROWS], None
+        return rows[self.top:self.top + self.nrows], None
 
     def key(self, k):
         n = len(self.app.status.get("clients", []))
         if k.name == "up":
             self.top = max(0, self.top - 1)
         elif k.name == "down":
-            self.top = min(max(0, n - L.Panel.ROWS), self.top + 1)
+            self.top = min(max(0, n - self.nrows), self.top + 1)
         else:
             super().key(k)
 
