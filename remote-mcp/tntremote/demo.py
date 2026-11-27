@@ -50,6 +50,6 @@ def render_screens(out_dir: str) -> None:
     shot()
     app.pop()
     app.push(A.QRScreen(app, "ngrok 1/3: account", A.NGROK_SIGNUP,
-                        "Scan with your phone and make a free ngrok account (or sign in). Then press OK.", lambda: None))
+                        "Scan and make a free ngrok account (or sign in). If it asks where to begin, pick Share localhost. Then press OK.", lambda: None))
     shot()
     oauth.clear_pairing()

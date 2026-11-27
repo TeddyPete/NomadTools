@@ -500,7 +500,7 @@ def start_ngrok_wizard(app, again: bool = False) -> None:
         app.push(ConnectorScreen(app))
         return
     app.push(QRScreen(app, "ngrok 1/3: account", NGROK_SIGNUP,
-                      "Scan with your phone and make a free ngrok account (or sign in). Then press OK.", step2))
+                      "Scan and make a free ngrok account (or sign in). If it asks where to begin, pick Share localhost. Then press OK.", step2))
 
 
 class WelcomeScreen(Screen):
