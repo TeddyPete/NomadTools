@@ -34,7 +34,8 @@ small{{color:#8899aa}}</style></head>
 
 FORM = """<p>1. Open <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank" rel="noopener">your ngrok authtoken page</a>
 (sign in or sign up free first) and tap <b>Copy</b>.</p>
-<p>2. Paste it here and tap Save.</p>{msg}
+<p>2. Paste it here and tap Save. ngrok lists 4 steps; only <b>Add your authtoken</b> matters.
+Pasting the whole <code>ngrok config add-authtoken ...</code> line is fine.</p>{msg}
 <form method="post" autocomplete="off"><textarea name="token" rows="3" placeholder="paste authtoken" autocapitalize="off" spellcheck="false"></textarea>
 <button type="submit">Save</button></form>
 <p><small>The token stays on the CardputerZero (only the pi user can read it).</small></p>"""
@@ -89,8 +90,6 @@ class SetupWeb:
                     return
                 n = min(int(self.headers.get("Content-Length") or 0), 4096)
                 tok = (parse_qs(self.rfile.read(n).decode(errors="replace")).get("token") or [""])[0].strip()
-                if tok.startswith("ngrok config add-authtoken"):
-                    tok = tok.split()[-1]
                 try:
                     C.set_ngrok_token(tok)
                 except ValueError as e:

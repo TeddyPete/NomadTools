@@ -492,7 +492,7 @@ def start_ngrok_wizard(app, again: bool = False) -> None:
 
     def step2():
         app.push(QRScreen(app, "ngrok 2/3: authtoken", NGROK_TOKEN_PAGE,
-                          "Scan, sign in, and tap Copy next to your authtoken. Then press OK.", step3))
+                          "Scan it. Of ngrok's 4 steps only step 2 matters: copy the token after 'ngrok config add-authtoken'. Then press OK.", step3))
     if C.ngrok_token() and control.ngrok_path() and not again:
         # already set up: just switch over and show the address
         control.set_tunnel_kind("ngrok")
@@ -500,7 +500,7 @@ def start_ngrok_wizard(app, again: bool = False) -> None:
         app.push(ConnectorScreen(app))
         return
     app.push(QRScreen(app, "ngrok 1/3: account", NGROK_SIGNUP,
-                      "Scan and make a free ngrok account (or sign in). If it asks where to begin, pick Share localhost. Then press OK.", step2))
+                      "Scan and make a free ngrok account (or sign in). After sign-up choose Share localhost. Then press OK.", step2))
 
 
 class WelcomeScreen(Screen):

@@ -148,6 +148,9 @@ def set_ngrok_token(token: str) -> None:
     """ngrok agent config (v3 format) holding only the authtoken."""
     ensure_dirs()
     token = token.strip()
+    # Accept the whole line ngrok shows: "ngrok config add-authtoken <token>".
+    if token.lower().startswith("ngrok") and "add-authtoken" in token:
+        token = token.split("add-authtoken", 1)[1].strip()
     if not token or any(c.isspace() or c in "\"'\\" for c in token) or len(token) > 200:
         raise ValueError("That doesn't look like an ngrok authtoken.")
     fd = os.open(NGROK_CONF + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
