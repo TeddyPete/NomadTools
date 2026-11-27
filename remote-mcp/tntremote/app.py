@@ -223,7 +223,9 @@ class PairScreen(Screen):
             return [("Code used or expired.", T.WARN), ("", T.FG), ("OK = make a new code", T.FG)]
         return [("Type this on the Allow page:", T.DIM), "", "", "",
                 (f"Valid {st['left'] // 60}:{st['left'] % 60:02d} min, one use", T.DIM),
-                ("" if self.app.on else "Remote access is OFF!", T.BAD)]
+                ("Remote access is OFF!", T.BAD) if not self.app.on else
+                # free ngrok shows browsers a "You are about to visit" page once first
+                ("ngrok warning page? Visit Site", T.DIM) if self.app.cfg.get("tunnel_kind") == "ngrok" else ""]
 
     def draw_extra(self, surf):
         if oauth.pairing_state()["active"]:

@@ -36,7 +36,7 @@ No account? Pick **Quick test** instead. It works right away, but the address ch
 
 The app then opens an **Allow** page. On the device, choose **Pair new connection** and type the code it shows on that page.
 
-With the free ngrok plan, your browser may first show an ngrok "You are about to visit" page. Tap **Visit Site**.
+With the free ngrok plan, the first time a browser opens the Allow page (from Claude, ChatGPT or Codex) ngrok shows its own "You are about to visit <name>.ngrok-free.dev" page. That is normal: click **Visit Site** and the Allow page opens. The browser remembers it, and the AI apps' own MCP traffic never sees that page. The device's pairing screen reminds you of this.
 
 ## Safety
 
