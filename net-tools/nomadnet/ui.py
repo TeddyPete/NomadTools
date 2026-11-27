@@ -304,7 +304,7 @@ class AboutScreen(Screen):
 
     def view(self, rows: int) -> View:
         a = T.ABOUT    # short lines: the QR code takes the left half of the LCD
-        lines = [Line(a["name"], HEAD), Line(f"v{a['version']}  {a['license']} License", DIM),
+        lines = [Line(a["name"], HEAD), Line(f"v{a['version']}  {a['license']}", DIM),
                  Line("Developed by"), Line(T.DEVELOPER), Line(T.WEBSITE), Line(T.GITHUB)]
         return View(self.title, lines, self.hint, qr=T.WEBSITE_URL)
 

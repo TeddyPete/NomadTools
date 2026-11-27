@@ -648,10 +648,10 @@ WEBSITE_URL = "https://www.TheTechNomad.com"
 GITHUB = "github.com/TeddyPete"
 GITHUB_URL = "https://github.com/TeddyPete"
 ABOUT_KEY = "a"                 # in Fn+H help: A opens About
-ABOUT = {"name": "", "version": "", "license": "MIT", "extra": ""}
+ABOUT = {"name": "", "version": "", "license": "GPL-3.0", "extra": ""}
 
 
-def set_about(name: str, version: str, license: str = "MIT", extra: str = "") -> None:
+def set_about(name: str, version: str, license: str = "GPL-3.0", extra: str = "") -> None:
     """This app's name, version and license for the About screen. extra: one
     more line (e.g. "Learn more at askelmer.com")."""
     ABOUT.update(name=name, version=version, license=license, extra=extra)

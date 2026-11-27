@@ -20,7 +20,7 @@
       "screenshots/lcd_3.png"
     ],
     "icon": "packaging/icon.png",
-    "license": "MIT",
+    "license": "GPL-3.0-only",
     "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
     "author": {
       "github": "TeddyPete",
