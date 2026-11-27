@@ -21,7 +21,7 @@ The connected app can:
    1. Scan it and make a free ngrok account, or sign in. After sign-up, choose **Share localhost**. Then press OK.
    2. Scan it to open your ngrok authtoken page. ngrok lists 4 steps; only step 2, **Add your authtoken**, matters. Copy the token (the part after `ngrok config add-authtoken`). Then press OK.
    3. Scan it with your phone, on the same Wi-Fi/LAN as the device, or type the address shown beside it, like `192.168.1.10:8776/nomadmcp` (or `cp0.local:8776/nomadmcp`). Paste the token and tap Save. The device then shows the token's last 4 characters, and the phone shows the same 4. If they match, press OK on the device to use it. Pasting the whole `ngrok config add-authtoken ...` line also works. If your phone can't reach the device, press OK and type the token on the keyboard instead.
-3. It switches Remote access on and shows your **connector address**, `https://<name>.ngrok-free.dev/mcp`, as text and as a QR code. This address is fixed and stays the same after restarts. Press OK there to get the pairing code.
+3. It switches Remote access on and shows your **connector address**, `https://<name>.ngrok-free.dev/mcp`, as text and as a QR code. This address is fixed and stays the same after restarts. Press OK there for the last step, **pair your app**: add the address in your AI app (see below), click Authenticate or Connect, and type the code the device shows on the Allow page. When the app signs in, the device shows **Connected!**
 
 No account? Pick **Quick test** instead. It works right away, but the address changes every time the device restarts. **Cloudflare** is there for people who already run Cloudflare tunnels. Its command-line steps are in [../remote-mcp/README.md](../remote-mcp/README.md).
 

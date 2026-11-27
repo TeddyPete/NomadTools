@@ -207,21 +207,60 @@ class Home(FormScreen):
             app.push(TextScreen(app, "Help", wrap(HELP, 30) + [f"Version {__version__}"]))
 
 
+class PairedScreen(TextScreen):
+    """Shown once an AI app has signed in with the pairing code."""
+
+    def __init__(self, app, name: str):
+        super().__init__(app, "Connected!", [
+            (f"{name} is paired.", T.OK), "",
+            "It can now use this device.",
+            "Admin (sudo) is off; switch it",
+            "on in Permissions if needed."])
+
+    def hint(self):
+        return "OK done"
+
+    def key(self, k):
+        if k.name == "enter" or T.nav_name(k.name, k.char) in T.BACK:
+            self.app.pop()
+        else:
+            super().key(k)
+
+
 class PairScreen(Screen):
     """Big one-time code to type on the Allow page."""
     title = "Pair new connection"
     live = True
 
-    def __init__(self, app):
+    def __init__(self, app, wizard: bool = False):
         super().__init__(app)
+        self.wizard = wizard
+        if wizard:
+            self.title = "Last step: pair your app"
         self.code = oauth.new_pairing_code()
+        self.since = time.time() - 1
         app.refresh(now=True)
 
+    def paired(self) -> dict | None:
+        """The client that signed in since this screen opened, if any."""
+        return next((c for c in self.app.clients if c.get("last_auth", 0) >= self.since), None)
+
     def rows(self):
+        c = self.paired()
+        if c:
+            app = self.app
+            if self.wizard:
+                while len(app.stack) > 1:
+                    app.pop()
+            else:
+                app.pop()
+            app.push(PairedScreen(app, c.get("name") or "your AI app"))
+            return []
         st = oauth.pairing_state()
         if not st["active"]:
             return [("Code used or expired.", T.WARN), ("", T.FG), ("OK = make a new code", T.FG)]
-        return [("Type this on the Allow page:", T.DIM), "", "", "",
+        return [("Authenticate in your app, type:" if self.wizard else "Type this on the Allow page:", T.DIM),
+                "", "", "",
                 (f"Valid {st['left'] // 60}:{st['left'] % 60:02d} min, one use", T.DIM),
                 ("Remote access is OFF!", T.BAD) if not self.app.on else
                 # free ngrok shows browsers a "You are about to visit" page once first
@@ -417,8 +456,9 @@ class ConnectorScreen(QRScreen):
     """The address to add in Claude / ChatGPT / Codex, as text and as a QR code."""
     title = "Connector address"
 
-    def __init__(self, app):
-        super().__init__(app, "Connector address", "", "", lambda: app.push(PairScreen(app)), "pair an app")
+    def __init__(self, app, wizard: bool = False):
+        super().__init__(app, "Your connector address" if wizard else "Connector address", "", "",
+                         lambda: app.push(PairScreen(app, wizard)), "next: pair" if wizard else "pair an app")
 
     def content(self):
         app = self.app
@@ -599,8 +639,10 @@ class NgrokTokenScreen(QRScreen):
                 app.wizard = False
                 while len(app.stack) > 1:
                     app.pop()
-            else:
-                app.pop()
+                app.refresh(now=True)
+                app.push(ConnectorScreen(app, wizard=True))
+                return "", "", T.FG
+            app.pop()
             app.refresh(now=True)
             app.push(ConnectorScreen(app))
             return "", "", T.FG
