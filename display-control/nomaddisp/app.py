@@ -336,7 +336,9 @@ class DisplayScreen(List):
         if "message" in caps:
             out.append(("Show a message", lambda: message_prompt(app, d)))
         if self.drv.needs_pairing:
-            out.append(("Pair with this TV", lambda: pair(app, d), lambda: "paired" if d.secret else "not paired"))
+            out.append(("Pair with this TV", lambda: pair(app, d), lambda: ("paired" if d.secret else "not paired")
+                        if d.kind != "lg" or (d.extra or {}).get("manifest") == "full" or not d.secret
+                        else "redo for remote"))
         if d.mac:
             out.append(("Wake-on-LAN", lambda: app.do(d, "wol", label="Wake-on-LAN"), d.mac[-8:]))
         out += [("Info", lambda: show_info(app, d)),
@@ -652,7 +654,13 @@ def find_displays(app):
             if busy.get("s"):
                 busy["s"].label = t
                 app.dirty = True
-        return discover.scan(progress=progress)
+        found = discover.scan(progress=progress)
+        hit = {(d.host, d.kind) for d in found}
+        miss = [d for d in app.displays if (d.host, d.kind) not in hit]
+        if miss:
+            progress(f"Retrying {len(miss)} saved")
+            found += discover.retry_saved(miss)
+        return found
 
     app.task("Find displays", "Scanning network", scan, lambda found: app.push(Found(app, found)))
     busy["s"] = app.stack[-1]

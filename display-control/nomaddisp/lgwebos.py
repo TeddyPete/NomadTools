@@ -20,6 +20,35 @@ MANIFEST = {"manifestVersion": 1, "appVersion": "1.1", "signed": {"appId": "com.
   "created": "20261127", "permissions": ["CONTROL_AUDIO", "CONTROL_POWER", "CONTROL_INPUT_TV", "CONTROL_INPUT_MEDIA_PLAYBACK", "LAUNCH", "READ_INSTALLED_APPS", "READ_CURRENT_CHANNEL", "READ_INPUT_DEVICE_LIST", "READ_TV_CHANNEL_LIST", "CONTROL_DISPLAY", "READ_RUNNING_APPS", "CONTROL_MOUSE_AND_KEYBOARD", "WRITE_NOTIFICATION_TOAST", "READ_POWER_STATE"],
   "serial": "tnt1"}, "permissions": ["LAUNCH", "CONTROL_AUDIO", "CONTROL_POWER", "CONTROL_INPUT_TV", "CONTROL_INPUT_MEDIA_PLAYBACK", "READ_INSTALLED_APPS", "READ_CURRENT_CHANNEL", "READ_INPUT_DEVICE_LIST", "READ_TV_CHANNEL_LIST", "CONTROL_DISPLAY", "READ_RUNNING_APPS", "WRITE_NOTIFICATION_TOAST", "READ_POWER_STATE"], "signatures": []}
 
+# Full manifest with LG's own test signature (as used by Home Assistant's
+# aiowebostv). It adds CONTROL_INPUT_JOYSTICK / MOUSE_AND_KEYBOARD, which the
+# remote's pointer socket needs. Pairing with it shows as "LG Remote App".
+_SIG = ("eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmctY2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9"
+        ".hrVRgjCwXVvE2OOSpDZ58hR+59aFNwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWSrthlf7G1"
+        "28qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLKqTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A2"
+        "7Pq1n50cMchmcaXadJhGrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o/0lkk/N97gfVRLW5hA29"
+        "yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw==")
+MANIFEST_FULL = {
+    "appVersion": "1.1", "manifestVersion": 1,
+    "permissions": ["LAUNCH", "LAUNCH_WEBAPP", "APP_TO_APP", "CLOSE", "TEST_OPEN", "TEST_PROTECTED", "CONTROL_AUDIO",
+                    "CONTROL_DISPLAY", "CONTROL_INPUT_JOYSTICK", "CONTROL_INPUT_MEDIA_RECORDING",
+                    "CONTROL_INPUT_MEDIA_PLAYBACK", "CONTROL_INPUT_TV", "CONTROL_POWER", "CONTROL_TV_SCREEN",
+                    "READ_APP_STATUS", "READ_CURRENT_CHANNEL", "READ_INPUT_DEVICE_LIST", "READ_NETWORK_STATE",
+                    "READ_RUNNING_APPS", "READ_TV_CHANNEL_LIST", "WRITE_NOTIFICATION_TOAST", "READ_POWER_STATE",
+                    "READ_COUNTRY_INFO", "CONTROL_INPUT_TEXT", "CONTROL_MOUSE_AND_KEYBOARD", "READ_INSTALLED_APPS",
+                    "READ_SETTINGS"],
+    "signatures": [{"signature": _SIG, "signatureVersion": 1}],
+    "signed": {"appId": "com.lge.test", "created": "20140509",
+               "localizedAppNames": {"": "LG Remote App", "ko-KR": "\ub9ac\ubaa8\ucee8 \uc571",
+                                     "zxx-XX": "\u041b\u0413 R\u044dmot\u044d A\u041f\u041f"},
+               "localizedVendorNames": {"": "LG Electronics"},
+               "permissions": ["TEST_SECURE", "CONTROL_INPUT_TEXT", "CONTROL_MOUSE_AND_KEYBOARD", "READ_INSTALLED_APPS",
+                               "READ_LGE_SDX", "READ_NOTIFICATIONS", "SEARCH", "WRITE_SETTINGS",
+                               "WRITE_NOTIFICATION_ALERT", "CONTROL_POWER", "READ_CURRENT_CHANNEL",
+                               "READ_RUNNING_APPS", "READ_UPDATE_INFO", "UPDATE_FROM_REMOTE_APP",
+                               "READ_LGE_TV_INPUT_EVENTS", "READ_TV_CURRENT_TIME"],
+               "serial": "2f930e2d2cfe083771f68e4fe7bb07", "vendorId": "com.lge"}}
+
 # The proof-of-concept pairing on Ted's device; offered when adding an LG TV
 # so an already paired TV doesn't ask again.
 LEGACY_KEY = os.path.expanduser("~/.lgtv_key")
@@ -38,14 +67,19 @@ class LGWebOS(Driver):
     needs_pairing = True
     caps = frozenset({"power", "input", "volume", "mute", "avmute", "message", "info", "remote"})
 
-    def _connect(self, allow_prompt: bool = False, wait: float = 60.0) -> WebSocket:
+    @property
+    def full(self) -> bool:
+        return (self.d.extra or {}).get("manifest") == "full"
+
+    def _connect(self, allow_prompt: bool = False, wait: float = 60.0, full: bool | None = None) -> WebSocket:
         tls = self.port != 3000
         ws = WebSocket(self.d.host, self.port, "/", tls=tls, timeout=self.timeout)
         key = self.d.secret
         if not key and not allow_prompt:
             ws.close()
             raise DisplayError("Not paired yet: open the TV and choose Pair")
-        p = {"forcePairing": False, "pairingType": "PROMPT", "manifest": MANIFEST}
+        full = self.full if full is None else full
+        p = {"forcePairing": False, "pairingType": "PROMPT", "manifest": MANIFEST_FULL if full else MANIFEST}
         if key:
             p["client-key"] = key
         ws.send({"type": "register", "id": "reg0", "payload": p})
@@ -95,8 +129,11 @@ class LGWebOS(Driver):
                 ws.close()
 
     def pair(self):
-        ws = self._connect(allow_prompt=True)
+        """Pairs with the full manifest (needed for the remote). An existing
+        key is kept for the attempt; the TV asks once if it doesn't match."""
+        ws = self._connect(allow_prompt=True, full=True)
         ws.close()
+        self.d.extra = dict(self.d.extra or {}, manifest="full")
         return "Paired"
 
     def status(self):
@@ -200,7 +237,12 @@ class LGWebOS(Driver):
         for attempt in (0, 1):
             ws = getattr(self, "_pointer", None)
             if ws is None:
-                path = self.call("ssap://com.webos.service.networkinput/getPointerInputSocket").get("socketPath", "")
+                try:
+                    path = self.call("ssap://com.webos.service.networkinput/getPointerInputSocket").get("socketPath", "")
+                except DisplayError as e:
+                    if "permission" in str(e).lower():
+                        raise DisplayError("Remote needs a new pairing: Pair with this TV (TV asks once)")
+                    raise
                 if "://" not in path:
                     raise DisplayError("TV gave no remote socket")
                 tls = path.startswith("wss")

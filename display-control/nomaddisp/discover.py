@@ -168,6 +168,24 @@ def identify(ip: str, kinds: set, ports: set, macs: dict) -> Display | None:
     return None
 
 
+def retry_saved(saved: list, tries: int = 3, timeout: float = 2.0) -> list:
+    """Saved displays that missed the quick sweep get a slower second chance.
+
+    TVs on Wi-Fi in power-save often drop the first packets (ARP stays
+    INCOMPLETE) and only answer once a few probes have woken the radio.
+    """
+    back = []
+    for d in saved:
+        ports = [d.port] if d.port else [p for p, k in PORTS.items() if k.rstrip("?") == d.kind]
+        if not ports:
+            continue
+        for _ in range(tries):
+            if any(_open(d.host, p, timeout) for p in ports):
+                back.append(d)
+                break
+    return back
+
+
 def scan(progress=None) -> list[Display]:
     """Find displays; progress(text) is called now and then."""
     say = progress or (lambda t: None)
