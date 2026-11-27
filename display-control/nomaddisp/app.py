@@ -243,6 +243,7 @@ class Home(List):
                         (lambda d=d: f"{power_badge(app, d)[0]} {KIND_SHORT.get(d.kind, '')}".strip()),
                         (lambda d=d: power_badge(app, d)[1] if power_badge(app, d)[0] else L.FG)))
         out += [("Find displays", lambda: find_displays(app), "", L.OK),
+                ("Check a display (IP)", lambda: check_prompt(app), "", L.OK),
                 ("Add by IP address", lambda: edit_display(app, None), "", L.OK),
                 ("Rooms (all on / off)", lambda: app.push(Rooms(app)), lambda: str(len(store.rooms(app.displays)) or ""), L.OK),
                 ("Wake-on-LAN", lambda: wake_prompt(app), "", L.OK)]
@@ -408,6 +409,58 @@ def pair(app, d):
                  lambda r: (app.save(), app.push(Message(app, "Paired", f"{d.name}: {r}", L.OK)), app.poll(d)))
     app.push(Confirm(app, "Pair with TV", f"The TV will ask to allow Nomad Display Control. {hint}", go,
                      yes="OK pair", no="ESC back"))
+
+
+def check_prompt(app):
+    from . import check
+    from .settings_check import valid_ip
+    color = {check.READY: L.OK, check.NEEDS: L.WARN, check.NO: L.BAD, check.INFO: L.DIM}
+    mark = {check.READY: "OK", check.NEEDS: "!", check.NO: "x", check.INFO: "-"}
+
+    def go(ip):
+        ip = ip.strip()
+        if not valid_ip(ip):
+            app.push(Message(app, "Check a display", f"Bad IP address: {ip or '(empty)'}", L.BAD))
+            return
+
+        def done(r):
+            app.push(CheckResult(app, ip, r, color, mark))
+        app.task("Check a display", f"Probing {ip}", lambda: check.check(ip), done)
+    app.push(Prompt(app, "Check a display", "IP", "", go,
+                    help_text="Tries PJLink, LG, Samsung, Sony and Roku control. Changes nothing on the display."))
+
+
+class CheckResult(Screen):
+    help = ("OK means the display answers and can be controlled now. ! means it answers but needs "
+            "something first (a password, key or setting). x means that method is off or missing. "
+            "Key 4 adds the display with what was found.")
+
+    def __init__(self, app, ip, r, color, mark):
+        super().__init__(app)
+        self.title, self.ip, self.r = f"Check {ip}", ip, r
+        self.lines = []
+        for state, text in r["lines"]:
+            for i, l in enumerate(wrap(app.panel, f"{mark[state]} {text}", 300)):
+                self.lines.append(((l if i == 0 else "   " + l), color[state]))
+        self.top = 0
+
+    def rows(self):
+        return self.lines[self.top:self.top + self.nrows], None
+
+    def softkeys(self):
+        from . import check
+        d = check.to_display(self.ip, self.r)
+        known = any(x.host == self.ip for x in self.app.displays)
+        return [("Add", lambda: (self.app.pop(self), edit_display(self.app, d))) if d and not known else None,
+                None, None, None, ("Again", lambda: (self.app.pop(self), check_prompt(self.app)))]
+
+    def key(self, k):
+        if k.name in UP:
+            self.top = max(0, self.top - 1)
+        elif k.name in DOWN:
+            self.top = min(max(0, len(self.lines) - self.nrows), self.top + 1)
+        elif k.name in BACK or k.name in SELECT:
+            self.app.pop(self)
 
 
 def wake_prompt(app):

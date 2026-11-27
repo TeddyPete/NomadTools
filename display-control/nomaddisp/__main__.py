@@ -8,6 +8,7 @@
              avmute [on|off] pictures picture <mode> message <text>
              info pair wol
   nomad-display-control --room ROOM on|off|mute|unmute   (ROOM "all" = every display)
+  nomad-display-control --check IP            which control methods answer (changes nothing)
   nomad-display-control --wol MAC             send a Wake-on-LAN packet
   nomad-display-control --add KIND HOST NAME  save a display (KIND pjlink lg samsung sony roku)
   nomad-display-control --screens DIR         render sample LCD screens to PNG
@@ -27,6 +28,7 @@ def main(argv=None) -> int:
     ap.add_argument("--do", nargs="+", metavar="X")
     ap.add_argument("--room", nargs=2, metavar=("ROOM", "CMD"))
     ap.add_argument("--wol", metavar="MAC")
+    ap.add_argument("--check", metavar="IP", help="which control methods answer at IP")
     ap.add_argument("--add", nargs=3, metavar=("KIND", "HOST", "NAME"))
     ap.add_argument("--room-name", default="", help="with --add")
     ap.add_argument("--mac", default="", help="with --add")
@@ -39,6 +41,12 @@ def main(argv=None) -> int:
         from .demo import render_screens
         render_screens(a.screens)
         return 0
+    if a.check:
+        from . import check
+        r = check.check(a.check)
+        for state, text in r["lines"]:
+            print(f"{state:6} {text}")
+        return 0 if r["kinds"] else 1
     if a.wol:
         from . import wol
         print(wol.wake(a.wol))

@@ -27,6 +27,25 @@ Package `nomad-display-control`, share code `NMDC`, Python package `nomaddisp`
 Not yet: Android/Google TV (needs the remote-v2 pairing protocol) and LG
 picture mode (webOS only allows it through a pop-up hack, which we avoid).
 
+## Will it control my display? (Check a display)
+
+Main list > **Check a display (IP)** (or `nomad-display-control --check IP`)
+probes one address and lists each control method: **OK** (answers, ready),
+**!** (answers but needs a password, key or setting) or **x** (off/missing).
+It only reads greetings and status, so nothing shows on the display.
+
+| Method | How it is checked |
+|---|---|
+| PJLink | TCP 4352 greeting: `PJLINK 0` = no password, `PJLINK 1` = password; class from `CLSS ?` |
+| LG webOS | port 3001/3000 open (pairing can't be checked without the TV asking) |
+| Samsung | `http://ip:8001/api/v2/` model and token support |
+| Sony | `getInterfaceInfo` (no key needed), then `getPowerStatus` to see if a PSK is required |
+| Roku | `/query/device-info` on 8060; TV or player; 403 = control disabled |
+
+It also lists other control ports it sees (Telnet, NEC 7142, Epson 3629,
+Panasonic 1024, Christie, Barco, Android TV, Cast) and the MAC for
+Wake-on-LAN. Key 4 adds the display with what was found.
+
 ## Keys (official CardputerZero key spec)
 
 F/X move, OK or C select, Z or ESC back, ESC on the main page quits, hold ESC
