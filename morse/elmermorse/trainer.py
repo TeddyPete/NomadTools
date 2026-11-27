@@ -41,7 +41,7 @@ DEFAULT_SETTINGS = {
     "dit_pin": 22,           # EXT pin 5
     "dah_pin": 26,           # EXT pin 1
     "serial": "auto",        # QMX virtual COM port
-    "audio_in": "default",   # CW decoder input
+    "audio_in": "plughw:CARD=ES8389Audio,DEV=0",   # CW decoder input: the side jack
     "call": "",              # your call sign, for the hunt and the QSO
 }
 

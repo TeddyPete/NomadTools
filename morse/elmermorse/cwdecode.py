@@ -21,11 +21,12 @@ RATE = 8000
 BLOCK = 48                 # 6 ms per Goertzel block
 CHUNK = BLOCK * 16         # read about 100 ms at a time
 LO_HZ, HI_HZ = 300, 1200
+SIDE_JACK = "plughw:CARD=ES8389Audio,DEV=0"   # the built-in codec, straight from ALSA
 
 
 def input_devices() -> list[tuple[str, str]]:
     """(label, arecord device) choices: the default input plus every capture card."""
-    out = [("Side jack (default)", "default")]
+    out = [("Side jack", SIDE_JACK), ("PipeWire default", "default")]
     try:
         txt = subprocess.run(["arecord", "-l"], capture_output=True, text=True, timeout=3).stdout
     except (OSError, subprocess.SubprocessError):
@@ -38,13 +39,13 @@ def input_devices() -> list[tuple[str, str]]:
             except (IndexError, ValueError):
                 continue
             if "ES8389" in name:
-                continue          # the built-in codec is the default input already
+                continue          # the side jack is listed already
             out.append((f"USB: {name}"[:28], f"plughw:{num},0"))
     return out
 
 
 class CwDecoder:
-    def __init__(self, device: str = "default", tone_hz: float | None = None):
+    def __init__(self, device: str = SIDE_JACK, tone_hz: float | None = None):
         self.device = device
         self.fixed_hz = tone_hz
         self.tone = tone_hz or 600.0
@@ -77,7 +78,7 @@ class CwDecoder:
             return
         try:
             self._proc = subprocess.Popen(
-                ["arecord", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(RATE), "-c", "1", "-t", "raw"],
+                ["arecord", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(RATE), "-c", "2", "-t", "raw"],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except OSError as e:
             self.error = str(e)
@@ -106,7 +107,7 @@ class CwDecoder:
 
     # ---- processing ----
     def _loop(self) -> None:
-        nbytes = CHUNK * 2
+        nbytes = CHUNK * 4                  # stereo: the jack's mic may be on either side
         while self.running and self._proc:
             data = self._proc.stdout.read(nbytes)
             if not data or len(data) < nbytes:
@@ -114,7 +115,7 @@ class CwDecoder:
                 self.error = err.splitlines()[-1] if err else "audio input stopped"
                 self.running = False
                 break
-            x = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32768.0
+            x = np.frombuffer(data, dtype="<i2").astype(np.float32).reshape(-1, 2).sum(axis=1) / 65536.0
             self.feed(x)
 
     def feed(self, x: np.ndarray) -> None:

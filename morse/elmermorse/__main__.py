@@ -15,7 +15,7 @@ import time
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--encode")
-    ap.add_argument("--decode-audio", nargs="?", const="default", metavar="DEV")
+    ap.add_argument("--decode-audio", nargs="?", const="plughw:CARD=ES8389Audio,DEV=0", metavar="DEV")
     ap.add_argument("--seconds", type=float, default=30)
     ap.add_argument("--screens", metavar="DIR")
     a = ap.parse_args(argv)
