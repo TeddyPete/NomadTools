@@ -11,6 +11,7 @@ The **Nomad** apps are by Tech Nomad Ted, [TheTechNomad.com](https://TheTechNoma
 | Nomad WiFi Share: Wi-Fi to Ethernet, hotspot, guest Wi-Fi login | [`wifi-share/`](wifi-share/) | `nomad-wifi-share` | NMWF |
 | Nomad Packet Capture: mirror-port or inline-tap pcap | [`pcap-capture/`](pcap-capture/) | `nomad-packet-capture` | NMPC |
 | Nomad Display Control: power, input and volume for TVs and projectors | [`display-control/`](display-control/) | `nomad-display-control` | NMDC |
+| Nomad AI Bridge: let your AI connect to and control your CardputerZero (MCP) | `nomad-ai-bridge/` (own PR) | `nomad-ai-bridge` | NMAB |
 
 Each app lives in its own folder with its own README and install steps.
 
@@ -19,4 +20,4 @@ its old `tnt-*` package when installed, and the app moves its old settings
 (`~/.config/tnt-*`, `~/TNT-Captures`, `~/TNT-Net-Reports`) to the new names the first time it starts.
 
 Icons come from [`branding/nomad_icons.py`](branding/nomad_icons.py)
-(`python3 branding/nomad_icons.py --style labeled --out DIR`).
+(`python3 branding/nomad_icons.py --style labeled --out DIR`; AI Bridge art: `--only mcp --mcp-scene cloud`).
