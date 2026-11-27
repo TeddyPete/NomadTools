@@ -80,7 +80,7 @@ def render_screens(out_dir: str) -> list[str]:
 
     snap(Home(app), "lcd_0.png")
     sc = ScanScreen.__new__(ScanScreen)
-    sc.app, sc.live, sc.decoding, sc.last_seq, sc.sharp, sc.paused = app, {}, False, 0, 80.0, False
+    sc.app, sc.live, sc.decoding, sc.last_seq, sc.sharp, sc.paused, sc.bright = app, {}, False, 0, 80.0, False, 128.0
     sc.started = time.monotonic()
     sc.live["SN:1904ABC1234;MAC:00107F3A9C21"] = ("QRCODE", time.monotonic())
     app.cam.frame = frame_from_image(label_image())

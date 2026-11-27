@@ -267,6 +267,7 @@ class ScanScreen(Screen):
         self.decoding = False
         self.last_seq = 0
         self.sharp = 0.0
+        self.bright = 128.0
         self.paused = False
         self.started = time.monotonic()
         self.app.cam.rotation = int(app.cfg.get("rotation", 0))
@@ -326,6 +327,7 @@ class ScanScreen(Screen):
             y = f.y
             if f.seq % 3 == 0:
                 self.sharp = decode.sharpness(y)
+                self.bright = float(y[::8, ::8].mean())
             for sym, data in decode.barcodes(y):
                 new = data not in self.live
                 self.live[data] = (sym, time.monotonic())
@@ -424,6 +426,8 @@ class ScanScreen(Screen):
             parts += [v for _, v in fd.others]
             text = f"{len(codes)} code{'s' if len(codes) > 1 else ''}: " + "  ".join(parts)
             color = T.OK
+        elif fr and self.bright < 18 and time.monotonic() - self.started > 3:
+            text, color = "Too dark: more light on the label", T.WARN
         elif fr and self.sharp and self.sharp < 25 and time.monotonic() - self.started > 3:
             text, color = "Blurry: move back to 15-20 cm", T.WARN
         else:
