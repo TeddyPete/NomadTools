@@ -1,0 +1,3 @@
+interest-noawait /usr/bin/tcpdump
+interest-noawait /usr/sbin/arp-scan
+interest-noawait /usr/sbin/ethtool

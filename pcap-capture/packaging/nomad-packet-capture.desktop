@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nomad Packet Capture
+Exec=bin/nomad-packet-capture
+Terminal=false
+Icon=share/images/nomad-packet-capture.png
+Type=Application

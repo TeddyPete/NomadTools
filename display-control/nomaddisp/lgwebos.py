@@ -1,0 +1,317 @@
+"""LG webOS TVs (2014 and later). Secure WebSocket on 3001 (3000 plain).
+
+The TV asks once on screen to allow this device; it then hands out a
+client key that we save. The key is tied to the permission list (MANIFEST)
+below, which is the same one Ted's ~/lgtv.py paired with, so keep it
+unchanged or every TV asks again.
+
+Power on is Wake-on-LAN (the TV's network stack is asleep when it is off;
+"Turn on via Wi-Fi / Mobile TV On" must be on in the TV's settings).
+"""
+from __future__ import annotations
+
+import os
+
+from .base import DisplayError, Driver
+from .wsock import WebSocket
+from . import wol
+
+MANIFEST = {"manifestVersion": 1, "appVersion": "1.1", "signed": {"appId": "com.tnt.remote", "vendorId": "tnt",
+  "created": "20261127", "permissions": ["CONTROL_AUDIO", "CONTROL_POWER", "CONTROL_INPUT_TV", "CONTROL_INPUT_MEDIA_PLAYBACK", "LAUNCH", "READ_INSTALLED_APPS", "READ_CURRENT_CHANNEL", "READ_INPUT_DEVICE_LIST", "READ_TV_CHANNEL_LIST", "CONTROL_DISPLAY", "READ_RUNNING_APPS", "CONTROL_MOUSE_AND_KEYBOARD", "WRITE_NOTIFICATION_TOAST", "READ_POWER_STATE"],
+  "serial": "tnt1"}, "permissions": ["LAUNCH", "CONTROL_AUDIO", "CONTROL_POWER", "CONTROL_INPUT_TV", "CONTROL_INPUT_MEDIA_PLAYBACK", "READ_INSTALLED_APPS", "READ_CURRENT_CHANNEL", "READ_INPUT_DEVICE_LIST", "READ_TV_CHANNEL_LIST", "CONTROL_DISPLAY", "READ_RUNNING_APPS", "WRITE_NOTIFICATION_TOAST", "READ_POWER_STATE"], "signatures": []}
+
+# Full manifest with LG's own test signature (as used by Home Assistant's
+# aiowebostv). It adds CONTROL_INPUT_JOYSTICK / MOUSE_AND_KEYBOARD, which the
+# remote's pointer socket needs. Pairing with it shows as "LG Remote App".
+_SIG = ("eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmctY2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9"
+        ".hrVRgjCwXVvE2OOSpDZ58hR+59aFNwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWSrthlf7G1"
+        "28qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLKqTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A2"
+        "7Pq1n50cMchmcaXadJhGrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o/0lkk/N97gfVRLW5hA29"
+        "yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw==")
+MANIFEST_FULL = {
+    "appVersion": "1.1", "manifestVersion": 1,
+    "permissions": ["LAUNCH", "LAUNCH_WEBAPP", "APP_TO_APP", "CLOSE", "TEST_OPEN", "TEST_PROTECTED", "CONTROL_AUDIO",
+                    "CONTROL_DISPLAY", "CONTROL_INPUT_JOYSTICK", "CONTROL_INPUT_MEDIA_RECORDING",
+                    "CONTROL_INPUT_MEDIA_PLAYBACK", "CONTROL_INPUT_TV", "CONTROL_POWER", "CONTROL_TV_SCREEN",
+                    "READ_APP_STATUS", "READ_CURRENT_CHANNEL", "READ_INPUT_DEVICE_LIST", "READ_NETWORK_STATE",
+                    "READ_RUNNING_APPS", "READ_TV_CHANNEL_LIST", "WRITE_NOTIFICATION_TOAST", "READ_POWER_STATE",
+                    "READ_COUNTRY_INFO", "CONTROL_INPUT_TEXT", "CONTROL_MOUSE_AND_KEYBOARD", "READ_INSTALLED_APPS",
+                    "READ_SETTINGS"],
+    "signatures": [{"signature": _SIG, "signatureVersion": 1}],
+    "signed": {"appId": "com.lge.test", "created": "20140509",
+               "localizedAppNames": {"": "LG Remote App", "ko-KR": "\ub9ac\ubaa8\ucee8 \uc571",
+                                     "zxx-XX": "\u041b\u0413 R\u044dmot\u044d A\u041f\u041f"},
+               "localizedVendorNames": {"": "LG Electronics"},
+               "permissions": ["TEST_SECURE", "CONTROL_INPUT_TEXT", "CONTROL_MOUSE_AND_KEYBOARD", "READ_INSTALLED_APPS",
+                               "READ_LGE_SDX", "READ_NOTIFICATIONS", "SEARCH", "WRITE_SETTINGS",
+                               "WRITE_NOTIFICATION_ALERT", "CONTROL_POWER", "READ_CURRENT_CHANNEL",
+                               "READ_RUNNING_APPS", "READ_UPDATE_INFO", "UPDATE_FROM_REMOTE_APP",
+                               "READ_LGE_TV_INPUT_EVENTS", "READ_TV_CURRENT_TIME"],
+               "serial": "2f930e2d2cfe083771f68e4fe7bb07", "vendorId": "com.lge"}}
+
+# The proof-of-concept pairing on Ted's device; offered when adding an LG TV
+# so an already paired TV doesn't ask again.
+LEGACY_KEY = os.path.expanduser("~/.lgtv_key")
+
+
+def legacy_key() -> str:
+    try:
+        return open(LEGACY_KEY).read().strip()
+    except OSError:
+        return ""
+
+
+class LGWebOS(Driver):
+    kind = "lg"
+    default_port = 3001
+    needs_pairing = True
+    caps = frozenset({"power", "input", "volume", "mute", "avmute", "message", "info", "remote"})
+
+    @property
+    def full(self) -> bool:
+        return (self.d.extra or {}).get("manifest") == "full"
+
+    def _connect(self, allow_prompt: bool = False, wait: float = 60.0, full: bool | None = None) -> WebSocket:
+        tls = self.port != 3000
+        ws = WebSocket(self.d.host, self.port, "/", tls=tls, timeout=self.timeout)
+        key = self.d.secret
+        if not key and not allow_prompt:
+            ws.close()
+            raise DisplayError("Not paired yet: open the TV and choose Pair")
+        full = self.full if full is None else full
+        p = {"forcePairing": False, "pairingType": "PROMPT", "manifest": MANIFEST_FULL if full else MANIFEST}
+        if key:
+            p["client-key"] = key
+        ws.send({"type": "register", "id": "reg0", "payload": p})
+        ws.settimeout(wait if allow_prompt else self.timeout + 2)
+        try:
+            while True:
+                r = ws.recv()
+                t = r.get("type")
+                if t == "registered":
+                    new = (r.get("payload") or {}).get("client-key")
+                    if new:
+                        self.d.secret = new
+                    break
+                if t == "response" and (r.get("payload") or {}).get("pairingType") == "PROMPT" and not allow_prompt:
+                    raise DisplayError("TV wants pairing again: choose Pair")
+                if t == "error":
+                    raise DisplayError(f"TV refused: {r.get('error', '')[:40]}")
+        except DisplayError:
+            ws.close()
+            raise
+        ws.settimeout(self.timeout)
+        self._n = 0
+        return ws
+
+    def call(self, uri: str, payload: dict | None = None, ws: WebSocket | None = None) -> dict:
+        own = ws is None
+        ws = ws or self._connect()
+        try:
+            self._n = getattr(self, "_n", 0) + 1
+            rid = f"c{self._n}"
+            msg = {"type": "request", "id": rid, "uri": uri}
+            if payload is not None:
+                msg["payload"] = payload
+            ws.send(msg)
+            while True:
+                r = ws.recv()
+                if r.get("id") != rid:
+                    continue
+                if r.get("type") == "error":
+                    raise DisplayError(str(r.get("error", "error"))[:60])
+                pl = r.get("payload") or {}
+                if pl.get("returnValue") is False:
+                    raise DisplayError(str(pl.get("errorText") or "TV said no")[:60])
+                return pl
+        finally:
+            if own:
+                ws.close()
+
+    def pair(self):
+        """Pairs with the full manifest (needed for the remote). An existing
+        key is kept for the attempt; the TV asks once if it doesn't match."""
+        ws = self._connect(allow_prompt=True, full=True)
+        ws.close()
+        self.d.extra = dict(self.d.extra or {}, manifest="full")
+        return "Paired"
+
+    def status(self):
+        st = {"power": "unknown", "input": "", "volume": None, "mute": None}
+        try:
+            ws = self._connect()
+        except DisplayError as e:
+            if "No answer" in str(e):
+                st["power"] = "off"
+                return st
+            raise
+        try:
+            try:
+                ps = self.call("ssap://com.webos.service.tvpower/power/getPowerState", ws=ws).get("state", "")
+                st["power"] = {"Active": "on", "Screen Off": "screen off", "Active Standby": "standby"}.get(ps, ps.lower() or "on")
+            except DisplayError:
+                st["power"] = "on"
+            try:
+                v = self.call("ssap://audio/getVolume", ws=ws)
+                vs = v.get("volumeStatus") or v
+                st["volume"] = vs.get("volume")
+                st["mute"] = vs.get("muteStatus", vs.get("muted"))
+            except DisplayError:
+                pass
+            try:
+                app = self.call("ssap://com.webos.applicationManager/getForegroundAppInfo", ws=ws).get("appId", "")
+                st["input"] = app_label(app)
+            except DisplayError:
+                pass
+        finally:
+            ws.close()
+        return st
+
+    def power(self, on):
+        if on:
+            if not self.d.mac:
+                raise DisplayError("Power on needs the TV's MAC (Wake-on-LAN)")
+            wol.wake(self.d.mac, self.d.host)
+            return "Wake-on-LAN sent"
+        self.call("ssap://system/turnOff")
+        return "TV turning off"
+
+    def inputs(self):
+        devs = self.call("ssap://tv/getExternalInputList").get("devices") or []
+        out = []
+        for d in devs:
+            i = d.get("id", "")
+            if not i:
+                continue
+            port = i.replace("_", " ")
+            lab = d.get("label") or port
+            out.append((i, port if lab == port else f"{port} ({lab})"))
+        return out
+
+    def set_input(self, input_id):
+        self.call("ssap://tv/switchInput", {"inputId": input_id})
+        return f"Input {input_id.replace('_', ' ')}"
+
+    def volume(self, step):
+        ws = self._connect()
+        try:
+            for _ in range(abs(step)):
+                self.call("ssap://audio/volumeUp" if step > 0 else "ssap://audio/volumeDown", ws=ws)
+            v = self.call("ssap://audio/getVolume", ws=ws)
+        finally:
+            ws.close()
+        vol = (v.get("volumeStatus") or v).get("volume")
+        return f"Volume {vol}" if vol is not None else ("Volume up" if step > 0 else "Volume down")
+
+    def mute(self, on=None):
+        ws = self._connect()
+        try:
+            if on is None:
+                v = self.call("ssap://audio/getVolume", ws=ws)
+                vs = v.get("volumeStatus") or v
+                on = not vs.get("muteStatus", vs.get("muted", False))
+            self.call("ssap://audio/setMute", {"mute": bool(on)}, ws=ws)
+        finally:
+            ws.close()
+        return "Muted" if on else "Unmuted"
+
+    def avmute(self, on=None):
+        # Screen off keeps the TV on with the panel dark (webOS 4.5+).
+        if on is None:
+            try:
+                ps = self.call("ssap://com.webos.service.tvpower/power/getPowerState").get("state", "")
+                on = ps != "Screen Off"
+            except DisplayError:
+                on = True
+        uri = "turnOffScreen" if on else "turnOnScreen"
+        self.call(f"ssap://com.webos.service.tvpower/power/{uri}", {"standbyMode": "active"})
+        return "Screen off (TV still on)" if on else "Screen back on"
+
+    REMOTE = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "ok": "ENTER", "back": "BACK",
+              "home": "HOME", "menu": "MENU", "exit": "EXIT", "info": "INFO", "source": "INPUT_HUB"}
+
+    def remote(self, button):
+        """Buttons go over the TV's pointer socket; it is kept open between
+        presses (see close_remote)."""
+        name = self.REMOTE[button]
+        for attempt in (0, 1):
+            ws = getattr(self, "_pointer", None)
+            if ws is None:
+                try:
+                    path = self.call("ssap://com.webos.service.networkinput/getPointerInputSocket").get("socketPath", "")
+                except DisplayError as e:
+                    if "permission" in str(e).lower():
+                        raise DisplayError("Remote needs a new pairing: Pair with this TV (TV asks once)")
+                    raise
+                if "://" not in path:
+                    raise DisplayError("TV gave no remote socket")
+                tls = path.startswith("wss")
+                rest = path.split("://", 1)[1]
+                hostport, _, sub = rest.partition("/")
+                port = int(hostport.rsplit(":", 1)[1]) if ":" in hostport else (3001 if tls else 3000)
+                ws = WebSocket(self.d.host, port, "/" + sub, tls=tls, timeout=self.timeout)
+                self._pointer = ws
+            try:
+                ws.send(f"type:button\nname:{name}\n\n")
+                return button
+            except (DisplayError, OSError):
+                self.close_remote()
+                if attempt:
+                    raise DisplayError("TV remote connection lost")
+        return button
+
+    def close_remote(self):
+        ws = getattr(self, "_pointer", None)
+        self._pointer = None
+        if ws:
+            ws.close()
+
+    # The TV's factory app; only the two menu entry points are offered (the
+    # app's other modes include a factory reset and test patterns).
+    MENUS = [("ezAdjust", "Service menu 1 (EZ-Adjust)", "Password if asked: 0413"),
+             ("inStart", "Service menu 2 (In-Start)", "Password if asked: 0413")]
+
+    def service_menus(self):
+        return list(self.MENUS)
+
+    def open_service_menu(self, menu_id):
+        if menu_id not in dict((m[0], m) for m in self.MENUS):
+            raise DisplayError("Unknown menu")
+        self.call("ssap://system.launcher/launch", {"id": "com.webos.app.factorywin",
+                                                    "params": {"id": "executeFactory", "irKey": menu_id}})
+        return "Menu opened. " + dict((m[0], m[2]) for m in self.MENUS)[menu_id]
+
+    def message(self, text):
+        self.call("ssap://system.notifications/createToast", {"message": text[:60]})
+        return "Message shown"
+
+    def info(self):
+        out = super().info()
+        ws = self._connect()
+        try:
+            for uri, keys in (("ssap://system/getSystemInfo", ("modelName", "receiverType")),
+                              ("ssap://com.webos.service.update/getCurrentSWInformation",
+                               ("product_name", "major_ver", "minor_ver", "device_id"))):
+                try:
+                    pl = self.call(uri, ws=ws)
+                except DisplayError:
+                    continue
+                names = {"modelName": "Model", "receiverType": "Tuner", "product_name": "webOS",
+                         "major_ver": "Software", "minor_ver": "Build", "device_id": "Device ID"}
+                for k in keys:
+                    if pl.get(k):
+                        out.append((names.get(k, k), str(pl[k])))
+        finally:
+            ws.close()
+        if self.d.mac:
+            out.append(("MAC", self.d.mac))
+        return out
+
+
+def app_label(app_id: str) -> str:
+    a = app_id.lower()
+    for pre, name in (("com.webos.app.hdmi", "HDMI "), ("com.webos.app.livetv", "Live TV"),
+                      ("com.webos.app.externalinput.av", "AV "), ("com.webos.app.externalinput.component", "Component ")):
+        if a.startswith(pre):
+            return (name + a[len(pre):]).strip()
+    return app_id.split(".")[-1] if app_id else ""
