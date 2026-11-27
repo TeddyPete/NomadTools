@@ -1,8 +1,10 @@
 """Saved settings (~/.config/tnt-wifi-share/settings.json)."""
 from __future__ import annotations
 
+import copy
 import ipaddress
 import json
+import re
 import os
 import secrets
 import string
@@ -40,11 +42,25 @@ DEFAULTS = {
     "hs_password": "",
     "hs_channel": "6",
     "hs_ip": "192.168.60.1",
+    "hs_bridge": False,          # True: bridge hotspot to Ethernet (no NAT, no DHCP of ours)
+    # Ethernet side extras
+    "share_vlan": "0",           # 802.1Q VLAN tag on the shared Ethernet side, 0 = untagged
+    "lldp": True,                # listen for switch LLDP on our Ethernet profiles
+    # Per device (by MAC): name, block, reserve (bool), ip, down/up speed limits in Mbit/s
+    "devices": {},
+    "forwards": [],              # [{name, proto tcp|udp|both, port, ip, to_port}]
+    "dns_names": [],             # [{name, ip}] local DNS overrides for shared devices
+    "limit_all_down": "Off",     # "Off" or "<n> Mb/s" for all shared devices together
+    "limit_all_up": "Off",
+    # First-run setup wizard
+    "setup_done": False,
 }
+WG_CONF = os.path.join(CONF_DIR, "wireguard.conf")
+SPEEDS = ["0", "1", "2", "5", "10", "20", "50", "100"]   # Mbit/s choices, 0 = no limit
 
 
 def load() -> dict:
-    cfg = dict(DEFAULTS)
+    cfg = copy.deepcopy(DEFAULTS)
     try:
         with open(CONF) as f:
             cfg.update({k: v for k, v in json.load(f).items() if k in DEFAULTS})
@@ -111,3 +127,32 @@ def check_hotspot(ssid: str, password: str) -> str | None:
     if not 8 <= len(password) <= 63:
         return "Password must be 8-63 characters"
     return None
+
+
+MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
+NAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,61}[A-Za-z0-9])?$")
+
+
+def norm_mac(mac: str) -> str | None:
+    m = mac.strip().lower().replace("-", ":").replace(".", "")
+    if ":" not in m and len(m) == 12:
+        m = ":".join(m[i:i + 2] for i in range(0, 12, 2))
+    return m if MAC_RE.match(m) else None
+
+
+def in_subnet(ip: str, net_ip: str, mask: str) -> bool:
+    p = mask_to_prefix(mask)
+    if not valid_ip(ip) or p is None:
+        return False
+    return ipaddress.IPv4Address(ip.strip()) in ipaddress.IPv4Interface(f"{net_ip.strip()}/{p}").network
+
+
+def check_port(s: str) -> int | None:
+    s = str(s).strip()
+    return int(s) if s.isdigit() and 1 <= int(s) <= 65535 else None
+
+
+def hostname(name: str) -> str:
+    """A DHCP/DNS-safe host name from a label (letters, digits, dashes)."""
+    h = re.sub(r"[^A-Za-z0-9-]+", "-", name.strip()).strip("-")[:40]
+    return h

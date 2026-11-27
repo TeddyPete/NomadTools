@@ -242,9 +242,13 @@ class Form(Screen):
     text | ip | mask | secret | bool | choice | header; extra is the help
     text, the choice list, or the (on, off) names for a bool."""
 
-    def __init__(self, app, title: str, fields: list, values: dict, on_save, validate=None):
+    def __init__(self, app, title: str, fields: list, values: dict, on_save, validate=None,
+                 actions: list | None = None, save_label: str = "Save", help: str = ""):
         super().__init__(app)
         self.title, self.on_save, self.validate = title, on_save, validate
+        self.actions = {f"__a{i}": a for i, a in enumerate(actions or [])}   # (label, fn, color)
+        if help:
+            self.help = help
         conv = []
         for f in fields:
             key, label, kind = f[0], f[1], f[2]
@@ -253,7 +257,9 @@ class Form(Screen):
             conv.append(Field(key or f"_h{len(conv)}", label, kind,
                               choices=extra if isinstance(extra, (list, tuple)) else (),
                               help=extra if isinstance(extra, str) else "", visible=cond))
-        conv.append(Field("__save", "Save", "action"))
+        conv.append(Field("__save", save_label, "action"))
+        for key, a in self.actions.items():
+            conv.append(Field(key, a[0], "action", color=a[2] if len(a) > 2 else None))
         self.form = EditList(conv, values)
 
     @property
@@ -269,7 +275,7 @@ class Form(Screen):
         return self.form.hint()
 
     def rows(self):
-        return self.form.view(), None
+        return self.form.view(self.nrows), None
 
     def save(self):
         err = self.validate(self.values) if self.validate else None
@@ -283,6 +289,8 @@ class Form(Screen):
         ev = self.form.handle(k)
         if ev == "action:__save":
             self.save()
+        elif ev and ev.startswith("action:") and ev[7:] in self.actions:
+            self.actions[ev[7:]][1]()
         elif ev == "back":
             if self.form.changed:
                 conf = Confirm(self.app, "Unsaved changes", "Save your changes?",
