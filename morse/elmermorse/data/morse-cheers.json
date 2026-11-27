@@ -1,0 +1,413 @@
+{
+  "lines": [
+    {
+      "id": "u-elmer",
+      "char": "U",
+      "speaker": "elmer",
+      "text": "U? Unbelievable work, my friend."
+    },
+    {
+      "id": "u-penny",
+      "char": "U",
+      "speaker": "penny",
+      "text": "U unlocked! You're unstoppable!"
+    },
+    {
+      "id": "r-gus",
+      "char": "R",
+      "speaker": "gus",
+      "text": "R! Roger that, kiddo. Nice copy."
+    },
+    {
+      "id": "r-penny",
+      "char": "R",
+      "speaker": "penny",
+      "text": "R is ready to roll. So are you!"
+    },
+    {
+      "id": "e-penny",
+      "char": "E",
+      "speaker": "penny",
+      "text": "E! Easiest one yet. Just one dit!"
+    },
+    {
+      "id": "e-elmer",
+      "char": "E",
+      "speaker": "elmer",
+      "text": "E. Excellent ear, right there."
+    },
+    {
+      "id": "s-gus",
+      "char": "S",
+      "speaker": "gus",
+      "text": "S! Smooth as a straight key, kiddo."
+    },
+    {
+      "id": "s-elmer",
+      "char": "S",
+      "speaker": "elmer",
+      "text": "S. Steady progress. Well done."
+    },
+    {
+      "id": "n-penny",
+      "char": "N",
+      "speaker": "penny",
+      "text": "N! Nice! Nothing can stop us now."
+    },
+    {
+      "id": "n-gus",
+      "char": "N",
+      "speaker": "gus",
+      "text": "N. Not bad at all, kiddo."
+    },
+    {
+      "id": "a-elmer",
+      "char": "A",
+      "speaker": "elmer",
+      "text": "A! A fine addition to your alphabet."
+    },
+    {
+      "id": "a-penny",
+      "char": "A",
+      "speaker": "penny",
+      "text": "A! Awesome. That's a classic."
+    },
+    {
+      "id": "p-gus",
+      "char": "P",
+      "speaker": "gus",
+      "text": "P. Pretty sharp ears you've got."
+    },
+    {
+      "id": "p-penny",
+      "char": "P",
+      "speaker": "penny",
+      "text": "P! Practice is paying off!"
+    },
+    {
+      "id": "t-elmer",
+      "char": "T",
+      "speaker": "elmer",
+      "text": "T. Terrific. Ten characters and counting."
+    },
+    {
+      "id": "t-gus",
+      "char": "T",
+      "speaker": "gus",
+      "text": "T! Took you no time, kiddo."
+    },
+    {
+      "id": "l-penny",
+      "char": "L",
+      "speaker": "penny",
+      "text": "L! Look at you go!"
+    },
+    {
+      "id": "l-elmer",
+      "char": "L",
+      "speaker": "elmer",
+      "text": "L. Lovely listening, my friend."
+    },
+    {
+      "id": "w-gus",
+      "char": "W",
+      "speaker": "gus",
+      "text": "W! Way to go, kiddo."
+    },
+    {
+      "id": "w-elmer",
+      "char": "W",
+      "speaker": "elmer",
+      "text": "W. Well done. Wonderful rhythm."
+    },
+    {
+      "id": "i-penny",
+      "char": "I",
+      "speaker": "penny",
+      "text": "I! Incredible! Two little dits!"
+    },
+    {
+      "id": "i-gus",
+      "char": "I",
+      "speaker": "gus",
+      "text": "I. I knew you had it in you."
+    },
+    {
+      "id": "j-elmer",
+      "char": "J",
+      "speaker": "elmer",
+      "text": "J. Just splendid. Keep it up."
+    },
+    {
+      "id": "j-penny",
+      "char": "J",
+      "speaker": "penny",
+      "text": "J! Jackpot! That's a long one."
+    },
+    {
+      "id": "z-gus",
+      "char": "Z",
+      "speaker": "gus",
+      "text": "Z! Zippy work, kiddo."
+    },
+    {
+      "id": "z-penny",
+      "char": "Z",
+      "speaker": "penny",
+      "text": "Z! Zoom! Look how far you've come!"
+    },
+    {
+      "id": "f-elmer",
+      "char": "F",
+      "speaker": "elmer",
+      "text": "F. Fantastic. Your ear is sharpening."
+    },
+    {
+      "id": "f-gus",
+      "char": "F",
+      "speaker": "gus",
+      "text": "F! Fine work there, kiddo."
+    },
+    {
+      "id": "o-penny",
+      "char": "O",
+      "speaker": "penny",
+      "text": "O! Oh wow, three dahs in a row!"
+    },
+    {
+      "id": "o-elmer",
+      "char": "O",
+      "speaker": "elmer",
+      "text": "O. Outstanding work."
+    },
+    {
+      "id": "y-gus",
+      "char": "Y",
+      "speaker": "gus",
+      "text": "Y? Yep, you've got it, kiddo."
+    },
+    {
+      "id": "y-penny",
+      "char": "Y",
+      "speaker": "penny",
+      "text": "Y! Yay! Yes! You did it!"
+    },
+    {
+      "id": "v-elmer",
+      "char": "V",
+      "speaker": "elmer",
+      "text": "V. Very well done. A victory!"
+    },
+    {
+      "id": "v-penny",
+      "char": "V",
+      "speaker": "penny",
+      "text": "V for victory! Woo!"
+    },
+    {
+      "id": "g-gus",
+      "char": "G",
+      "speaker": "gus",
+      "text": "G! Good copy, kiddo. Real good."
+    },
+    {
+      "id": "g-elmer",
+      "char": "G",
+      "speaker": "elmer",
+      "text": "G. Great job. You're really hearing it."
+    },
+    {
+      "id": "q-elmer",
+      "char": "Q",
+      "speaker": "elmer",
+      "text": "Q is quite the catch. Well done."
+    },
+    {
+      "id": "q-gus",
+      "char": "Q",
+      "speaker": "gus",
+      "text": "Q! Quick learner, aren't ya, kiddo?"
+    },
+    {
+      "id": "h-penny",
+      "char": "H",
+      "speaker": "penny",
+      "text": "H! Hooray! Four dits, no problem!"
+    },
+    {
+      "id": "h-gus",
+      "char": "H",
+      "speaker": "gus",
+      "text": "H. Hot dog, kiddo, that's a tricky one."
+    },
+    {
+      "id": "b-elmer",
+      "char": "B",
+      "speaker": "elmer",
+      "text": "B. Bravo. Beautifully done."
+    },
+    {
+      "id": "b-penny",
+      "char": "B",
+      "speaker": "penny",
+      "text": "B! Brilliant! You're on a roll!"
+    },
+    {
+      "id": "c-gus",
+      "char": "C",
+      "speaker": "gus",
+      "text": "C! Copy that, kiddo. Nice work."
+    },
+    {
+      "id": "c-penny",
+      "char": "C",
+      "speaker": "penny",
+      "text": "C! Can you believe how far you've come?"
+    },
+    {
+      "id": "d-elmer",
+      "char": "D",
+      "speaker": "elmer",
+      "text": "D. Delightful. Nearly the whole set."
+    },
+    {
+      "id": "d-gus",
+      "char": "D",
+      "speaker": "gus",
+      "text": "D! Dandy, kiddo. Just dandy."
+    },
+    {
+      "id": "x-penny",
+      "char": "X",
+      "speaker": "penny",
+      "text": "X! Excellent! That's every character!"
+    },
+    {
+      "id": "x-elmer",
+      "char": "X",
+      "speaker": "elmer",
+      "text": "X marks the spot. You've learned them all!"
+    },
+    {
+      "id": "5-gus",
+      "char": "5",
+      "speaker": "gus",
+      "text": "Five! High five, kiddo!"
+    },
+    {
+      "id": "9-penny",
+      "char": "9",
+      "speaker": "penny",
+      "text": "Nine! You're on cloud nine!"
+    },
+    {
+      "id": "2-elmer",
+      "char": "2",
+      "speaker": "elmer",
+      "text": "Two! Twice as nice. Well done."
+    },
+    {
+      "id": "3-penny",
+      "char": "3",
+      "speaker": "penny",
+      "text": "Three! Hat trick! Go you!"
+    },
+    {
+      "id": "8-gus",
+      "char": "8",
+      "speaker": "gus",
+      "text": "Eight! Great, kiddo. Just great."
+    },
+    {
+      "id": "4-elmer",
+      "char": "4",
+      "speaker": "elmer",
+      "text": "Four! Fabulous work, my friend."
+    },
+    {
+      "id": "7-penny",
+      "char": "7",
+      "speaker": "penny",
+      "text": "Seven! Lucky number seven!"
+    },
+    {
+      "id": "1-gus",
+      "char": "1",
+      "speaker": "gus",
+      "text": "One! Number one in my book, kiddo."
+    },
+    {
+      "id": "6-elmer",
+      "char": "6",
+      "speaker": "elmer",
+      "text": "Six! Simply superb."
+    },
+    {
+      "id": "0-penny",
+      "char": "0",
+      "speaker": "penny",
+      "text": "Zero to hero! That's you!"
+    },
+    {
+      "id": "period-elmer",
+      "char": ".",
+      "speaker": "elmer",
+      "text": "The period! Nicely done, full stop."
+    },
+    {
+      "id": "equals-gus",
+      "char": "=",
+      "speaker": "gus",
+      "text": "The equals sign! That's the BT break, kiddo.",
+      "say": "The equals sign! That's the B T break, kiddo."
+    },
+    {
+      "id": "comma-penny",
+      "char": ",",
+      "speaker": "penny",
+      "text": "A comma! Just a pause, not a stop!"
+    },
+    {
+      "id": "slash-gus",
+      "char": "/",
+      "speaker": "gus",
+      "text": "Slash! Now you can sign portable, kiddo."
+    },
+    {
+      "id": "question-elmer",
+      "char": "?",
+      "speaker": "elmer",
+      "text": "The question mark! Any questions? I think not."
+    },
+    {
+      "id": "any-elmer-1",
+      "char": null,
+      "speaker": "elmer",
+      "text": "New character learned. Well done!"
+    },
+    {
+      "id": "any-gus-1",
+      "char": null,
+      "speaker": "gus",
+      "text": "Another one in the bag, kiddo."
+    },
+    {
+      "id": "any-penny-1",
+      "char": null,
+      "speaker": "penny",
+      "text": "Yes! Another one down!"
+    },
+    {
+      "id": "any-elmer-2",
+      "char": null,
+      "speaker": "elmer",
+      "text": "Your ear gets sharper every day."
+    },
+    {
+      "id": "any-penny-2",
+      "char": null,
+      "speaker": "penny",
+      "text": "You're doing amazing!"
+    }
+  ]
+}

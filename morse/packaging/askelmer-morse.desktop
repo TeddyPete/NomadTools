@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Ask Elmer Morse
+Exec=bin/askelmer-morse
+Terminal=false
+Icon=share/images/askelmer-morse.png
+Type=Application

@@ -1,0 +1,42 @@
+{
+  "package_name": "askelmer-morse",
+  "version": "0.1.0",
+  "app_name": "Ask Elmer Morse",
+  "bin_name": "askelmer-morse",
+  "description": "Learn Morse the Koch way, Morse games, GPIO paddle keyer, send to your radio, CW decoder",
+  "store": {
+    "summary": "Learn Morse the Koch way, play Morse games, key with a paddle on GPIO, send to your radio, decode CW",
+    "description": "From Ask Elmer, askelmer.com. Learn letters: the Koch method, starting with K and M; each new character is played to you first, and the next unlocks when your last 60 answers are 90% right, with cheers from Elmer, Penny and Gus. Copy the code: messages built only from the characters you know, a little faster each round. Send the code: key words with the space bar, J/K paddles or a real paddle, and get your speed and a fist score. Park hunt: pick the band that's open for the time and distance, copy a park activator's call and exchange through static, fading and other stations. Key and send: an iambic A/B or straight-key keyer for a paddle wired to the GPIO pins (3.5 mm jack: dit GPIO22, dah GPIO26, ground), with sidetone and what you send decoded on screen. Send typed text or your paddle to a radio through an optocoupler on GPIO23, or to a QRP Labs QMX over one USB cable (CAT text and DTR keying). Transmit stays off until you switch it on, and lets go of a key held over 10 seconds. CW decoder: radio audio into the side jack, a USB sound card or a QMX's USB audio; the tone and speed are found automatically. Fn+H shows help.",
+    "categories": [
+      "Radio & Comms",
+      "Education"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0_home.png",
+      "screenshots/lcd_1_learn.png",
+      "screenshots/lcd_2_copy.png",
+      "screenshots/lcd_3_send.png",
+      "screenshots/lcd_4_hunt.png",
+      "screenshots/lcd_5_key.png",
+      "screenshots/lcd_6_decoder.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Ask Elmer"
+    },
+    "share_code": "AECW",
+    "permissions": {
+      "camera": false,
+      "microphone": true,
+      "imu": false,
+      "network": false,
+      "additional_hardware": true,
+      "background_service": false,
+      "external_display": false
+    },
+    "locales": {}
+  }
+}
