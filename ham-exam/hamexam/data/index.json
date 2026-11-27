@@ -1,0 +1,20 @@
+{
+ "pack_id": "ham-radio",
+ "exams": [
+  {
+   "exam_id": "technician",
+   "pool_id": "technician-2026-2030",
+   "name": "Technician Class"
+  },
+  {
+   "exam_id": "general",
+   "pool_id": "general-2023-2027",
+   "name": "General Class"
+  },
+  {
+   "exam_id": "extra",
+   "pool_id": "extra-2024-2028",
+   "name": "Amateur Extra Class"
+  }
+ ]
+}

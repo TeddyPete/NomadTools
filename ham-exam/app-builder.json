@@ -1,0 +1,41 @@
+{
+  "package_name": "askelmer-ham-exam",
+  "version": "0.1.0",
+  "app_name": "Ask Elmer Ham Exam",
+  "bin_name": "askelmer-ham-exam",
+  "description": "Study for the US ham radio license exams with the official NCVEC pools",
+  "store": {
+    "summary": "Pass your ham radio license: practice exams and drills from the official NCVEC pools",
+    "description": "From Ask Elmer, askelmer.com. Study for the US amateur radio license exams anywhere, offline, with the official NCVEC question pools word for word: Technician (2026-2030), General (2023-2027) and Amateur Extra (2024-2028). Practice exams are drawn like the real test, one question from each group, and scored with the real pass mark. Study a topic by subelement or group and see the correct answer and its FCC rule after every question; after a miss you get a fresh question from the same group, and the one you missed comes back later. Quick 10 drills your weakest questions, Missed reviews the ones you got wrong, diagrams zoom to fill the screen, and Progress estimates your chance to pass today. A question counts as mastered after two right in a row. Keys: Up/Down pick an answer, OK answers, 4-8 for Figure, Skip, Next and End. Fn+H shows help.",
+    "categories": [
+      "Education",
+      "Radio & Comms"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0_home.png",
+      "screenshots/lcd_1_topic.png",
+      "screenshots/lcd_2_question.png",
+      "screenshots/lcd_3_answer.png",
+      "screenshots/lcd_4_result.png",
+      "screenshots/lcd_5_progress.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Ask Elmer"
+    },
+    "share_code": "AEHX",
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": false,
+      "additional_hardware": false,
+      "background_service": false,
+      "external_display": false
+    },
+    "locales": {}
+  }
+}

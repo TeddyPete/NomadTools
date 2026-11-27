@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+build/
+
+# Ask Elmer explanations stay out of the public repo unless Ted says otherwise
+hamexam/data/*.explain.json

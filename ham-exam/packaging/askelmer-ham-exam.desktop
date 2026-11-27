@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Ask Elmer Ham Exam
+Exec=bin/askelmer-ham-exam
+Terminal=false
+Icon=share/images/askelmer-ham-exam.png
+Type=Application
