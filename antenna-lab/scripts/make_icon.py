@@ -15,7 +15,10 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame  # noqa: E402
 
 NAVY, AMBER, MIST = (0x13, 0x32, 0x4B), (0xE8, 0xA3, 0x3D), (0xE8, 0xEE, 0xF3)
-FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+# Ask Elmer display font (Barlow Condensed, bundled), else DejaVu Sans Bold
+FONT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "elmerlab", "fonts", "BarlowCondensed-SemiBold.ttf")
+if not os.path.exists(FONT):
+    FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 
 def draw(label: str, size: int = 256) -> pygame.Surface:
@@ -37,7 +40,7 @@ def draw(label: str, size: int = 256) -> pygame.Surface:
     pygame.draw.circle(s, NAVY, P(88, 52), 6.5 * k)
     # app name
     pygame.font.init()
-    fs = int(W * 0.15)
+    fs = int(W * 0.21)
     font = pygame.font.Font(FONT if os.path.exists(FONT) else None, fs)
     img = font.render(label, True, AMBER)
     while img.get_width() > W * 0.86 and fs > 10:

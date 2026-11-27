@@ -44,3 +44,9 @@ python3 -m pytest tests
 The pool files in `hamexam/data/` are copied unchanged from Ask Elmer's `packs/ham-radio/pools/`,
 which are generated from the NCVEC releases by Ask Elmer's `tools/parse_ncvec_pool.py`. Don't edit
 them by hand; re-run the import when a pool or errata changes. The NCVEC pools are public domain.
+
+## Look
+
+Ask Elmer colours (navy, amber, mist), the speech-bubble mark and Ask Elmer's fonts: Barlow Condensed
+for titles and Atkinson Hyperlegible for text, both SIL Open Font License, bundled in `fonts/` with
+their licences. Arrows and symbols fall back to DejaVu Sans.

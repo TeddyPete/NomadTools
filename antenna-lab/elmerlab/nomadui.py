@@ -1,4 +1,4 @@
-"""Nomad UI standard for CardputerZero apps (one file, copy it into any Nomad app).
+"""Nomad UI standard for CardputerZero apps, in the Ask Elmer look (colours, fonts, mark).
 
 What every Nomad app does on the 320x170 screen:
 
@@ -37,30 +37,44 @@ from dataclasses import dataclass, field as _field
 from typing import Any, Callable
 
 # ---- colors (RGB) -----------------------------------------------------------
-# No published CardputerZero/APPLaunch color standard exists, so this is the
-# Nomad scheme Ted picked: green title, blue highlight, red while editing.
-BG = (8, 10, 16)
-FG = (235, 235, 235)
-DIM = (145, 155, 170)
-TITLE_BG = (18, 120, 52)      # green title bar
-TITLE_FG = (255, 255, 255)
-TITLE_RIGHT = (210, 255, 215)
-SEL_BG = (30, 90, 200)        # blue highlight
-EDIT_BG = (190, 28, 28)       # red while editing
-EDIT_FIELD = (90, 8, 8)       # darker red box behind the text being typed
-OK = (110, 220, 120)
-WARN = (255, 200, 90)
-BAD = (255, 110, 100)
-HINT_BG = (24, 28, 40)
-HINT_FG = (150, 200, 255)
+# Ask Elmer look (askelmer.com, dark theme): navy title bar with an amber
+# rule, amber highlight with navy text, red while editing. Colours from
+# askelmer app/src/index.css and art/brand.
+NAVY = (0x13, 0x32, 0x4B)
+AMBER = (0xE8, 0xA3, 0x3D)
+MIST = (0xE8, 0xEE, 0xF3)
+BG = (0x0F, 0x1E, 0x2B)
+SURFACE = (0x15, 0x28, 0x38)
+RULE = (0x2B, 0x42, 0x56)
+FG = MIST
+DIM = (0xA3, 0xB2, 0xC0)       # slate
+TITLE_BG = NAVY
+TITLE_FG = MIST
+TITLE_RIGHT = (0xF0, 0xB3, 0x57)
+TITLE_RULE = AMBER
+SEL_BG = AMBER                  # amber highlight ...
+SEL_FG = NAVY                   # ... with navy text
+EDIT_BG = (190, 28, 28)         # red while editing
+EDIT_FIELD = (90, 8, 8)         # darker red box behind the text being typed
+OK = (0x5C, 0xC0, 0x8A)         # Ask Elmer green text
+WARN = AMBER
+BAD = (255, 120, 100)
+HINT_BG = SURFACE
+HINT_FG = DIM
+BRAND = "Ask Elmer"             # this title gets the speech-bubble mark
 
 # ---- layout (320x170) -----------------------------------------------------------
 W, H = 320, 170
 TITLE_H, ROW_H, HINT_H = 26, 20, 19
 ROWS = (H - TITLE_H - HINT_H - 2) // ROW_H     # 6 rows of 17 px bold text
-FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+# Ask Elmer's fonts (SIL OFL, bundled in fonts/): Barlow Condensed for titles,
+# Atkinson Hyperlegible for text. DejaVu Sans Bold when they are missing.
+_FONT_DIR = __import__("os").path.join(__import__("os").path.dirname(__import__("os").path.abspath(__file__)), "fonts")
+FONT_PATHS = [__import__("os").path.join(_FONT_DIR, "AtkinsonHyperlegible-Bold.ttf"),
+              "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
               "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
-FONT_SIZES = {"title": 19, "row": 17, "small": 14, "tiny": 12}
+TITLE_FONT_PATHS = [__import__("os").path.join(_FONT_DIR, "BarlowCondensed-SemiBold.ttf")] + FONT_PATHS
+FONT_SIZES = {"title": 23, "row": 17, "small": 14, "tiny": 13}
 
 # ---- keys -----------------------------------------------------------------------
 UP, DOWN = {"up"}, {"down"}
@@ -82,10 +96,10 @@ SOFT_SIZE = 22                 # recommended icon size (22 x 22)
 SOFT_W = 52                    # our label boxes are 52 wide so text fits
 KEYBAR_H = 30                  # bottom strip y 140..170
 ROWS_KEYS = (H - TITLE_H - KEYBAR_H - 2) // ROW_H   # 5 rows above a keybar
-KEYBAR_BG = (14, 17, 26)
-SOFT_BG = (36, 48, 76)
-SOFT_FG = (235, 240, 255)
-SOFT_LINE = (150, 200, 255)
+KEYBAR_BG = BG
+SOFT_BG = (0x1D, 0x3A, 0x52)
+SOFT_FG = MIST
+SOFT_LINE = AMBER
 
 KEYS_HELP = [
     "Keys",
@@ -322,6 +336,36 @@ class EditList:
 _fonts: dict = {}
 
 
+class GlyphFont:
+    """A pygame font that falls back to DejaVu Sans Bold for text it has no
+    glyphs for: arrows and symbols from U+2100 up (Atkinson Hyperlegible has
+    no ↑↓←→)."""
+
+    def __init__(self, main, fallback=None):
+        self.main, self.fallback = main, fallback
+
+    def _pick(self, text):
+        if self.fallback is not None and text and any(ord(c) >= 0x2100 for c in text):
+            return self.fallback
+        return self.main
+
+    def render(self, text, *a, **k):
+        return self._pick(text).render(text, *a, **k)
+
+    def size(self, text):
+        return self._pick(text).size(text)
+
+    def __getattr__(self, name):
+        return getattr(self.main, name)
+
+
+def _dejavu(size):
+    import os
+    import pygame
+    p = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    return pygame.font.Font(p, max(8, size - 1)) if os.path.exists(p) else None
+
+
 def fonts() -> dict:
     """{"title", "row", "small"} pygame fonts, DejaVu Sans Bold when present."""
     if not _fonts:
@@ -329,8 +373,13 @@ def fonts() -> dict:
         import pygame
         pygame.font.init()
         path = next((p for p in FONT_PATHS if os.path.exists(p)), None)
+        tpath = next((p for p in TITLE_FONT_PATHS if os.path.exists(p)), None)
         for name, size in FONT_SIZES.items():
-            _fonts[name] = pygame.font.Font(path, size) if path else pygame.font.Font(None, int(size * 1.35))
+            fp = tpath if name == "title" else path
+            if name == "title" and fp != TITLE_FONT_PATHS[0]:
+                size = 19
+            main = pygame.font.Font(fp, size) if fp else pygame.font.Font(None, int(size * 1.35))
+            _fonts[name] = GlyphFont(main, _dejavu(size))
     return _fonts
 
 
@@ -351,8 +400,9 @@ def title_image(text: str, maxw: int = TITLE_MAX_W, f: dict | None = None):
         if size not in _title_fonts:
             import os
             import pygame
-            path = next((p for p in FONT_PATHS if os.path.exists(p)), None)
-            _title_fonts[size] = pygame.font.Font(path, size) if path else pygame.font.Font(None, int(size * 1.35))
+            path = next((p for p in TITLE_FONT_PATHS if os.path.exists(p)), None)
+            _title_fonts[size] = GlyphFont(pygame.font.Font(path, size) if path else pygame.font.Font(None, int(size * 1.35)),
+                                           _dejavu(size - 3))
         img = _title_fonts[size].render(text, True, TITLE_FG)
     return img
 
@@ -366,6 +416,35 @@ def as_view(row, selected: bool) -> RowView:
     return RowView(row[0], row[2] if len(row) > 2 else "", "selected" if selected else "normal", row[1])
 
 
+def draw_mark(surf, x: int, y: int, h: int) -> int:
+    """The Ask Elmer mark (speech bubble holding dit dah, dit) in an h-tall box
+    at x, y, as in art/brand/mark-reversed.svg. Returns its width."""
+    import pygame
+    k = h / 94.0                       # svg viewBox 4 12 112 98, bubble 8..112 x 16..106
+
+    def P(px, py):
+        return (x + (px - 8) * k, y + (py - 14) * k)
+    body = pygame.Rect(*P(8, 16), 104 * k, 70 * k)
+    pygame.draw.rect(surf, MIST, body, border_radius=max(2, int(20 * k)))
+    pygame.draw.polygon(surf, MIST, [P(50, 85), P(24, 106), P(31, 85)])
+    pygame.draw.circle(surf, AMBER, P(29, 51), max(1.5, 7 * k))
+    pygame.draw.rect(surf, AMBER, (*P(43, 44), 28 * k, 14 * k), border_radius=max(1, int(7 * k)))
+    pygame.draw.circle(surf, TITLE_BG, P(92, 51), max(1.5, 7 * k))
+    return int(104 * k)
+
+
+def draw_title(surf, title: str, f: dict | None = None) -> None:
+    """Navy title bar with an amber rule; the Ask Elmer title gets the mark."""
+    f = f or fonts()
+    surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
+    x = 6
+    if title == BRAND:
+        x += draw_mark(surf, 6, 3, TITLE_H - 7) + 7
+    img = title_image(title, f=f)
+    surf.blit(img, (x, max(0, (TITLE_H - 2 - img.get_height()) // 2)), (0, 0, W - x - 6, TITLE_H))
+    surf.fill(TITLE_RULE, (0, TITLE_H - 2, W, 2))
+
+
 def render(surf, title: str, rows: list, hint: str = "", selected: int | None = None,
            right: str = "", f: dict | None = None, keys: list | None = None) -> None:
     """Draw a whole Nomad screen: green title, up to ROWS rows, hint bar.
@@ -375,13 +454,12 @@ def render(surf, title: str, rows: list, hint: str = "", selected: int | None = 
     if keys and any(keys):
         rows = rows[:ROWS_KEYS]
     surf.fill(BG)
-    surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
-    img = title_image(title, f=f)
-    surf.blit(img, (6, max(0, (TITLE_H - img.get_height()) // 2)), (0, 0, W - 12, TITLE_H))
+    draw_title(surf, title, f)
     if right:
         img = f["small"].render(right, True, TITLE_RIGHT)
         surf.fill(TITLE_BG, (W - img.get_width() - 12, 0, img.get_width() + 12, TITLE_H))
         surf.blit(img, (W - img.get_width() - 6, 5))
+        surf.fill(TITLE_RULE, (0, TITLE_H - 2, W, 2))
     y = TITLE_H + 1
     for i, row in enumerate(rows[:ROWS]):
         draw_row(surf, f["row"], y, as_view(row, selected == i))
@@ -413,10 +491,10 @@ def draw_row(surf, font, y: int, r: RowView) -> None:
     sel = r.state == "selected"
     if sel:
         surf.fill(SEL_BG, (0, y, W, ROW_H))
-    color = r.color or FG
+    color = SEL_FG if sel else (r.color or FG)
     vw = 0
     if r.value:
-        img = font.render(r.value, True, FG if sel else DIM)
+        img = font.render(r.value, True, SEL_FG if sel else DIM)
         lw = font.size(r.label)[0]
         vw = min(img.get_width(), max(W // 2, W - 12 - lw - 12))
         surf.blit(img, (W - vw - 6, y + 1), (0, 0, vw, ROW_H))
@@ -527,9 +605,7 @@ class HelpView:
         f = f or fonts()
         ls = self.lines(f)
         surf.fill(BG)
-        surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
-        img = title_image(self.title, f=f)
-        surf.blit(img, (6, max(0, (TITLE_H - img.get_height()) // 2)), (0, 0, W - 12, TITLE_H))
+        draw_title(surf, self.title, f)
         y = TITLE_H + 2
         for text, color in ls[self.top:self.top + self.rows()]:
             surf.blit(f["small"].render(text, True, color), (7, y), (0, 0, W - 12, self.LINE_H))

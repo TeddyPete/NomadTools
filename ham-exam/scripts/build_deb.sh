@@ -18,6 +18,8 @@ install -m 755 packaging/$PKG "$A/bin/$PKG"
 ln -s /usr/share/APPLaunch/bin/$PKG "$ROOT/usr/bin/$PKG"
 install -m 644 packaging/icon_100.png "$A/share/images/$PKG.png"
 install -m 644 hamexam/*.py "$L/"
+install -d "$L/fonts"
+install -m 644 hamexam/fonts/* "$L/fonts/"
 # the NCVEC pools only (Ask Elmer explanations are not shipped)
 install -m 644 hamexam/data/index.json hamexam/data/*-20??-20??.json "$L/data/"
 install -m 644 hamexam/data/figures/*.png "$L/data/figures/"

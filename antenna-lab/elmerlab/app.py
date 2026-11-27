@@ -15,7 +15,7 @@ from . import templates as TP
 from .keys import Keyboard
 from .ui import BACK, DOWN, SELECT, UP, Busy, EditList, Field, Menu, Message, Screen, nav_key, wrap
 
-APP_TITLE = "Ask Elmer Antenna Lab"
+APP_TITLE = "Ask Elmer"
 PKG = "askelmer-antenna-lab"
 FT = 3.28084
 
@@ -609,10 +609,10 @@ class CutList(Screen):
 
 # ---- charts -------------------------------------------------------------------------
 
-GRID = (44, 52, 70)
-AXIS = (120, 130, 150)
-TRACE = (110, 200, 255)
-GOOD = (24, 60, 34)
+GRID = T.RULE
+AXIS = T.DIM
+TRACE = T.AMBER
+GOOD = (0x1B, 0x3D, 0x2E)   # Ask Elmer green tint
 
 
 class Chart(Screen):

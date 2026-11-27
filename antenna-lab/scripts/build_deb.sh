@@ -17,6 +17,8 @@ install -m 755 packaging/$PKG "$A/bin/$PKG"
 ln -s /usr/share/APPLaunch/bin/$PKG "$ROOT/usr/bin/$PKG"
 install -m 644 packaging/icon_100.png "$A/share/images/$PKG.png"
 install -m 644 elmerlab/*.py "$A/lib/$PKG/elmerlab/"
+install -d "$A/lib/$PKG/elmerlab/fonts"
+install -m 644 elmerlab/fonts/* "$A/lib/$PKG/elmerlab/fonts/"
 SIZE=$(du -sk "$ROOT/usr" | cut -f1)
 cat > "$ROOT/DEBIAN/control" <<CTL
 Package: $PKG

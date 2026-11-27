@@ -47,3 +47,9 @@ python3 -m pytest tests              # needs nec2c installed
 * NanoVNA sweep overlaid on the model's SWR curve (USB serial).
 * The 3D wire view and full-size charts on an HDMI monitor.
 * Optimizer for beams (gain / front-to-back) and coax loss to the shack.
+
+## Look
+
+Ask Elmer colours (navy, amber, mist), the speech-bubble mark and Ask Elmer's fonts: Barlow Condensed
+for titles and Atkinson Hyperlegible for text, both SIL Open Font License, bundled in `fonts/` with
+their licences. Arrows and symbols fall back to DejaVu Sans.

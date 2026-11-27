@@ -11,7 +11,7 @@ from . import nomadui as T
 from .keys import Keyboard
 from .ui import BACK, DOWN, SELECT, UP, Confirm, Menu, Message, Screen, nav_key
 
-APP_TITLE = "Ask Elmer Ham Exam"
+APP_TITLE = "Ask Elmer"
 LEARN = "Learn why at askelmer.com"
 
 HELP_MAIN = ("Ask Elmer Ham Exam drills the official NCVEC question pools for the US Technician, General "
@@ -26,9 +26,9 @@ HELP_EXAM = ("A practice exam drawn like the real one. No answers are shown unti
 HELP_FB = "The correct answer and the rule it comes from. OK or 4 goes to the next question."
 HELP_FIG = "4 zooms in and out. Arrows move around a zoomed diagram."
 
-LINE_H = 16
-GOOD = (110, 220, 120)
-RIGHT_BG = (20, 70, 36)
+LINE_H = 17
+GOOD = T.OK
+RIGHT_BG = (0x1B, 0x3D, 0x2E)   # Ask Elmer green tint
 
 
 def pct(a, b) -> str:
@@ -319,15 +319,16 @@ class QuestionView(Screen):
         for text, color, ci in ls[self.off:self.off + self.view_lines]:
             if ci is not None and ci == self.sel:
                 surf.fill(T.SEL_BG, (0, y, T.W, LINE_H))
+                color = T.SEL_FG
             elif ci is not None and mark is not None and self.q.choices[ci][0] == mark:
-                surf.fill((50, 56, 80), (0, y, T.W, LINE_H))
+                surf.fill(T.SOFT_BG, (0, y, T.W, LINE_H))
             surf.blit(font.render(text, True, color), (7, y), (0, 0, T.W - 12, LINE_H))
             y += LINE_H
         if len(ls) > self.view_lines:
             span = self.bot_y - self.top_y
             bh = max(8, span * self.view_lines // len(ls))
             by = self.top_y + (span - bh) * self.off // max(1, len(ls) - self.view_lines)
-            surf.fill((90, 100, 130), (T.W - 3, by, 3, bh))
+            surf.fill(T.RULE, (T.W - 3, by, 3, bh))
 
 
 class DrillQ(QuestionView):
@@ -478,7 +479,7 @@ class Feedback(Screen):
             if self.q.refs:
                 out.append((f"Rule: {self.q.refs}", T.DIM, False))
             if not ex:
-                out.append((LEARN, T.HINT_FG, False))
+                out.append((LEARN, T.AMBER, False))
             self._lines = out
         return self._lines
 
