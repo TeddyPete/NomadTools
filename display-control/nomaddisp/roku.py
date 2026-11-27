@@ -21,7 +21,7 @@ FIXED_INPUTS = [("InputHDMI1", "HDMI 1"), ("InputHDMI2", "HDMI 2"), ("InputHDMI3
 class Roku(Driver):
     kind = "roku"
     default_port = 8060
-    caps = frozenset({"power", "input", "volume", "mute", "info"})
+    caps = frozenset({"power", "input", "volume", "mute", "info", "remote"})
 
     def _get(self, path: str) -> bytes:
         try:
@@ -111,6 +111,13 @@ class Roku(Driver):
     def mute(self, on=None):
         self.key("VolumeMute")
         return "Mute toggled"
+
+    REMOTE = {"up": "Up", "down": "Down", "left": "Left", "right": "Right", "ok": "Select", "back": "Back",
+              "home": "Home", "menu": "Info", "exit": "Home", "info": "Info", "source": "Home"}
+
+    def remote(self, button):
+        self.key(self.REMOTE[button])
+        return button
 
     def info(self):
         out = super().info()

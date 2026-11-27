@@ -12,6 +12,10 @@ Package `nomad-display-control`, share code `NMDC`, Python package `nomaddisp`
   /24 (4352, 3001, 8001/8002, 8060, 80), then identifies each hit.
 * **Per display**: power on/off, input list and switch, volume, mute,
   picture/AV mute, picture mode, on-screen message, info, Wake-on-LAN.
+* **Remote**: the TV's menu buttons: arrows (F/X/Z/C or the arrow keys), OK,
+  DEL = Back, and keys 4-8 Home, Back, Menu, Input, Exit. LG (pointer socket),
+  Samsung (remote keys), Sony (IRCC codes) and Roku (ECP keys). PJLink has no
+  menu navigation.
 * **Rooms**: displays with the same Room name form a group: All on, All off
   (asks first), Mute, Unmute, with a per-display result list.
 * Saved list in `~/.config/nomad-display-control/displays.json` (mode 600).
@@ -53,6 +57,7 @@ for HOME, Fn+H help. Number keys 4-8 (labels at the bottom):
 
 * Main list: Find, Rooms, On, Off (highlighted display), Refresh
 * Display: On, Off, Vol-, Vol+, Mute
+* Remote: Home, Back, Menu, Input, Exit
 * Room: All on, All off, Mute, Unmute
 * Found list: Add all, Rescan (key 8)
 

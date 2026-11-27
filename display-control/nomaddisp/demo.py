@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 
 from . import lcd as L
-from .app import App, DisplayScreen, Found, Home, Pick, RoomScreen, Rooms
+from .app import App, DisplayScreen, Found, Home, Pick, RemoteScreen, RoomScreen, Rooms
 from .base import Display
 
 
@@ -52,6 +52,10 @@ def render_screens(out_dir: str) -> list[str]:
     shot(Pick(app, "Input", [("HDMI_1", "HDMI 1"), ("HDMI_2", "HDMI 2 (Laptop)"), ("HDMI_3", "HDMI 3"),
                               ("HDMI_4", "HDMI 4")], lambda v: None, "HDMI_2"), "lcd_4.png", 1)
     shot(Rooms(app), "lcd_5.png")
+    rs = RemoteScreen(app, app.displays[2])
+    rs.last = ("Sent \u2192", L.OK)
+    shot(rs, "lcd_6.png")
+    rs.alive = False
     for f in files:
         print(f)
     return files

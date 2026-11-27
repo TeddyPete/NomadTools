@@ -17,7 +17,7 @@ from . import wol
 class Sony(Driver):
     kind = "sony"
     default_port = 80
-    caps = frozenset({"power", "input", "volume", "mute", "avmute", "picture", "info"})
+    caps = frozenset({"power", "input", "volume", "mute", "avmute", "picture", "info", "remote"})
 
     def rpc(self, service: str, method: str, params=None, version: str = "1.0"):
         body = json.dumps({"method": method, "id": 1, "params": [params] if params is not None else [],
@@ -119,6 +119,43 @@ class Sony(Driver):
     def set_picture(self, mode):
         self.rpc("video", "setPictureQualitySettings", {"settings": [{"target": "pictureMode", "value": mode}]})
         return f"Picture mode {mode}"
+
+    REMOTE = {"up": "Up", "down": "Down", "left": "Left", "right": "Right", "ok": "Confirm", "back": "Return",
+              "home": "Home", "menu": "ActionMenu", "exit": "Exit", "info": "Display", "source": "Input"}
+    FALLBACK = {"ActionMenu": "Options", "Confirm": "DpadCenter"}
+    _codes: dict = {}
+
+    def ircc_codes(self) -> dict:
+        key = self.d.host
+        if key not in Sony._codes:
+            res = self.rpc("system", "getRemoteControllerInfo")
+            lst = res[1] if isinstance(res, list) and len(res) > 1 else []
+            Sony._codes[key] = {c.get("name"): c.get("value") for c in lst if isinstance(c, dict)}
+        return Sony._codes[key]
+
+    def remote(self, button):
+        codes = self.ircc_codes()
+        name = self.REMOTE[button]
+        code = codes.get(name) or codes.get(self.FALLBACK.get(name, ""))
+        if not code:
+            raise DisplayError(f"TV has no {name} button over IP")
+        body = ('<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
+                's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>'
+                '<u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1"><IRCCCode>'
+                f'{code}</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>').encode()
+        req = urllib.request.Request(f"http://{self.d.host}:{self.port}/sony/IRCC", body, {
+            "Content-Type": 'text/xml; charset=UTF-8',
+            "SOAPACTION": '"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"'})
+        if self.d.secret:
+            req.add_header("X-Auth-PSK", self.d.secret)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                r.read()
+        except urllib.error.HTTPError as e:
+            raise DisplayError("Wrong or missing pre-shared key" if e.code in (401, 403) else f"TV error HTTP {e.code}")
+        except OSError as e:
+            raise DisplayError(f"No answer from {self.d.host} ({e.__class__.__name__})")
+        return button
 
     def info(self):
         out = super().info()
