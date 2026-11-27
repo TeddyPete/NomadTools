@@ -308,7 +308,7 @@ class LGTest(unittest.TestCase):
         try:
             st = lg.status()
             self.assertEqual((st["power"], st["volume"], st["input"]), ("on", 9, "HDMI 2"))
-            self.assertEqual(lg.inputs()[1], ("HDMI_2", "Laptop"))
+            self.assertEqual(lg.inputs()[1], ("HDMI_2", "HDMI 2 (Laptop)"))
             self.assertEqual(lg.mute(), "Muted")
             self.assertEqual(seen[-1]["payload"], {"mute": True})
             self.assertEqual(lg.message("hi"), "Message shown")

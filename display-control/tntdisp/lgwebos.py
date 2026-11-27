@@ -141,7 +141,15 @@ class LGWebOS(Driver):
 
     def inputs(self):
         devs = self.call("ssap://tv/getExternalInputList").get("devices") or []
-        return [(d.get("id", ""), d.get("label") or d.get("id", "")) for d in devs if d.get("id")]
+        out = []
+        for d in devs:
+            i = d.get("id", "")
+            if not i:
+                continue
+            port = i.replace("_", " ")
+            lab = d.get("label") or port
+            out.append((i, port if lab == port else f"{port} ({lab})"))
+        return out
 
     def set_input(self, input_id):
         self.call("ssap://tv/switchInput", {"inputId": input_id})
@@ -197,9 +205,11 @@ class LGWebOS(Driver):
                     pl = self.call(uri, ws=ws)
                 except DisplayError:
                     continue
+                names = {"modelName": "Model", "receiverType": "Tuner", "product_name": "webOS",
+                         "major_ver": "Software", "minor_ver": "Build", "device_id": "Device ID"}
                 for k in keys:
                     if pl.get(k):
-                        out.append((k.replace("_", " ").replace("modelName", "Model").capitalize(), str(pl[k])))
+                        out.append((names.get(k, k), str(pl[k])))
         finally:
             ws.close()
         if self.d.mac:
