@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Ask Elmer Ham Tools
+Exec=bin/askelmer-ham-tools
+Terminal=false
+Icon=share/images/askelmer-ham-tools.png
+Type=Application
