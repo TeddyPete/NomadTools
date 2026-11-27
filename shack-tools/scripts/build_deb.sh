@@ -18,23 +18,29 @@ ln -s /usr/share/APPLaunch/bin/$PKG "$ROOT/usr/bin/$PKG"
 install -m 644 packaging/icon_100.png "$A/share/images/$PKG.png"
 install -m 644 shacktools/*.py "$L/"
 install -m 644 shacktools/fonts/* "$L/fonts/"
+install -d "$L/data"
+install -m 644 shacktools/data/* "$L/data/"
 SIZE=$(du -sk "$ROOT/usr" | cut -f1)
 cat > "$ROOT/DEBIAN/control" <<CTL
 Package: $PKG
 Version: $VER-$REV
 Architecture: arm64
 Maintainer: TeddyPete <299527578+TeddyPete@users.noreply.github.com>
-Depends: python3 (>= 3.9), python3-pygame (>= 2.1), python3-numpy
+Depends: python3 (>= 3.9), python3-pygame (>= 2.1), python3-numpy, python3-sgp4
 Installed-Size: $SIZE
 Section: hamradio
 Priority: optional
 Homepage: https://askelmer.com
 Description: Ask Elmer Shack Tools for the M5Stack CardputerZero
- Everyday ham radio calculators: frequency and wavelength with your US
- license privileges (Technician, General, Extra), the band plan, Ohm's
- law, decibels and dBm, SWR and mismatch loss, coax loss, Maidenhead grid
- squares with distance and beam heading, a UTC clock, phonetics and Q
- signals. Works offline. Runs as the normal user; settings live in
+ Ham radio tools in your pocket: band check with your US license
+ privileges and what's usually nearby, RF math (dB and S-units, SWR,
+ Ohm's law, LC, toroids, attenuator pads), where and when (distance,
+ heading, zones, sunrise, sunset and greyline), propagation (solar data
+ and an offline MUF estimate), satellite passes with Doppler, POTA and
+ SOTA spots, parks and summits near you with an activation counter, a
+ station clock with a 10-minute ID timer, and a searchable reference.
+ A USB GPS gives the time and location, shared with the other Ask Elmer
+ and Nomad apps. Runs as the normal user; settings live in
  ~/.config/askelmer-shack-tools/.
 CTL
 mkdir -p build

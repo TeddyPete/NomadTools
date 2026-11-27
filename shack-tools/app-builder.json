@@ -1,23 +1,26 @@
 {
   "package_name": "askelmer-shack-tools",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "app_name": "Ask Elmer Shack Tools",
   "bin_name": "askelmer-shack-tools",
-  "description": "Ham radio calculators: band privileges, Ohm's law, dB, SWR, coax loss, grid, UTC",
+  "description": "Ham radio tools: band check, RF math, distance and greyline, propagation, satellite passes, POTA/SOTA, ID timer",
   "store": {
-    "summary": "Ham radio shack calculators: band privileges, Ohm's law, dB, SWR, coax loss, grid squares, UTC",
-    "description": "From Ask Elmer, askelmer.com. The everyday ham radio calculators in your pocket, offline. Frequency and band: type a frequency or wavelength, pick Technician, General or Extra, and see the band, whether you may transmit there and with which modes, the wavelength, and half- and quarter-wave lengths. Band plan: every US band with your class's segments (FCC Part 97). Ohm's law: any two of volts, amps, ohms and watts, with prefixes like 4.7k. Decibels: watts to dBm and dBW, gains and losses, ratios. SWR: from a reading or forward and reflected watts, with reflected power, return loss and mismatch loss. Coax loss: RG-58, RG-8X, RG-213 and LMR-400 at any length and frequency. Grid square: your Maidenhead locator from latitude and longitude, and distance and beam heading to another grid. A big UTC clock with your log time, phonetics for any call sign, and the common Q signals. Your entries are kept for next time. Fn+H shows help.",
+    "summary": "Ham radio tools: band check, RF math, greyline, propagation, satellite passes, POTA/SOTA, ID clock",
+    "description": "From Ask Elmer, askelmer.com. Ham radio tools in your pocket. Band check: type a frequency and see the whole band as a bar with each license class's segments, whether you may transmit there, the power limit, how far you are from the edge, what's usually nearby (FT8, CW QRP, calling frequencies, 60 m channels) and quick antenna lengths. RF math: power, dB and S-units, SWR and return loss, Ohm's law, LC resonance and reactance, toroid winding for Amidon T and FT cores, and pi and T attenuator pads. Where & when: distance and beam heading to a grid or a call sign (with country and CQ/ITU zones), and sunrise, sunset and greyline at both ends. Propagation: solar flux, K and A and band conditions from hamqsl.com, plus an offline MUF estimate through the day. Satellites: the next passes of ISS, SO-50, AO-91, PO-101, RS-44, AO-7 and FO-29 with a sky plot and Doppler-corrected frequencies. POTA and SOTA: who's on the air now, parks and summits near you (kept for offline use) and an activation counter. A station clock in UTC with a 10-minute ID timer, and a searchable reference of Q signals, prosigns, CW abbreviations and RST. A USB GPS gives the time and your location, shared with the other Ask Elmer and Nomad apps; without one, type your grid. Fn+H shows help.",
     "categories": [
       "Radio & Comms",
       "Education"
     ],
     "screenshots": [
       "screenshots/lcd_0_home.png",
-      "screenshots/lcd_1_frequency.png",
-      "screenshots/lcd_2_bandplan.png",
-      "screenshots/lcd_3_coax.png",
-      "screenshots/lcd_4_grid.png",
-      "screenshots/lcd_5_clock.png"
+      "screenshots/lcd_1_band.png",
+      "screenshots/lcd_2_where.png",
+      "screenshots/lcd_3_prop.png",
+      "screenshots/lcd_4_sats.png",
+      "screenshots/lcd_x_pass.png",
+      "screenshots/lcd_5_parks.png",
+      "screenshots/lcd_6_counter.png",
+      "screenshots/lcd_7_clock.png"
     ],
     "icon": "packaging/icon.png",
     "license": "MIT",
@@ -31,8 +34,8 @@
       "camera": false,
       "microphone": false,
       "imu": false,
-      "network": false,
-      "additional_hardware": false,
+      "network": true,
+      "additional_hardware": true,
       "background_service": false,
       "external_display": false
     },

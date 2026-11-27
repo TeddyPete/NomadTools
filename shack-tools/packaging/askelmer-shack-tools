@@ -4,7 +4,7 @@
 # APPLaunch runs Exec without a shell, so environment setup lives here.
 APP_DIR=/usr/share/APPLaunch/lib/askelmer-shack-tools
 export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
-export PYGAME_HIDE_SUPPORT_PROMPT=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+export PYGAME_HIDE_SUPPORT_PROMPT=1 SDL_VIDEODRIVER=dummy
 export PATH="${PATH:-/usr/bin:/bin}:/usr/sbin:/sbin"
 [ -z "$HOME" ] && export HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
 [ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR="/run/user/$(id -u)"

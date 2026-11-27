@@ -372,3 +372,217 @@ Q_SIGNALS = [
     ("QSY", "Change frequency (I am changing frequency).", "Shall I change frequency?"),
     ("QTH", "My location is ...", "What is your location?"),
 ]
+
+
+# ---- 0.2: band check ----------------------------------------------------------------------
+
+# Where people are, by mode (USB dial frequencies for the digital modes).
+ACTIVITY = [
+    (1.840, "FT8"), (1.810, "CW QRP"), (1.910, "SSB QRP"),
+    (3.573, "FT8"), (3.575, "FT4"), (3.560, "CW QRP"), (3.985, "SSB QRP"), (3.845, "SSTV"), (3.5926, "WSPR"),
+    (5.357, "FT8"),
+    (7.074, "FT8"), (7.0475, "FT4"), (7.030, "CW QRP"), (7.040, "RTTY / PSK"), (7.285, "SSB QRP"),
+    (7.171, "SSTV"), (7.0386, "WSPR"), (7.1715, "SSTV"),
+    (10.136, "FT8"), (10.140, "FT4"), (10.106, "CW QRP"), (10.1387, "WSPR"),
+    (14.074, "FT8"), (14.080, "FT4"), (14.060, "CW QRP"), (14.070, "PSK31"), (14.285, "SSB QRP"),
+    (14.230, "SSTV"), (14.0956, "WSPR"), (14.100, "NCDXF beacons"), (14.300, "Maritime net"),
+    (18.100, "FT8"), (18.104, "FT4"), (18.086, "CW QRP"), (18.1046, "WSPR"),
+    (21.074, "FT8"), (21.140, "FT4"), (21.060, "CW QRP"), (21.385, "SSB QRP"), (21.340, "SSTV"),
+    (24.915, "FT8"), (24.919, "FT4"), (24.906, "CW QRP"),
+    (28.074, "FT8"), (28.180, "FT4"), (28.060, "CW QRP"), (28.385, "SSB QRP"), (28.680, "SSTV"),
+    (29.600, "FM calling"),
+    (50.313, "FT8"), (50.318, "FT4"), (50.125, "SSB calling"), (52.525, "FM calling"), (50.090, "CW calling"),
+    (144.174, "FT8"), (144.200, "SSB calling"), (144.390, "APRS"), (145.800, "ISS voice down"),
+    (145.825, "ISS APRS"), (146.520, "FM calling"),
+    (222.100, "SSB calling"), (223.500, "FM calling"),
+    (432.100, "SSB calling"), (446.000, "FM calling"),
+    (1294.500, "FM calling"), (1296.100, "SSB calling"),
+]
+
+# 60 m: channel centres (97.303(h)); USB dial is 1.5 kHz lower
+CH60 = [5.332, 5.348, 5.3585, 5.373, 5.405]
+
+
+def activity_near(mhz: float, n: int = 3) -> list:
+    """The nearest activity frequencies on the same band: [(mhz, what, khz_away)]."""
+    b = band_for(mhz)
+    if not b:
+        return []
+    near = [(f, w, (f - mhz) * 1000) for f, w in ACTIVITY if b.lo <= f <= b.hi]
+    near.sort(key=lambda x: abs(x[2]))
+    return near[:n]
+
+
+def power_limit(mhz: float, cls: str) -> str:
+    b = band_for(mhz)
+    if not b:
+        return ""
+    if b.name == "60 m":
+        return "100 W ERP on the channels, 9.15 W ERP in the segment"
+    if b.name == "30 m":
+        return "200 W PEP"
+    if cls == "Technician" and mhz < 30:
+        return "200 W PEP"
+    return "1500 W PEP"
+
+
+def edges(mhz: float, cls: str):
+    """Distance in kHz to the edges of the segment you're in (or the nearest one)."""
+    b = band_for(mhz)
+    if not b:
+        return None
+    segs = b.seg.get(cls, [])
+    if not segs:
+        return None
+    s = next((s for s in segs if s[0] <= mhz <= s[1]), None)
+    if s:
+        return {"inside": True, "below": (mhz - s[0]) * 1000, "above": (s[1] - mhz) * 1000, "seg": s}
+    near = min(segs, key=lambda s: min(abs(mhz - s[0]), abs(mhz - s[1])))
+    d = min(abs(mhz - near[0]), abs(mhz - near[1])) * 1000
+    return {"inside": False, "to": d, "seg": near}
+
+
+def nearest_60m(mhz: float):
+    c = min(CH60, key=lambda f: abs(f - mhz))
+    return c, (mhz - c) * 1000
+
+
+# ---- 0.2: RF math --------------------------------------------------------------------------
+
+S9_HF_DBM, S9_VHF_DBM = -73.0, -93.0
+
+
+def dbm_to_uv(dbm: float) -> float:
+    """Microvolts across 50 ohm."""
+    return math.sqrt(10 ** (dbm / 10) / 1000 * 50) * 1e6
+
+
+def uv_to_dbm(uv: float) -> float:
+    return 10 * math.log10((uv * 1e-6) ** 2 / 50 * 1000)
+
+
+def s_units(dbm: float, vhf: bool = False) -> str:
+    s9 = S9_VHF_DBM if vhf else S9_HF_DBM
+    if dbm >= s9:
+        over = dbm - s9
+        return "S9" if over < 0.5 else f"S9 +{over:.0f} dB"
+    s = 9 + (dbm - s9) / 6
+    if s < 1:
+        return "below S1"
+    return f"S{int(s)}" + (f" +{(s - int(s)) * 6:.0f} dB" if s - int(s) > 0.08 else "")
+
+
+def s_to_dbm(s: float, over_db: float = 0, vhf: bool = False) -> float:
+    s9 = S9_VHF_DBM if vhf else S9_HF_DBM
+    return s9 - (9 - s) * 6 + over_db
+
+
+def lc_solve(f_hz=None, l_h=None, c_f=None):
+    """Two of f, L, C give the third (resonance): (f, L, C) or None."""
+    k = (2 * math.pi) ** 2
+    if f_hz and l_h and not c_f:
+        return f_hz, l_h, 1 / (k * f_hz ** 2 * l_h)
+    if f_hz and c_f and not l_h:
+        return f_hz, 1 / (k * f_hz ** 2 * c_f), c_f
+    if l_h and c_f and not f_hz:
+        return 1 / (2 * math.pi * math.sqrt(l_h * c_f)), l_h, c_f
+    return None
+
+
+def reactance(f_hz, l_h=None, c_f=None):
+    return (2 * math.pi * f_hz * l_h if l_h else None, 1 / (2 * math.pi * f_hz * c_f) if c_f else None)
+
+
+# Amidon cores: name -> (AL, units, OD, ID, height in inches). Iron powder AL
+# is in uH per 100 turns, ferrite AL in mH per 1000 turns (same as nH/turn^2).
+CORES = {
+    "T-37-2": (4.0, "uH/100t", .375, .205, .128), "T-37-6": (3.0, "uH/100t", .375, .205, .128),
+    "T-50-2": (4.9, "uH/100t", .500, .303, .190), "T-50-6": (4.0, "uH/100t", .500, .303, .190),
+    "T-68-2": (5.7, "uH/100t", .690, .370, .190), "T-68-6": (4.7, "uH/100t", .690, .370, .190),
+    "T-80-2": (5.5, "uH/100t", .795, .495, .250), "T-80-6": (4.5, "uH/100t", .795, .495, .250),
+    "T-106-2": (13.5, "uH/100t", 1.060, .570, .437), "T-130-2": (11.0, "uH/100t", 1.300, .780, .437),
+    "T-200-2": (12.0, "uH/100t", 2.000, 1.250, .550), "T-50-10": (3.1, "uH/100t", .500, .303, .190),
+    "FT-37-43": (350, "mH/1000t", .375, .187, .125), "FT-50-43": (523, "mH/1000t", .500, .281, .188),
+    "FT-82-43": (557, "mH/1000t", .825, .520, .250), "FT-114-43": (603, "mH/1000t", 1.142, .748, .295),
+    "FT-140-43": (885, "mH/1000t", 1.400, .900, .500), "FT-240-43": (1075, "mH/1000t", 2.400, 1.400, .500),
+    "FT-37-61": (55, "mH/1000t", .375, .187, .125), "FT-50-61": (68, "mH/1000t", .500, .281, .188),
+    "FT-82-61": (73, "mH/1000t", .825, .520, .250), "FT-114-61": (79, "mH/1000t", 1.142, .748, .295),
+    "FT-140-61": (140, "mH/1000t", 1.400, .900, .500), "FT-240-61": (171, "mH/1000t", 2.400, 1.400, .500),
+}
+
+
+def toroid(core: str, l_uh: float):
+    """Turns for an inductance, the inductance you actually get, and about how
+    much wire (inches, with 2 in leads)."""
+    al, unit, od, idd, h = CORES[core]
+    if unit == "uH/100t":
+        n = 100 * math.sqrt(l_uh / al)
+    else:
+        n = 1000 * math.sqrt(l_uh / 1000 / al)
+    turns = max(1, round(n))
+    got = (al * (turns / 100) ** 2) if unit == "uH/100t" else al * (turns / 1000) ** 2 * 1000
+    per_turn = 2 * h + (od - idd) + 0.08
+    return {"exact": n, "turns": turns, "got_uh": got, "wire_in": turns * per_turn + 2}
+
+
+def toroid_from_turns(core: str, turns: int) -> float:
+    al, unit, *_ = CORES[core]
+    return al * (turns / 100) ** 2 if unit == "uH/100t" else al * (turns / 1000) ** 2 * 1000
+
+
+E24 = [1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8,
+       7.5, 8.2, 9.1]
+
+
+def e24(r: float) -> float:
+    if r <= 0:
+        return 0.0
+    d = 10 ** math.floor(math.log10(r))
+    return min((v * d for v in E24 + [10.0]), key=lambda x: abs(math.log(x / r)))
+
+
+def attenuator(db: float, z0: float = 50.0) -> dict:
+    """Pi and T pad resistor values."""
+    k = 10 ** (db / 20)
+    return {"pi_shunt": z0 * (k + 1) / (k - 1), "pi_series": z0 * (k * k - 1) / (2 * k),
+            "t_series": z0 * (k - 1) / (k + 1), "t_shunt": z0 * 2 * k / (k * k - 1)}
+
+
+# ---- 0.2: reference ----------------------------------------------------------------------------
+
+PROSIGNS = [
+    ("AR", "End of message (written +)."), ("SK", "End of contact."), ("BT", "Break, new paragraph (written =)."),
+    ("KN", "Over, to the station I'm working only."), ("K", "Over, anyone may answer."),
+    ("AS", "Wait (stand by)."), ("BK", "Break: quick back-and-forth."), ("CL", "Closing my station."),
+    ("HH", "Error (8 dits): ignore the last word."), ("CT / KA", "Start of message."),
+    ("SN / VE", "Understood."), ("R", "Received, all copied."), ("CQ", "Calling any station."),
+    ("DE", "From (this is)."),
+]
+
+CW_ABBREV = [
+    ("ABT", "about"), ("AGN", "again"), ("ANT", "antenna"), ("BCNU", "be seeing you"), ("BK", "break"),
+    ("CFM", "confirm"), ("CUL", "see you later"), ("DR", "dear"), ("DX", "distance, foreign stations"),
+    ("ES", "and"), ("FB", "fine business (excellent)"), ("FER", "for"), ("GA", "good afternoon / go ahead"),
+    ("GE", "good evening"), ("GM", "good morning"), ("GN", "good night"), ("GL", "good luck"),
+    ("HI", "laughter"), ("HR", "here"), ("HW", "how (copy?)"), ("NR", "number"), ("OM", "old man (any ham)"),
+    ("OP", "operator"), ("PSE", "please"), ("PWR", "power"), ("RIG", "radio"), ("RPT", "repeat / report"),
+    ("RST", "readability, strength, tone"), ("SIG", "signal"), ("SRI", "sorry"), ("TNX / TKS", "thanks"),
+    ("TU", "thank you"), ("UR", "your / you're"), ("VY", "very"), ("WX", "weather"), ("XYL", "wife"),
+    ("YL", "young lady (any woman)"), ("5NN", "599 in cut numbers"), ("73", "best regards"),
+    ("88", "love and kisses"), ("72", "best regards (QRP)"), ("CPY", "copy"), ("TEST", "contest"),
+    ("POTA", "Parks on the Air"), ("SOTA", "Summits on the Air"), ("QRPP", "very low power"),
+]
+
+RST = [
+    ("R1", "Readability: unreadable"), ("R2", "Readability: barely readable"),
+    ("R3", "Readability: readable with considerable difficulty"), ("R4", "Readability: readable, practically no difficulty"),
+    ("R5", "Readability: perfectly readable"),
+    ("S1", "Strength: faint, barely perceptible"), ("S3", "Strength: weak"), ("S5", "Strength: fairly good"),
+    ("S7", "Strength: moderately strong"), ("S9", "Strength: extremely strong"),
+    ("T1", "Tone: 60 Hz or less, very rough"), ("T5", "Tone: filtered rectified AC, strongly ripple-modulated"),
+    ("T7", "Tone: near pure, trace of ripple"), ("T9", "Tone: perfect tone, no trace of ripple"),
+    ("599", "The usual contest report (sent 5NN)"), ("59", "Phone report: no tone figure"),
+]
+
+CUT_NUMBERS = [("T", "0"), ("A", "1"), ("U", "2"), ("V", "3"), ("4", "4"), ("E", "5"), ("6", "6"), ("B", "7"),
+               ("D", "8"), ("N", "9")]
