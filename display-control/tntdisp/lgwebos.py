@@ -36,7 +36,7 @@ class LGWebOS(Driver):
     kind = "lg"
     default_port = 3001
     needs_pairing = True
-    caps = frozenset({"power", "input", "volume", "mute", "avmute", "message", "info"})
+    caps = frozenset({"power", "input", "volume", "mute", "avmute", "message", "info", "remote"})
 
     def _connect(self, allow_prompt: bool = False, wait: float = 60.0) -> WebSocket:
         tls = self.port != 3000
@@ -189,6 +189,40 @@ class LGWebOS(Driver):
         uri = "turnOffScreen" if on else "turnOnScreen"
         self.call(f"ssap://com.webos.service.tvpower/power/{uri}", {"standbyMode": "active"})
         return "Screen off (TV still on)" if on else "Screen back on"
+
+    REMOTE = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "ok": "ENTER", "back": "BACK",
+              "home": "HOME", "menu": "MENU", "exit": "EXIT", "info": "INFO", "source": "INPUT_HUB"}
+
+    def remote(self, button):
+        """Buttons go over the TV's pointer socket; it is kept open between
+        presses (see close_remote)."""
+        name = self.REMOTE[button]
+        for attempt in (0, 1):
+            ws = getattr(self, "_pointer", None)
+            if ws is None:
+                path = self.call("ssap://com.webos.service.networkinput/getPointerInputSocket").get("socketPath", "")
+                if "://" not in path:
+                    raise DisplayError("TV gave no remote socket")
+                tls = path.startswith("wss")
+                rest = path.split("://", 1)[1]
+                hostport, _, sub = rest.partition("/")
+                port = int(hostport.rsplit(":", 1)[1]) if ":" in hostport else (3001 if tls else 3000)
+                ws = WebSocket(self.d.host, port, "/" + sub, tls=tls, timeout=self.timeout)
+                self._pointer = ws
+            try:
+                ws.send(f"type:button\nname:{name}\n\n")
+                return button
+            except (DisplayError, OSError):
+                self.close_remote()
+                if attempt:
+                    raise DisplayError("TV remote connection lost")
+        return button
+
+    def close_remote(self):
+        ws = getattr(self, "_pointer", None)
+        self._pointer = None
+        if ws:
+            ws.close()
 
     def message(self, text):
         self.call("ssap://system.notifications/createToast", {"message": text[:60]})

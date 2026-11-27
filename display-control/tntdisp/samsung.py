@@ -24,7 +24,7 @@ class Samsung(Driver):
     kind = "samsung"
     default_port = 8002
     needs_pairing = True
-    caps = frozenset({"power", "input", "volume", "mute", "info"})
+    caps = frozenset({"power", "input", "volume", "mute", "info", "remote"})
 
     def api(self) -> dict:
         try:
@@ -112,6 +112,14 @@ class Samsung(Driver):
     def mute(self, on=None):
         self.keys("KEY_MUTE")       # Samsung only has a toggle
         return "Mute toggled"
+
+    REMOTE = {"up": "KEY_UP", "down": "KEY_DOWN", "left": "KEY_LEFT", "right": "KEY_RIGHT", "ok": "KEY_ENTER",
+              "back": "KEY_RETURN", "home": "KEY_HOME", "menu": "KEY_MENU", "exit": "KEY_EXIT",
+              "info": "KEY_INFO", "source": "KEY_SOURCE"}
+
+    def remote(self, button):
+        self.keys(self.REMOTE[button])
+        return button
 
     def info(self):
         out = super().info()

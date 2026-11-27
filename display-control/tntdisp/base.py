@@ -12,6 +12,7 @@ caps (what the UI offers for this display):
   picture  picture modes
   message  show a short message on the screen
   info     model, hours, errors ...
+  remote   menu navigation: up down left right ok back home menu exit info source
 """
 from __future__ import annotations
 
@@ -56,6 +57,9 @@ KIND_NAMES = {
 KIND_SHORT = {"pjlink": "PJL", "lg": "LG", "samsung": "SAM", "sony": "SONY", "roku": "ROKU"}
 SECRET_LABEL = {"pjlink": "PJLink password", "sony": "Pre-shared key", "lg": "Client key",
                 "samsung": "Token"}
+
+
+REMOTE_BUTTONS = ("up", "down", "left", "right", "ok", "back", "home", "menu", "exit", "info", "source")
 
 
 class Driver:
@@ -110,6 +114,10 @@ class Driver:
 
     def info(self) -> list[tuple[str, str]]:
         return [("Type", KIND_NAMES.get(self.kind, self.kind)), ("Address", f"{self.d.host}:{self.port}")]
+
+    def remote(self, button: str) -> str:
+        """Press a remote button (see REMOTE_BUTTONS)."""
+        raise DisplayError("No remote control over IP")
 
     def pair(self) -> str:
         """Ask the TV to allow this device (LG / Samsung). Returns text; may

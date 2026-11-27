@@ -316,6 +316,8 @@ class DisplayScreen(List):
                ("Power off", lambda: app.do(d, "off", label="Power off"), "", L.BAD)]
         if "input" in caps:
             out.append(("Input", lambda: choose_input(app, d), lambda: str(st.get("input") or "")[:12]))
+        if "remote" in caps:
+            out.append(("Remote (menu, arrows)", lambda: app.push(RemoteScreen(app, d)), "", L.OK))
         if "volume" in caps:
             out.append(("Volume up", lambda: app.do(d, "vol", 1, "Volume up"),
                         lambda: "" if st.get("volume") is None else str(st["volume"])))
@@ -353,6 +355,77 @@ class DisplayScreen(List):
         if now > self.next_poll and self.d.id not in self.app.busy:
             self.next_poll = now + 10
             threading.Thread(target=self.app.poll, args=(self.d,), daemon=True).start()
+
+
+class RemoteScreen(Screen):
+    """The TV's remote: arrows (F/X/Z/C or the arrow keys), OK, and the menu
+    buttons on keys 4-8. Presses go out in order on one connection."""
+    help = ("Arrow keys or F X Z C move on the TV, OK selects. DEL is the TV's Back button. "
+            "4 Home, 5 Back, 6 Menu (TV settings), 7 Input list, 8 Exit. ESC leaves the remote; "
+            "hold ESC for HOME.")
+    LABEL = {"up": "↑", "down": "↓", "left": "←", "right": "→", "ok": "OK"}
+
+    def __init__(self, app, d: Display):
+        super().__init__(app)
+        self.title, self.d = f"Remote: {d.name}", d
+        self.drv = DRIVERS[d.kind](d)
+        self.q: list[str] = []
+        self.cv = threading.Condition()
+        self.alive = True
+        self.last = ("Ready", L.DIM)
+        threading.Thread(target=self._worker, daemon=True).start()
+
+    def _worker(self):
+        while True:
+            with self.cv:
+                while self.alive and not self.q:
+                    self.cv.wait()
+                if not self.alive:
+                    break
+                b = self.q.pop(0)
+            try:
+                with ops.lock(self.d):
+                    self.drv.remote(b)
+                self.last = (f"Sent {self.LABEL.get(b, b.capitalize())}", L.OK)
+            except (DisplayError, OSError, ValueError, KeyError) as e:
+                self.last = (str(e) or e.__class__.__name__, L.BAD)
+                with self.cv:
+                    self.q.clear()
+            self.app.dirty = True
+        if hasattr(self.drv, "close_remote"):
+            self.drv.close_remote()
+
+    def press(self, b: str):
+        with self.cv:
+            if len(self.q) < 8:
+                self.q.append(b)
+            self.cv.notify()
+        self.last = (f"{self.LABEL.get(b, b.capitalize())}...", L.WARN)
+
+    def right(self):
+        return KIND_SHORT.get(self.d.kind, "")
+
+    def rows(self):
+        return [self.last, ("F ↑   X ↓   Z ←   C →", L.FG),
+                ("OK select    DEL back", L.FG), ("ESC leaves the remote", L.DIM)], None
+
+    def softkeys(self):
+        return [("Home", lambda: self.press("home")), ("Back", lambda: self.press("back")),
+                ("Menu", lambda: self.press("menu")), ("Input", lambda: self.press("source")),
+                ("Exit", lambda: self.press("exit"))]
+
+    def key(self, k):
+        if k.name in ("up", "down", "left", "right"):
+            self.press(k.name)
+        elif k.name == "enter":
+            self.press("ok")
+        elif k.name == "backspace":
+            self.press("back")
+        elif k.name == "esc":
+            with self.cv:
+                self.alive = False
+                self.cv.notify()
+            self.app.pop(self)
 
 
 class Pick(List):

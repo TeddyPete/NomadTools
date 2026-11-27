@@ -220,6 +220,12 @@ class SonyRoku(unittest.TestCase):
         self.assertEqual(Handler.calls[-1][1], "/keypress/PowerOn")
         r.set_input("launch:tvinput.hdmi1")
         self.assertEqual(Handler.calls[-1][1], "/launch/tvinput.hdmi1")
+        r.remote("ok")
+        self.assertEqual(Handler.calls[-1][1], "/keypress/Select")
+        from tntdisp.base import REMOTE_BUTTONS
+        from tntdisp.samsung import Samsung
+        for drv in (Roku, Samsung, Sony, LGWebOS):
+            self.assertTrue(set(REMOTE_BUTTONS) <= set(drv.REMOTE), drv)
 
 
 # ---- fake LG webOS (plain WebSocket on port 3000 style) --------------------
@@ -255,7 +261,11 @@ def ws_server(handler):
             d = b""
             while len(d) < n:
                 d += c.recv(n - len(d))
-            return json.loads(bytes(b ^ m[i % 4] for i, b in enumerate(d)))
+            t = bytes(b ^ m[i % 4] for i, b in enumerate(d)).decode()
+            try:
+                return json.loads(t)
+            except ValueError:
+                return {"type": "raw", "text": t}
 
         def send(o):
             d = json.dumps(o).encode()
@@ -280,6 +290,8 @@ class LGTest(unittest.TestCase):
 
         def tv(m):
             seen.append(m)
+            if m["type"] == "raw":
+                return []
             if m["type"] == "register":
                 if m["payload"].get("client-key") == "goodkey":
                     return [{"type": "registered", "id": m["id"], "payload": {"client-key": "goodkey"}}]
@@ -292,6 +304,8 @@ class LGTest(unittest.TestCase):
                 pl.update(state="Active")
             if uri.endswith("getForegroundAppInfo"):
                 pl.update(appId="com.webos.app.hdmi2")
+            if uri.endswith("getPointerInputSocket"):
+                pl.update(socketPath=f"ws://127.0.0.1:{port}/resources/abc/netinput.pointer.sock")
             if uri.endswith("getExternalInputList"):
                 pl.update(devices=[{"id": "HDMI_1", "label": "HDMI 1"}, {"id": "HDMI_2", "label": "Laptop"}])
             return [{"type": "event", "id": "other", "payload": {}}, {"type": "response", "id": m["id"], "payload": pl}]
@@ -312,6 +326,13 @@ class LGTest(unittest.TestCase):
             self.assertEqual(lg.mute(), "Muted")
             self.assertEqual(seen[-1]["payload"], {"mute": True})
             self.assertEqual(lg.message("hi"), "Message shown")
+            lg.remote("down")
+            lg.remote("ok")
+            import time
+            time.sleep(0.3)
+            self.assertEqual([m["text"] for m in seen if m["type"] == "raw"],
+                             ["type:button\nname:DOWN\n\n", "type:button\nname:ENTER\n\n"])
+            lg.close_remote()
             lg.d.secret = "bad"
             with self.assertRaises(DisplayError):
                 lg.status()
@@ -372,7 +393,7 @@ class Misc(unittest.TestCase):
     def test_screens(self):
         from tntdisp.demo import render_screens
         files = render_screens(tempfile.mkdtemp())
-        self.assertEqual(len(files), 6)
+        self.assertEqual(len(files), 7)
 
 
 if __name__ == "__main__":

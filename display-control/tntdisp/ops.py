@@ -51,6 +51,8 @@ def run(d: Display, cmd: str, arg=None):
             return drv.info()
         if cmd == "pair":
             return drv.pair()
+        if cmd == "remote":
+            return drv.remote(str(arg))
     raise DisplayError(f"Unknown command {cmd}")
 
 
