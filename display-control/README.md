@@ -50,6 +50,24 @@ It also lists other control ports it sees (Telnet, NEC 7142, Epson 3629,
 Panasonic 1024, Christie, Barco, Android TV, Cast) and the MAC for
 Wake-on-LAN. Key 4 adds the display with what was found.
 
+## Installer / service menus
+
+On a display: **Installer / service menus** (after a warning screen). It only
+opens the menu and then switches to the Remote screen so you can move around;
+it never changes a value.
+
+| TV | Menus | How |
+|---|---|---|
+| LG webOS | Service menu 1 (EZ-Adjust), Service menu 2 (In-Start); password 0413 | launches `com.webos.app.factorywin` with `irKey` ezAdjust / inStart (factory reset and test modes are never offered) |
+| Sony | Hotel / Pro mode menu; Service menu (experimental) | IRCC keys Display, Mute, Vol+, Home / Display, 5, Vol+, Power |
+| Samsung | Hotel / hospitality menu (experimental) | remote keys Mute, 1, 1, 9, OK |
+| Roku | Platform secret screen, Wi-Fi secret screen | ECP keys Home x5 + FF x3 + Rew x2 / Home x5 + Up Right Down Left Up |
+
+Find displays also lists saved displays that did not answer as OFFLINE (key 5
+wakes one by Wake-on-LAN): a TV that is off sleeps its network unless LG
+"Turn on via Wi-Fi" (Quick Start+), Samsung "Network standby" or Sony
+"Remote start" is on.
+
 ## Keys (official CardputerZero key spec)
 
 F/X move, OK or C select, Z or ESC back, ESC on the main page quits, hold ESC

@@ -121,6 +121,24 @@ class Samsung(Driver):
         self.keys(self.REMOTE[button])
         return button
 
+    MENUS = [("hotel", "Hotel / hospitality menu (experimental)", "Mute, 1, 1, 9, OK")]
+    SEQ = {"hotel": ["KEY_MUTE", "KEY_1", "KEY_1", "KEY_9", "KEY_ENTER"]}
+
+    def service_menus(self):
+        return list(self.MENUS)
+
+    def open_service_menu(self, menu_id):
+        import time
+        ws = self._connect()
+        try:
+            for k in self.SEQ[menu_id]:
+                ws.send({"method": "ms.remote.control", "params": {
+                    "Cmd": "Click", "DataOfCmd": k, "Option": "false", "TypeOfRemote": "SendRemoteKey"}})
+                time.sleep(0.4)
+        finally:
+            ws.close()
+        return "Keys sent (Mute 1 1 9 OK). Mute again if no menu showed"
+
     def info(self):
         out = super().info()
         a = self.api()
