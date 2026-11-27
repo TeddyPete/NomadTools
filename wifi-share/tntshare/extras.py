@@ -348,7 +348,7 @@ class Dashboard(Screen):
             "link speed, gateway ping and the internet check.")
     N = 60
 
-    def __init__(self, app):
+    def __init__(self, app, live: bool = True):
         super().__init__(app)
         self.down = collections.deque([0.0] * self.N, maxlen=self.N)
         self.up = collections.deque([0.0] * self.N, maxlen=self.N)
@@ -358,8 +358,9 @@ class Dashboard(Screen):
         self.ping_ok = True
         self.loss = collections.deque(maxlen=20)
         self.links = ""
-        self.running = True
-        threading.Thread(target=self._pinger, daemon=True).start()
+        self.running = live
+        if live:
+            threading.Thread(target=self._pinger, daemon=True).start()
 
     def softkeys(self):
         return [("Devices", lambda: self.app.push(Devices(self.app))), None, None,
@@ -597,7 +598,7 @@ class Vpn(Screen):
 
 
 class VpnWeb(Screen):
-    title = "Send WireGuard config"
+    title = "WireGuard upload"
     hint = "←/ESC stop"
     help = "Scan the code with a phone or open the address on a laptop on the same network, then send the .conf."
 
@@ -782,7 +783,7 @@ class Wizard(Screen):
     def intro(self):
         s, c = self.step, self.app.cfg
         if s == "welcome":
-            return "Welcome! Get a rack's gear online from Wi-Fi, or make a hotspot?"
+            return "Welcome! What's the job today?"
         if s == "wifi":
             link = self.app.status.get("wifi_link") or {}
             return f"Internet comes from Wi-Fi. Now on: {link.get('ssid') or 'nothing'}"

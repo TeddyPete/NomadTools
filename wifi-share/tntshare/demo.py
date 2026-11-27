@@ -35,8 +35,7 @@ def extra_screens(app):
     """The power-feature screens with sample data (for screenshots)."""
     import math
     from . import extras as X
-    dash = X.Dashboard(app)
-    dash.running = False
+    dash = X.Dashboard(app, live=False)
     for i in range(60):
         dash.down.append(18 + 10 * math.sin(i / 6) + (i % 7))
         dash.up.append(2 + 1.5 * math.cos(i / 5))
