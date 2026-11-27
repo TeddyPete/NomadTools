@@ -569,7 +569,7 @@ class Rooms(List):
 
     def header(self):
         if not store.rooms(self.app.displays):
-            return [("No rooms yet: set Room on a display", L.DIM)]
+            return [("No rooms yet (Edit > Room)", L.DIM)]
         return []
 
 
@@ -587,7 +587,8 @@ class RoomScreen(List):
 
     def header(self):
         f = self.app.flash_line()
-        return [f] if f else [(f"{len(self.members())} displays", L.DIM)]
+        n = len(self.members())
+        return [f] if f else [(f"{n} display{'' if n == 1 else 's'}", L.DIM)]
 
     def items(self):
         app = self.app
