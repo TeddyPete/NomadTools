@@ -134,9 +134,28 @@ class Sony(Driver):
         return Sony._codes[key]
 
     def remote(self, button):
-        codes = self.ircc_codes()
         name = self.REMOTE[button]
-        code = codes.get(name) or codes.get(self.FALLBACK.get(name, ""))
+        self.ircc(name)
+        return button
+
+    MENUS = [("hotel", "Hotel / Pro mode menu", "Display, Mute, Vol+, Home"),
+             ("service", "Service menu (experimental)", "Display, 5, Vol+, Power. Classic models need standby")]
+    SEQ = {"hotel": ["Display", "Mute", "VolumeUp", "Home"], "service": ["Display", "Num5", "VolumeUp", "TvPower"]}
+
+    def service_menus(self):
+        return list(self.MENUS)
+
+    def open_service_menu(self, menu_id):
+        import time
+        for name in self.SEQ[menu_id]:
+            self.ircc(name)
+            time.sleep(0.5)
+        return "Keys sent. " + dict((m[0], m[2]) for m in self.MENUS)[menu_id]
+
+    def ircc(self, name):
+        codes = self.ircc_codes()
+        alt = {"TvPower": "Power", "Num5": "5"}
+        code = codes.get(name) or codes.get(self.FALLBACK.get(name, "")) or codes.get(alt.get(name, ""))
         if not code:
             raise DisplayError(f"TV has no {name} button over IP")
         body = ('<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
@@ -155,7 +174,6 @@ class Sony(Driver):
             raise DisplayError("Wrong or missing pre-shared key" if e.code in (401, 403) else f"TV error HTTP {e.code}")
         except OSError as e:
             raise DisplayError(f"No answer from {self.d.host} ({e.__class__.__name__})")
-        return button
 
     def info(self):
         out = super().info()

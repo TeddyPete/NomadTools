@@ -119,6 +119,14 @@ class Driver:
         """Press a remote button (see REMOTE_BUTTONS)."""
         raise DisplayError("No remote control over IP")
 
+    def service_menus(self) -> list[tuple[str, str, str]]:
+        """[(id, label, note)] hidden installer / service menus this TV can
+        open over the network. Opening only; nothing is changed."""
+        return []
+
+    def open_service_menu(self, menu_id: str) -> str:
+        raise DisplayError("No service menus over IP")
+
     def pair(self) -> str:
         """Ask the TV to allow this device (LG / Samsung). Returns text; may
         update self.d.secret, the caller saves it."""

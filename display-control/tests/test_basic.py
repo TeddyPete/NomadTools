@@ -220,6 +220,11 @@ class SonyRoku(unittest.TestCase):
         self.assertEqual(Handler.calls[-1][1], "/keypress/PowerOn")
         r.set_input("launch:tvinput.hdmi1")
         self.assertEqual(Handler.calls[-1][1], "/launch/tvinput.hdmi1")
+        n = len(Handler.calls)
+        r.open_service_menu("wifi")
+        self.assertEqual([c[1] for c in Handler.calls[n:]],
+                         ["/keypress/Home"] * 5 + ["/keypress/Up", "/keypress/Right", "/keypress/Down",
+                                                   "/keypress/Left", "/keypress/Up"])
         r.remote("ok")
         self.assertEqual(Handler.calls[-1][1], "/keypress/Select")
         from nomaddisp.base import REMOTE_BUTTONS
@@ -326,6 +331,12 @@ class LGTest(unittest.TestCase):
             self.assertEqual(lg.mute(), "Muted")
             self.assertEqual(seen[-1]["payload"], {"mute": True})
             self.assertEqual(lg.message("hi"), "Message shown")
+            self.assertIn("0413", lg.open_service_menu("inStart"))
+            launch = [m for m in seen if m.get("uri") == "ssap://system.launcher/launch"][-1]
+            self.assertEqual(launch["payload"], {"id": "com.webos.app.factorywin",
+                                                 "params": {"id": "executeFactory", "irKey": "inStart"}})
+            with self.assertRaises(DisplayError):
+                lg.open_service_menu("inStop")      # factory reset is never offered
             lg.remote("down")
             lg.remote("ok")
             import time
@@ -389,6 +400,17 @@ class Misc(unittest.TestCase):
         app.stack = [scr]
         app.draw()
         self.assertEqual(scr.keybar()[0], "Add")
+
+    def test_found_keeps_offline(self):
+        from nomaddisp import lcd as L
+        from nomaddisp.app import App, Found
+        app = App(L.Panel(headless=True), None)
+        app.displays = [Display("LG TV", "lg", "10.0.0.29", mac="30:34:db:6e:bc:84", id="x")]
+        f = Found(app, [])
+        rows, sel = f.rows()
+        self.assertIn("No display answered", rows[0][0])
+        self.assertEqual(rows[1][2], "OFFLINE")
+        self.assertEqual(f.keybar()[1], "Wake")
 
     def test_screens(self):
         from nomaddisp.demo import render_screens

@@ -224,6 +224,21 @@ class LGWebOS(Driver):
         if ws:
             ws.close()
 
+    # The TV's factory app; only the two menu entry points are offered (the
+    # app's other modes include a factory reset and test patterns).
+    MENUS = [("ezAdjust", "Service menu 1 (EZ-Adjust)", "Password if asked: 0413"),
+             ("inStart", "Service menu 2 (In-Start)", "Password if asked: 0413")]
+
+    def service_menus(self):
+        return list(self.MENUS)
+
+    def open_service_menu(self, menu_id):
+        if menu_id not in dict((m[0], m) for m in self.MENUS):
+            raise DisplayError("Unknown menu")
+        self.call("ssap://system.launcher/launch", {"id": "com.webos.app.factorywin",
+                                                    "params": {"id": "executeFactory", "irKey": menu_id}})
+        return "Menu opened. " + dict((m[0], m[2]) for m in self.MENUS)[menu_id]
+
     def message(self, text):
         self.call("ssap://system.notifications/createToast", {"message": text[:60]})
         return "Message shown"

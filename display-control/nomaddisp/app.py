@@ -318,6 +318,8 @@ class DisplayScreen(List):
             out.append(("Input", lambda: choose_input(app, d), lambda: str(st.get("input") or "")[:12]))
         if "remote" in caps:
             out.append(("Remote (menu, arrows)", lambda: app.push(RemoteScreen(app, d)), "", L.OK))
+        if self.drv.service_menus():
+            out.append(("Installer / service menus", lambda: service_menus(app, d), "", L.WARN))
         if "volume" in caps:
             out.append(("Volume up", lambda: app.do(d, "vol", 1, "Volume up"),
                         lambda: "" if st.get("volume") is None else str(st["volume"])))
@@ -484,6 +486,23 @@ def pair(app, d):
                      yes="OK pair", no="ESC back"))
 
 
+def service_menus(app, d):
+    """Hidden installer / service menus, behind a warning. Only opens them."""
+    menus = DRIVERS[d.kind](d).service_menus()
+
+    def opened(r):
+        app.push(RemoteScreen(app, d))      # drive the menu with the TV's remote
+        app.flash(r, L.WARN, 10)
+
+    def pick():
+        app.push(Pick(app, "Service menus", [(m[0], f"{m[1]}") for m in menus],
+                      lambda v: app.task(d.name, "Opening menu", lambda: ops.run(d, "svcmenu", v), opened)))
+    app.push(Confirm(app, "Warning", "Service and installer menus can change panel, power and firmware "
+                     "settings, break picture calibration and void the warranty. This only opens the menu; "
+                     "change nothing you don't know. Back/Exit closes it.", pick,
+                     yes="OK I understand", no="ESC back"))
+
+
 def check_prompt(app):
     from . import check
     from .settings_check import valid_ip
@@ -639,31 +658,47 @@ def find_displays(app):
     busy["s"] = app.stack[-1]
 
 
+SLEEP_HINT = ("TVs that are off sleep their network. Turn on: LG 'Turn on via Wi-Fi' (Quick Start+), "
+              "Samsung 'Network standby' / 'Power on with mobile', Sony 'Remote start'. Then Wake works.")
+
+
 class Found(List):
     title = "Found displays"
-    help = ("Displays found on this network. OK adds one (you can name it and give it a room). "
-            "Key 4 adds every new one at once. Projectors with a PJLink password show (password): "
-            "type it when you add them.")
+    help = ("Displays found on this network, then saved ones that did not answer (OFFLINE: off or asleep). "
+            "OK adds a new one, or opens a saved one. Key 4 adds every new one, key 5 wakes the highlighted "
+            "display by Wake-on-LAN. " + SLEEP_HINT)
 
     def __init__(self, app, found: list[Display]):
         super().__init__(app)
         self.found = found
+        hit = {(d.host, d.kind) for d in found}
+        self.offline = [d for d in app.displays if (d.host, d.kind) not in hit]
 
     def saved(self, d) -> bool:
         return any(x.host == d.host and x.kind == d.kind for x in self.app.displays)
+
+    def all(self) -> list:
+        return list(self.found) + self.offline
 
     def header(self):
         f = self.app.flash_line()
         if f:
             return [f]
         if not self.found:
-            return [("Nothing found. Same network? Add by IP", L.WARN)]
+            return [("No display answered. TV off? Its network sleeps", L.WARN)]
         return []
 
     def items(self):
-        return [(f"{d.name}"[:22], (lambda d=d: self.add(d)),
-                 lambda d=d: ("saved " if self.saved(d) else "") + KIND_SHORT.get(d.kind, ""),
-                 lambda d=d: L.DIM if self.saved(d) else L.FG) for d in self.found]
+        out = [(f"{d.name}"[:22], (lambda d=d: self.add(d)),
+                lambda d=d: ("saved " if self.saved(d) else "") + KIND_SHORT.get(d.kind, ""),
+                lambda d=d: L.DIM if self.saved(d) else L.FG) for d in self.found]
+        out += [(f"{d.name}"[:20], (lambda d=d: self.app.push(DisplayScreen(self.app, d))),
+                 "OFFLINE", L.WARN) for d in self.offline]
+        return out
+
+    def current(self):
+        a = self.all()
+        return a[self.sel] if 0 <= self.sel < len(a) else None
 
     def add(self, d):
         if self.saved(d):
@@ -683,8 +718,20 @@ class Found(List):
         self.app.flash(f"Added {n} display{'s' if n != 1 else ''}", L.OK)
         self.app.poll_all()
 
+    def wake(self):
+        d = self.current()
+        if not d:
+            return
+        if not d.mac:
+            self.app.flash(f"No MAC saved for {d.name}", L.BAD, 6)
+            return
+        self.app.do(d, "wol", label=f"Waking {d.name}")
+
     def softkeys(self):
-        return [("Add all", self.add_all), None, None, None, ("Rescan", lambda: (self.app.pop(self), find_displays(self.app)))]
+        d = self.current()
+        return [("Add all", self.add_all) if any(not self.saved(x) for x in self.found) else None,
+                ("Wake", self.wake) if d and d.mac else None, None, None,
+                ("Rescan", lambda: (self.app.pop(self), find_displays(self.app)))]
 
 
 # ---- rooms -----------------------------------------------------------------
