@@ -1,0 +1,38 @@
+{
+  "package_name": "tnt-av-net-tools",
+  "version": "0.3.0",
+  "app_name": "TNT AV Net Tools",
+  "bin_name": "tnt-av-net-tools",
+  "description": "Network tools for AV techs: scan, Dante/NDI discovery, find AV gear, terminal, sniffer",
+  "store": {
+    "summary": "TNT AV Net Tools: find AV gear, Dante/NDI, PTP, terminal and checks",
+    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Network tools for AV installs: network basics, ping, traceroute, IP scan with MAC makers and names, Dante, NDI, AES67/SAP and mDNS discovery, PTP leader and Dante health (leader changes, sync dropouts, multicast flooding, IGMP querier), Find AV gear (Crestron, Extron, Q-SYS, Biamp, Shure, Netgear AV Line) with control-port checks and info pulls after login, a Hercules-style SSH/Telnet/TCP/UDP/serial terminal with saved commands, a control-protocol sniffer (Crestron CIP, Q-SYS QRC, Extron SIS, PJLink), pcap capture from a mirror port, DHCP rogue, IP conflict, LLDP/CDP and cable checks, and saved per-site reports. Shows on the built-in screen and in a window on the HDMI desktop. Logins are never saved unless you choose to.",
+    "categories": [
+      "System Tools",
+      "Hardware & IoT"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0.png",
+      "screenshots/lcd_1.png",
+      "screenshots/lcd_2.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Tech Nomad Ted"
+    },
+    "share_code": "TNTN",
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": true,
+      "additional_hardware": true,
+      "background_service": false,
+      "external_display": true
+    },
+    "locales": {}
+  }
+}

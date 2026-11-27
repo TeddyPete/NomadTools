@@ -1,0 +1,39 @@
+{
+  "package_name": "tnt-wifi-share",
+  "version": "0.3.0",
+  "app_name": "TNT WiFi Share",
+  "bin_name": "tnt-wifi-share",
+  "description": "Share Wi-Fi to Ethernet, or Ethernet to a Wi-Fi hotspot",
+  "store": {
+    "summary": "TNT WiFi Share: Wi-Fi to Ethernet, hotspot and guest Wi-Fi login",
+    "description": "Part of TNT (Tech Nomad Ted) tools, TheTechNomad.com. Gets a standalone AV rack online from the CardputerZero: share Wi-Fi internet to the Ethernet port (NAT, with a DHCP server you can turn off for static networks), or turn a wired connection into a small Wi-Fi hotspot. Join Wi-Fi, log in to guest Wi-Fi pages (simple ones on the built-in screen, others in a browser on HDMI) and set every address from the keyboard. Status shows uplink, SSID, IPs and connected devices. Quitting restores your normal network.",
+    "categories": [
+      "System Tools",
+      "Radio & Comms"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0.png",
+      "screenshots/lcd_1.png",
+      "screenshots/lcd_2.png",
+      "screenshots/lcd_3.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "MIT",
+    "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "Tech Nomad Ted"
+    },
+    "share_code": "TNTW",
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": true,
+      "additional_hardware": false,
+      "background_service": false,
+      "external_display": true
+    },
+    "locales": {}
+  }
+}
