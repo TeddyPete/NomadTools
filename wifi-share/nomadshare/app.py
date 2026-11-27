@@ -6,6 +6,7 @@ import signal
 import threading
 import time
 
+from . import __version__
 from . import lcd as L
 from . import nomadui as T
 from . import net, portal
@@ -14,6 +15,7 @@ from .keys import Key, Keyboard
 from .ui import BACK, SELECT, Busy, Confirm, Form, Menu, Message, Screen, Prompt, nav_key, wrap
 
 APP_TITLE = "Nomad WiFi Share"
+T.set_about(APP_TITLE, __version__)
 HELP_MAIN = ("Nomad WiFi Share shares internet between Wi-Fi and the Ethernet port. "
              "Settings are changed right here on the keyboard. TheTechNomad.com")
 
@@ -44,6 +46,11 @@ class App:
                 self.stack.pop()
         elif s in self.stack:
             self.stack.remove(s)
+        self.dirty = True
+
+    def open_about(self) -> None:
+        """The About screen (shown like Fn+H help, ESC closes it)."""
+        self.helpview = T.AboutView()
         self.dirty = True
 
     def wake(self) -> None:
@@ -170,6 +177,7 @@ class Home(Menu):
              lambda: L.OK if app.status.get("vpn") == "on" else L.FG),
             ("Settings", lambda: app.push(X.SettingsMenu(app)), ""),
             ("Stop sharing", self.stop, ""),
+            ("About", lambda: app.open_about(), ""),
         ]
         super().__init__(app, APP_TITLE, items, "\u2191\u2193 move  OK/\u2192 open  ESC quit")
 

@@ -1,6 +1,6 @@
 {
   "package_name": "askelmer-morse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "app_name": "Ask Elmer Morse",
   "bin_name": "askelmer-morse",
   "description": "Learn Morse the Koch way, Morse games, GPIO paddle keyer, send to your radio, CW decoder",
@@ -25,7 +25,8 @@
     "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
     "author": {
       "github": "TeddyPete",
-      "display_name": "Ask Elmer"
+      "display_name": "TheTechNomad",
+      "website": "https://www.TheTechNomad.com"
     },
     "share_code": "AECW",
     "permissions": {

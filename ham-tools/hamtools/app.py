@@ -19,9 +19,10 @@ from . import sats
 from .keys import Keyboard
 from .ui import BACK, DOWN, SELECT, UP, EditList, Field, Menu, Message, Screen, nav_key
 
-from . import APP_NAME, config_dir, migrate
+from . import APP_NAME, __version__, config_dir, migrate
 
 APP_TITLE = "Ask Elmer"
+T.set_about(APP_NAME, __version__, extra="Learn more at askelmer.com")
 T.ICON_DRAW = IC.draw
 
 HELP_MAIN = (APP_NAME + ": the ham radio tools from askelmer.com in your pocket. Antenna Lab (NEC2 antenna "
@@ -130,6 +131,11 @@ class App:
                 self.quit = True
         elif s in self.stack:
             self.stack.remove(s)
+        self.dirty = True
+
+    def open_about(self):
+        """The About screen (shown like Fn+H help, ESC closes it)."""
+        self.helpview = T.AboutView()
         self.dirty = True
 
     def wake(self):
@@ -1643,7 +1649,8 @@ class Home(Menu):
             ("Reference", lambda: app.push(Reference(app)), "", L.FG, "ref"),
             ("Settings", lambda: app.push(Settings(app)), lambda: (app.gps.status() if app.gps and app.gps.fix()
                                                                    else app.st.setting("call", "")), L.FG, "gear"),
-            ("About", lambda: app.push(Message(app, "About", HELP_MAIN + " From Ask Elmer, askelmer.com. "
+            ("About", lambda: app.open_about(), "", L.FG, "about"),
+            ("Credits & data", lambda: app.push(Message(app, "Credits & data", HELP_MAIN + " From Ask Elmer, askelmer.com. "
                                                "Antennas are modelled with NEC2 (nec2c). Band privileges follow FCC Part 97; check the current rules "
                                                "before you transmit. Solar data from N0NBH (hamqsl.com), spots "
                                                "from POTA, summits from SOTA, orbits from AMSAT.")), "", L.FG,

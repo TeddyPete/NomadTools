@@ -5,6 +5,7 @@ import random
 import time
 from collections import deque
 
+from . import __version__
 from . import audio as A
 from . import cwdecode as D
 from . import lcd as L
@@ -17,6 +18,7 @@ from .trainer import CHAR_SPEEDS, Store, cheer
 from .ui import BACK, DOWN, SELECT, UP, Confirm, Form, Menu, Message, Prompt, Screen, nav_key, wrap
 
 APP_TITLE = "Ask Elmer"
+T.set_about("Ask Elmer Morse", __version__, extra="Learn more at askelmer.com")
 HELP_MAIN = ("Ask Elmer Morse: learn CW the Koch way, play the Morse games from askelmer.com, key with a "
              "paddle on the GPIO pins (or the keyboard), send to your radio, and decode CW off the air. "
              "Learn why at askelmer.com.")
@@ -70,6 +72,11 @@ class App:
         elif s in self.stack:
             self.stack.remove(s)
             s.leave()
+        self.dirty = True
+
+    def open_about(self):
+        """The About screen (shown like Fn+H help, ESC closes it)."""
+        self.helpview = T.AboutView()
         self.dirty = True
 
     def wake(self):
@@ -163,6 +170,7 @@ class Home(Menu):
             ("Progress", lambda: app.push(Progress(app)), lambda: f"{st.today_minutes()} min"),
             ("Settings", lambda: app.push(settings_form(app)), ""),
             ("Paddle and radio", lambda: app.push(Message(app, "Paddle and radio", HARDWARE_HELP)), ""),
+            ("About", lambda: app.open_about(), ""),
         ])
         self.help = HELP_MAIN
 

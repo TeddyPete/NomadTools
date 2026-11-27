@@ -5,6 +5,7 @@ import signal
 import threading
 import time
 
+from . import __version__
 from . import lcd as L
 from . import ops, store
 from . import nomadui as T
@@ -15,6 +16,7 @@ from .lgwebos import legacy_key
 from .ui import BACK, DOWN, SELECT, UP, Busy, Confirm, Form, Message, Prompt, Screen, nav_key, wrap
 
 APP_TITLE = "Nomad Display Control"
+T.set_about(APP_TITLE, __version__)
 HELP_MAIN = ("Nomad Display Control turns projectors and TVs on and off, switches inputs and sets "
              "volume over the network: PJLink projectors, LG webOS, Samsung, Sony Bravia and "
              "Roku TVs. Find displays scans this network; Rooms switches a whole room at once. "
@@ -52,6 +54,11 @@ class App:
                 self.quit = True
         elif s in self.stack:
             self.stack.remove(s)
+        self.dirty = True
+
+    def open_about(self) -> None:
+        """The About screen (shown like Fn+H help, ESC closes it)."""
+        self.helpview = T.AboutView()
         self.dirty = True
 
     def wake(self) -> None:
@@ -246,7 +253,8 @@ class Home(List):
                 ("Check a display (IP)", lambda: check_prompt(app), "", L.OK),
                 ("Add by IP address", lambda: edit_display(app, None), "", L.OK),
                 ("Rooms (all on / off)", lambda: app.push(Rooms(app)), lambda: str(len(store.rooms(app.displays)) or ""), L.OK),
-                ("Wake-on-LAN", lambda: wake_prompt(app), "", L.OK)]
+                ("Wake-on-LAN", lambda: wake_prompt(app), "", L.OK),
+                ("About", lambda: app.open_about(), "", L.OK)]
         return out
 
     def header(self):

@@ -15,9 +15,11 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame  # noqa: E402
 
 from . import keys, reports, store, util  # noqa: E402
-from .ui import DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
+from . import nomadui as T  # noqa: E402
+from .ui import AboutScreen, DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
+T.set_about("Nomad Net Tools", VERSION)
 
 
 class App:
@@ -564,10 +566,10 @@ def settings_menu(app):
         app.toast(f"Forgot {n} saved login(s).")
 
     def about(app):
-        app.push(Message("About", [
-            f"Nomad Net Tools {VERSION}",
-            "by Tech Nomad Ted - TheTechNomad.com",
-            "Network tools for AV techs.",
+        app.push(AboutScreen())
+
+    def device_info(app):
+        app.push(Message("Device info", [
             f"Keyboard: {app.kb.path if app.kb else 'window keys'}",
             f"LCD: {app.r.lcd_dev or 'none'}  Desktop window: {'yes' if app.r.win else 'no'}",
             "Arrows: Fn+F up, Fn+X down, Fn+Z back, Fn+C open",
@@ -579,6 +581,7 @@ def settings_menu(app):
         ("Keyboard test", lambda app: app.push(KeyTest())),
         ("Default interface", iface),
         ("Forget all saved logins", forget),
+        ("Device info", device_info),
         ("About", about),
     ]))
 
@@ -621,6 +624,7 @@ def main_menu(app) -> Menu:
         ("Network checks", checks_menu),
         (lambda: f"Site & reports [{app.site or 'no site'}]", site_menu),
         ("Settings / about", settings_menu),
+        ("About", lambda app: app.push(AboutScreen())),
     ], "F/X move  OK open  Esc quit",
         softkeys=[("Find all", do_findall), ("Ping", do_ping), ("AV gear", do_findav),
                   ("Term", lambda app: terminal.setup(app)), ("Reports", site_menu)],

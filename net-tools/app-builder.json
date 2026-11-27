@@ -1,6 +1,6 @@
 {
   "package_name": "nomad-net-tools",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "app_name": "Nomad Net Tools",
   "bin_name": "nomad-net-tools",
   "description": "Network tools for AV techs: scan, Dante/NDI discovery, find AV gear, terminal, sniffer",
@@ -21,7 +21,8 @@
     "source_repo": "https://github.com/TeddyPete/ZeroAVTools",
     "author": {
       "github": "TeddyPete",
-      "display_name": "Tech Nomad Ted"
+      "display_name": "TheTechNomad",
+      "website": "https://www.TheTechNomad.com"
     },
     "share_code": "NMNT",
     "permissions": {

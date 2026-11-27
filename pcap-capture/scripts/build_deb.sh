@@ -38,7 +38,7 @@ Recommends: polkitd, network-manager, fonts-dejavu-core
 Installed-Size: $SIZE
 Section: net
 Priority: optional
-Homepage: https://TheTechNomad.com
+Homepage: https://www.TheTechNomad.com
 Description: Nomad Packet Capture for the M5Stack CardputerZero
  Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com.
  Saves .pcap files for Wireshark from the Ethernet port (plug it into a

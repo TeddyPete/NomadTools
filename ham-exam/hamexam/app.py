@@ -5,6 +5,7 @@ import time
 
 import pygame
 
+from . import __version__
 from . import bank as B
 from . import lcd as L
 from . import nomadui as T
@@ -13,6 +14,7 @@ from .ui import BACK, DOWN, SELECT, UP, Confirm, Menu, Message, Screen, nav_key
 
 APP_TITLE = "Ask Elmer"
 LEARN = "Learn why at askelmer.com"
+T.set_about("Ask Elmer Ham Exam", __version__, extra=LEARN)
 
 HELP_MAIN = ("Ask Elmer Ham Exam drills the official NCVEC question pools for the US Technician, General "
              "and Amateur Extra licenses. Practice exam: a real draw, one question from each group, scored "
@@ -63,6 +65,11 @@ class App:
                 self.quit = True
         elif s in self.stack:
             self.stack.remove(s)
+        self.dirty = True
+
+    def open_about(self):
+        """The About screen (shown like Fn+H help, ESC closes it)."""
+        self.helpview = T.AboutView()
         self.dirty = True
 
     def wake(self):
@@ -129,7 +136,8 @@ class Home(Menu):
             ("Progress", lambda: app.push(ProgressView(app)),
              lambda: f"pass {pct(app.prog.pass_chance(app.pool), 1)}"),
             ("Exam class", lambda: app.push(ExamPick(app)), lambda: app.pool.short, L.OK),
-            ("About", lambda: app.push(Message(app, "About", self.about()))),
+            ("Question pool", lambda: app.push(Message(app, "Question pool", self.about()))),
+            ("About", lambda: app.open_about()),
         ]
         super().__init__(app, APP_TITLE, items, "↑↓ move  OK open  ESC quit")
 

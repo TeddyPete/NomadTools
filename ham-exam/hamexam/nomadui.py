@@ -570,6 +570,7 @@ class HelpView:
         self.keys = keys or []
         self.top = 0
         self._lines = None
+        self.about = None           # AboutView while A shows it
 
     def lines(self, f: dict) -> list:
         if self._lines is None:
@@ -582,6 +583,8 @@ class HelpView:
             if soft:
                 out += [("Number keys", WARN)] + [(l, FG) for l in soft] + [("", FG)]
             out += [(KEYS_HELP[0], WARN)] + [(l, FG) for l in KEYS_HELP[1:]]
+            out += [("", FG), ("About", WARN), (f"{ABOUT_KEY.upper()}  About this app", FG),
+                    (f"Developed by {DEVELOPER}", FG), (WEBSITE, FG)]
             self._lines = out
         return self._lines
 
@@ -590,7 +593,14 @@ class HelpView:
 
     def handle(self, key) -> str | None:
         """Returns "close" when the help should go away."""
+        if self.about is not None:          # About is open on top of the help
+            if self.about.handle(key) == "close":
+                self.about = None
+            return None
         name, char, ctrl = _k(key)
+        if (char or name or "").lower() == ABOUT_KEY:
+            self.about = AboutView()
+            return None
         name = nav_name(name, char, ctrl)
         n = len(self._lines or [])
         if name in ("up", "pageup"):
@@ -603,6 +613,9 @@ class HelpView:
 
     def render(self, surf, f: dict | None = None) -> None:
         f = f or fonts()
+        if self.about is not None:
+            self.about.render(surf, f)
+            return
         ls = self.lines(f)
         surf.fill(BG)
         draw_title(surf, self.title, f)
@@ -616,5 +629,147 @@ class HelpView:
             by = TITLE_H + (span - bh) * self.top // max(1, len(ls) - self.rows())
             surf.fill((90, 100, 130), (W - 3, by, 3, bh))
         surf.fill(HINT_BG, (0, H - HINT_H, W, HINT_H))
-        hint = "\u2191\u2193 scroll  Fn+H/ESC close" if len(ls) > self.rows() else "Fn+H / ESC / OK close"
+        hint = "\u2191\u2193 scroll  A about  ESC close" if len(ls) > self.rows() else "A about   Fn+H / ESC / OK close"
         surf.blit(f["small"].render(hint, True, HINT_FG), (6, H - HINT_H + 1))
+
+
+# ---- About screen (every app) ----------------------------------------------------
+# Every app has the same About screen: app name, version, license, who made it
+# and where to find more, with a QR code for the website. Open it from the main
+# menu (About) or with A while Fn+H help is shown. Each app calls set_about()
+# once at start-up with its own name and version.
+
+DEVELOPER = "TheTechNomad"
+WEBSITE = "www.TheTechNomad.com"
+WEBSITE_URL = "https://www.TheTechNomad.com"
+GITHUB = "github.com/TeddyPete"
+GITHUB_URL = "https://github.com/TeddyPete"
+ABOUT_KEY = "a"                 # in Fn+H help: A opens About
+ABOUT = {"name": "", "version": "", "license": "MIT", "extra": ""}
+
+
+def set_about(name: str, version: str, license: str = "MIT", extra: str = "") -> None:
+    """This app's name, version and license for the About screen. extra: one
+    more line (e.g. "Learn more at askelmer.com")."""
+    ABOUT.update(name=name, version=version, license=license, extra=extra)
+
+
+def about_lines() -> list[str]:
+    """The About text as plain lines (also used in help and reports)."""
+    a = ABOUT
+    head = " ".join(x for x in (a["name"], a["version"] and f"v{a['version']}") if x)
+    out = [head] if head else []
+    out += [f"Developed by {DEVELOPER}", WEBSITE, GITHUB]
+    if a["license"]:
+        out.append(f"License: {a['license']}")
+    if a["extra"]:
+        out.append(a["extra"])
+    return out
+
+
+# QR code for WEBSITE_URL (29x29, level M), made with the Nomad qr.py so the
+# About screen needs no QR code library.
+_SITE_QR = [
+    "11111110111011110011101111111",
+    "10000010101001001100001000001",
+    "10111010001110001011101011101",
+    "10111010101100110101001011101",
+    "10111010010000101101001011101",
+    "10000010000101011011101000001",
+    "11111110101010101010101111111",
+    "00000000101010011101000000000",
+    "10110111001011010100001001011",
+    "01000100111101110111100110001",
+    "10111111101111001010110110110",
+    "11001001010000001000101110001",
+    "10100010111110110101000001100",
+    "01100101000010101100001100111",
+    "00011011110111011101000110111",
+    "10000100101110101000010110010",
+    "00111011100100111011110011010",
+    "01001000010010101100100101110",
+    "10111011010001111100100100100",
+    "00010000011001100111110000100",
+    "01100111110011101111111111100",
+    "00000000100100011110100011111",
+    "11111110111010110111101011010",
+    "10000010110011110010100011001",
+    "10111010001100001010111110101",
+    "10111010111001000001110011010",
+    "10111010101101000110011100101",
+    "10000010011100110110100101010",
+    "11111110111010100111100001010",
+]
+
+
+def draw_site_qr(surf, x: int, y: int, cell: int) -> int:
+    """The website QR code with a white quiet zone; returns its width."""
+    n, q = len(_SITE_QR), 2
+    side = (n + 2 * q) * cell
+    surf.fill((255, 255, 255), (x, y, side, side))
+    for r, row in enumerate(_SITE_QR):
+        for c, bit in enumerate(row):
+            if bit == "1":
+                surf.fill((0, 0, 0), (x + (c + q) * cell, y + (r + q) * cell, cell, cell))
+    return side
+
+
+def _about_title(surf, title: str, f: dict) -> None:
+    if "draw_title" in globals():           # Ask Elmer look: navy bar, amber rule
+        globals()["draw_title"](surf, title, f)
+        return
+    surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
+    img = title_image(title, f=f)
+    surf.blit(img, (6, max(0, (TITLE_H - img.get_height()) // 2)), (0, 0, W - 12, TITLE_H))
+
+
+class AboutView:
+    """Full-screen About: app name and version, Developed by TheTechNomad,
+    website, GitHub, license, and a QR code for the website. Same interface
+    as HelpView: handle(key) returns "close", render(surf, fonts)."""
+
+    def __init__(self):
+        self.title = "About"
+
+    def handle(self, key) -> str | None:
+        name, char, ctrl = _k(key)
+        name = nav_name(name, char, ctrl)
+        if name in (HELP, "esc", "enter", "left", "backspace") or (char or name).lower() == ABOUT_KEY:
+            return "close"
+        return None
+
+    def render(self, surf, f: dict | None = None) -> None:
+        f = f or fonts()
+        surf.fill(BG)
+        _about_title(surf, self.title, f)
+        top, bottom = TITLE_H + 2, H - HINT_H
+        cell = 4 if (len(_SITE_QR) + 4) * 4 <= bottom - top - 2 else 3
+        side = (len(_SITE_QR) + 4) * cell
+        qx = W - side - 4
+        draw_site_qr(surf, qx, top + (bottom - top - side) // 2, cell)
+        tw = qx - 12
+        a = ABOUT
+        elmer = "draw_title" in globals()
+        lines = []
+        if a["name"]:
+            lines.append((a["name"], "row", TITLE_RIGHT if elmer else OK))
+        bits = [a["version"] and f"Version {a['version']}", a["license"] and f"{a['license']} License"]
+        if any(bits):
+            lines.append(("  \u00b7  ".join(b for b in bits if b), "small", DIM))
+        lines += [(f"Developed by {DEVELOPER}", "small", FG), (WEBSITE, "small", FG), (GITHUB, "small", FG)]
+        if a["extra"]:
+            lines.append((a["extra"], "small", WARN))
+        y = top + 4
+        for text, size, color in lines:
+            font = f[size]
+            if font.size(text)[0] > tw and size == "small":
+                font = f.get("tiny") or font          # step down a size before squeezing
+            img = font.render(text, True, color)
+            if img.get_width() > tw:
+                img = __import__("pygame").transform.smoothscale(img, (tw, img.get_height()))
+            if y + img.get_height() > bottom:
+                break
+            surf.blit(img, (7, y))
+            y += img.get_height() + (2 if size == "row" else 0)
+        surf.fill(HINT_BG, (0, H - HINT_H, W, HINT_H))
+        surf.blit(f["small"].render("Scan for the website   ESC back", True, HINT_FG), (6, H - HINT_H + 1))
