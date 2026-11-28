@@ -66,6 +66,15 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertEqual(dprs_to_tnc2(lines[0]), "N0TNT-7>API75,DSTAR*:!3851.38N/09432.54W[Rig Companion")
 
+    def test_slow_data_follows_sync_not_network_numbering(self):
+        # Seen live on DCS001: the reflector's frame numbers ran 11 ahead of the sync frame.
+        slow = SlowData()
+        message = encode_message("Offset numbering ok")
+        frames = [SYNC if n % 21 == 0 else message[n % 21 - 1] for n in range(63)]
+        for n, data in enumerate(frames[5:]):
+            slow.feed((n + 11) % 21, data)
+        self.assertEqual(slow.message, "Offset numbering ok")
+
     def test_nmea_dprs(self):
         rmc = "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A"
         tnc2 = dprs_to_tnc2(rmc, "N0TNT")

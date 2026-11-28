@@ -148,6 +148,7 @@ class SlowData:
         self.reset()
 
     def reset(self):
+        self.position = None
         self.half = None
         self.message_parts = {}
         self.message = ""
@@ -156,12 +157,21 @@ class SlowData:
         self.header = bytearray()
 
     def feed(self, seq: int, slow: bytes):
-        """seq is the 0..20 position in the superframe."""
-        if seq == 0 or is_sync(slow):
+        """Feed one frame's 3 slow-data bytes.
+
+        Block alignment follows the sync pattern in the data itself: some
+        reflectors number frames with an offset from the sender's superframe.
+        seq is only used until the first sync frame is seen.
+        """
+        if is_sync(slow):
+            self.position, self.half = 0, None
+            return
+        self.position = seq if self.position is None else self.position + 1
+        if self.position % 21 == 0:
             self.half = None
             return
         plain = bytes(b ^ k for b, k in zip(slow[:3], SCRAMBLE))
-        if seq % 2 == 1:
+        if (self.position % 21) % 2 == 1:
             self.half = plain
             return
         if self.half is None:
