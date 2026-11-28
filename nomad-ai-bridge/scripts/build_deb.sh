@@ -11,6 +11,7 @@ cd "$HERE"
 SRC="$HERE/../remote-mcp/tntremote"
 PKG=nomad-ai-bridge
 OLD=nomad-mcp      # this app was called Nomad MCP until 0.2.0
+REV=1      # store file name: <pkg>_<version>-<rev>_arm64.deb
 VER=$(python3 -c "import json;print(json.load(open('app-builder.json'))['version'])")
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
@@ -36,14 +37,14 @@ echo "/etc/sudoers.d/$PKG" > "$ROOT/DEBIAN/conffiles"
 SIZE=$(du -sk "$ROOT/usr" | cut -f1)
 cat > "$ROOT/DEBIAN/control" <<CTL
 Package: $PKG
-Version: $VER
-Architecture: all
+Version: $VER-$REV
+Architecture: arm64
 Maintainer: TeddyPete <299527578+TeddyPete@users.noreply.github.com>
 Depends: python3, python3-pygame (>= 2.1), python3-numpy, sudo, systemd
 Replaces: $OLD
 Conflicts: $OLD
 Provides: $OLD
-Recommends: tnt-av-net-tools, fonts-dejavu-core
+Recommends: nomad-net-tools, fonts-dejavu-core
 Installed-Size: $SIZE
 Section: net
 Priority: optional
@@ -65,6 +66,6 @@ Description: Nomad AI Bridge: let your AI connect to and control your CardputerZ
  Powered by ngrok. Not affiliated with ngrok, Anthropic or OpenAI.
 CTL
 mkdir -p build
-OUT="build/${PKG}_${VER}_all.deb"
+OUT="build/${PKG}_${VER}-${REV}_arm64.deb"
 dpkg-deb --root-owner-group --build "$ROOT" "$OUT" >/dev/null
 echo "$OUT"
