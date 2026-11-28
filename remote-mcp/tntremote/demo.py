@@ -17,8 +17,13 @@ def render_screens(out_dir: str) -> None:
         app.pop()
     app.on = True
     app.cfg["tunnel_kind"] = "ngrok"
-    app.clients = [{"id": "x", "name": "Claude", "last_auth": time.time() - 300},
-                   {"id": "y", "name": "ChatGPT", "last_auth": time.time() - 900}]
+    now = time.time()
+    app.clients = [{"id": "x", "name": "Claude", "last_auth": now - 300, "paired": now - 86400 * 3,
+                    "last_used": now - 60, "kind": "oauth", "live": True},
+                   {"id": "y", "name": "ChatGPT", "last_auth": now - 900, "paired": now - 86400,
+                    "last_used": now - 1500, "kind": "oauth", "live": True},
+                   {"id": "z", "name": "Codex", "last_auth": now - 7200, "paired": now - 7200,
+                    "last_used": now - 4000, "kind": "key", "live": True}]
     app.status = {"tunnel": "connected", "tunnel_detail": "ngrok", "tunnel_kind": "ngrok",
                   "public_url": "https://your-name.ngrok-free.dev", "recent": [
         {"t": time.time() - 4, "text": "run_command"}, {"t": time.time() - 4, "text": "$ git pull && ./build.sh"},
@@ -32,26 +37,26 @@ def render_screens(out_dir: str) -> None:
         panel.save(p)
         shots.append(p)
 
-    shot()
-    app.push(A.PairScreen(app))
-    shot()
-    app.pop()
-    app.push(A.TextScreen(app, "Status", [], live=app.status_lines))
+    shot()                                         # 0 home
+    app.push(A.AppPick(app))                       # 1 which AI app
     shot()
     app.pop()
+    app.push(A.PairScreen(app))                    # 2 one-time code
+    shot()
+    app.pop()
+    app.push(A.ClientsScreen(app))                 # 3 connected apps
+    shot()
+    app.pop()
+    app.push(A.TextScreen(app, "Status", [], live=app.status_lines))   # 4 status
+    shot()
+    app.pop()
+    A.adminsetup.enabled = lambda: False
     app.push(A.PermsScreen(app))
+    st = A.AdminSetupScreen(app, lambda: None)     # 5 one-time Admin setup, password hidden
+    app.push(st)
+    st.form.values["pw"] = "password"
+    st.form.sel = 3
     shot()
     app.pop()
-    app.push(A.SetupScreen(app))
-    shot()
     app.pop()
-    app.push(A.ConnectorScreen(app))
-    shot()
-    app.pop()
-    app.push(A.TunnelPick(app))
-    shot()
-    app.pop()
-    app.push(A.QRScreen(app, "ngrok 1/3: account", A.NGROK_SIGNUP,
-                        "Scan and make a free ngrok account (or sign in). After sign-up choose Share localhost. Then press OK.", lambda: None))
-    shot()
     oauth.clear_pairing()

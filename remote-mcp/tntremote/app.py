@@ -239,7 +239,7 @@ class PairedScreen(TextScreen):
 
 class PairScreen(Screen):
     """Big one-time code to type on the Allow page."""
-    title = "Pair new connection"
+    title = "Sign-in code"
     live = True
 
     def __init__(self, app, wizard: bool = False):
