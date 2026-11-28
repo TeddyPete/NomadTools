@@ -185,16 +185,46 @@ button{{background:#3a1c1c;color:#f99;border:1px solid #844;border-radius:6px;pa
         self.end_headers()
         self.wfile.write(data)
 
-    def _file(self, full):
+    def do_HEAD(self):
+        path = urllib.parse.unquote(urllib.parse.urlparse(self.path).path).lstrip("/")
+        full = _safe(path) if path and "/" not in path else None
+        if not full:
+            return self.send_error(404)
+        self._file(full, head=True)
+
+    def _file(self, full, head=False):
+        """Sends a file; honours a single Range (phones' audio players need it)."""
         size = os.path.getsize(full)
         name = os.path.basename(full).replace(".part", "")
-        self.send_response(200)
+        start, end = 0, size - 1
+        rng = self.headers.get("Range", "")
+        partial = False
+        if rng.startswith("bytes=") and "," not in rng and size:
+            a, _, b = rng[6:].partition("-")
+            try:
+                if a:
+                    start, end = int(a), (int(b) if b else size - 1)
+                else:
+                    start, end = max(0, size - int(b)), size - 1
+                end = min(end, size - 1)
+                partial = start <= end
+            except ValueError:
+                partial = False
+            if not partial:
+                start, end = 0, size - 1
+        self.send_response(206 if partial else 200)
         self.send_header("Content-Type", "audio/wav" if ".wav" in name else "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(size))
+        self.send_header("Accept-Ranges", "bytes")
+        if partial:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("Content-Length", str(end - start + 1))
         self.send_header("Content-Disposition", f'inline; filename="{name}"')
         self.end_headers()
+        if head:
+            return
         with open(full, "rb") as f:
-            left = size
+            f.seek(start)
+            left = end - start + 1
             while left > 0:
                 chunk = f.read(min(256 * 1024, left))
                 if not chunk:

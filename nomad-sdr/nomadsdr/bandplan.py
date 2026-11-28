@@ -262,4 +262,19 @@ def label(mhz: float) -> str:
         return "FRS / GMRS"
     if 1090.0 - 1 <= mhz <= 1090.0 + 1:
         return "ADS-B aircraft"
+    for wwv in (2.5, 5.0, 10.0, 15.0, 20.0):
+        if abs(mhz - wwv) < 0.005:
+            return "WWV / WWVH time signal (AM)"
+    if 26.965 <= mhz <= 27.405:
+        return "CB radio"
+    for lo, hi, name in SW_BANDS:
+        if lo <= mhz <= hi:
+            return f"Shortwave broadcast {name}"
+    if 0.53 <= mhz <= 1.71:
+        return "AM broadcast"
     return ""
+
+
+SW_BANDS = [(3.9, 4.0, "75 m"), (4.75, 5.06, "60 m"), (5.9, 6.2, "49 m"), (7.3, 7.45, "41 m"),
+            (9.4, 9.9, "31 m"), (11.6, 12.1, "25 m"), (13.57, 13.87, "22 m"), (15.1, 15.8, "19 m"),
+            (17.48, 17.9, "16 m"), (18.9, 19.02, "15 m"), (21.45, 21.85, "13 m"), (25.67, 26.1, "11 m")]
