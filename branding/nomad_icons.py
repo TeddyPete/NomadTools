@@ -24,6 +24,7 @@ APPS = [
     ("packet-capture", "PACKET CAPTURE", (255, 90, 190)),
     ("display-control", "DISPLAY CONTROL", (170, 130, 255)),
     ("mcp", "MCP", (255, 140, 60)),
+    ("sdr", "SDR", (200, 255, 90)),
 ]
 
 
@@ -253,7 +254,28 @@ def g_mcp(img, box, col):
     glow_draw(img, f, col)
 
 
-GLYPH = {"av-tester": g_av, "net-tools": g_net, "wifi-share": g_wifi, "packet-capture": g_pcap,
+def g_sdr(img, box, col):
+    """Spectrum with a few signal peaks and a tuning marker."""
+    x0, y0, x1, y1 = box
+    base = y1 - 20
+    peaks = [(0.22, 0.45, 0.05), (0.55, 0.95, 0.035), (0.80, 0.35, 0.045)]
+    n = 160
+    pts = []
+    for i in range(n + 1):
+        t = i / n
+        v = 0.06 + 0.03 * math.sin(37 * t) * math.sin(11 * t)
+        for c, h, w in peaks:
+            v += h * math.exp(-((t - c) / w) ** 2)
+        pts.append((x0 + (x1 - x0) * t, base - (base - y0 - 10) * min(1.0, v)))
+
+    def f(d, c):
+        d.line(pts, fill=c, width=10, joint="curve")
+        mx = x0 + (x1 - x0) * 0.55
+        d.line((mx, y0, mx, base + 10), fill=(255, 200, 90, c[3] if len(c) > 3 else 255), width=6)
+    glow_draw(img, f, col)
+
+
+GLYPH = {"sdr": g_sdr, "av-tester": g_av, "net-tools": g_net, "wifi-share": g_wifi, "packet-capture": g_pcap,
          "display-control": g_display, "mcp": g_mcp}
 
 
@@ -290,6 +312,12 @@ def style_device(key, accent, with_bg=True):
         g_net(img, (220, 130, 804, 470), accent)
         scr = None
     else:
+        if key == "sdr":
+            # telescopic antenna out of the top right corner
+            d = ImageDraw.Draw(img)
+            for i, (w, y_top) in enumerate(((30, 40), (22, 0), (14, -40))):
+                fill_grad(img, (700 - w // 2, y_top + 40, 700 + w // 2, 200), w // 2, (220, 226, 234), (90, 96, 106))
+            led(img, 700, 60, 18, accent)
         body = (190, 180, 834, 830)
         device_body(img, body, 80, 36)
         scr = (250, 250, 774, 640)
@@ -306,7 +334,7 @@ def style_device(key, accent, with_bg=True):
 
 # Name shown on the icon (Ted: the app name on the button, no compass badge).
 SHORT = {"av-tester": "AV TESTER", "net-tools": "NET TOOLS", "wifi-share": "WIFI SHARE",
-         "packet-capture": "PCAP", "display-control": "DISPLAY", "mcp": "AI BRIDGE"}
+         "packet-capture": "PCAP", "display-control": "DISPLAY", "mcp": "AI BRIDGE", "sdr": "SDR"}
 
 
 def fit_font(text, maxw, start, minsize=60):
