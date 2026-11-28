@@ -1,4 +1,0 @@
-# Nomad AI Bridge: the pi user may run the Nomad AI Bridge root helper without a password.
-# The helper is used only while Admin (sudo) is switched on in the Nomad AI Bridge app.
-# Remove the nomad-ai-bridge package (or this file) to take it away.
-pi ALL=(root) NOPASSWD: /usr/lib/nomad-ai-bridge/rootrun

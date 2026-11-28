@@ -26,3 +26,4 @@ TAGLINE = "Use the CardputerZero from your AI app, anywhere"
 OWNER = "Ted's"                # whose device, in the AI's instructions
 NET_TOOLS = "TNT AV Net Tools"  # the companion app that net_tool / av_device_info use
 APPS_WORD = "TNT"               # "TNT apps" in help text
+ADMIN_SETUP = False              # True: package ships no sudo rule; the owner adds it once (adminsetup.py)

@@ -279,6 +279,10 @@ def _argv(cmd: str, args: dict, cfg: dict) -> list[str]:
             raise ToolError("Admin (sudo) is switched off. Ask the owner to turn on " + brand.APP_NAME + " > Permissions > Admin (sudo) on the device.")
         if not os.access(ROOTRUN, os.X_OK):
             raise ToolError("the sudo helper is missing; reinstall the " + brand.CMD + " package")
+        from . import adminsetup
+        if adminsetup.needed() and not adminsetup.enabled():
+            raise ToolError("Admin (sudo) is not set up on this device yet. The owner sets it up once in "
+                            + brand.APP_NAME + " > Permissions > Admin (sudo) by typing the device password.")
         return ["sudo", "-n", ROOTRUN, cmd]
     return ["/bin/bash", "-lc", cmd]
 

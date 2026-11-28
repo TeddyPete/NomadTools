@@ -2,11 +2,6 @@
 set -e
 case "$1" in
   configure)
-    # validate the sudoers drop-in; remove it if sudo would reject it
-    if command -v visudo >/dev/null 2>&1 && ! visudo -cf /etc/sudoers.d/nomad-ai-bridge >/dev/null 2>&1; then
-      echo "nomad-ai-bridge: sudoers file failed validation, removing it" >&2
-      rm -f /etc/sudoers.d/nomad-ai-bridge
-    fi
     # 0.2.4 renamed the module from tntremote to nomadbridge; drop the old folder's leftovers
     rm -rf /usr/share/APPLaunch/lib/nomad-ai-bridge/tntremote
     [ -d /run/systemd/system ] && systemctl --global daemon-reload >/dev/null 2>&1 || true

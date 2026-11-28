@@ -14,11 +14,13 @@
   tnt-mcp-link --install-cloudflared
   tnt-mcp-link --revoke-all        disconnect every client
   tnt-mcp-link --log               last tool calls
+  sudo tnt-mcp-link --enable-admin   one-time Admin (sudo) setup; --disable-admin removes it
   tnt-mcp-link --screens DIR       render sample LCD screens to PNG
 """
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import sys
 
@@ -26,12 +28,26 @@ import sys
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for flag in ("--serve", "--status", "--on", "--off", "--pair", "--set-token", "--install-cloudflared",
-                 "--revoke-all", "--log", "--url", "--set-ngrok-token", "--install-ngrok"):
+                 "--revoke-all", "--log", "--url", "--set-ngrok-token", "--install-ngrok",
+                 "--enable-admin", "--disable-admin"):
         ap.add_argument(flag, action="store_true")
     ap.add_argument("--tunnel", choices=("ngrok", "cloudflare", "quick"))
     ap.add_argument("--set-url")
     ap.add_argument("--screens", metavar="DIR")
     a = ap.parse_args(argv)
+    if a.enable_admin or a.disable_admin:   # before config: may run as root
+        from . import adminsetup
+        if a.enable_admin and os.geteuid() != 0:
+            import getpass
+            err = adminsetup.enable(getpass.getpass("password for sudo: "))
+        else:
+            err = adminsetup.enable() if a.enable_admin else adminsetup.disable()
+        if err:
+            print("failed:", err, file=sys.stderr)
+            return 1
+        print("Admin set up. Switch it on in Permissions > Admin (sudo) when you need it." if a.enable_admin
+              else "Admin removed: the AI can no longer run commands as root.")
+        return 0
     from . import config as C, control, oauth
     if a.serve:
         from .server import serve

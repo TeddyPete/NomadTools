@@ -20,3 +20,4 @@ TAGLINE = "Let your AI connect to and control your Cardputer Zero"
 OWNER = "the owner's"
 NET_TOOLS = "Nomad Net Tools"
 APPS_WORD = "Nomad"
+ADMIN_SETUP = True               # store rule: no root by default; owner grants Admin once with the pi password

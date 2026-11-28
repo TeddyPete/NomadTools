@@ -19,7 +19,7 @@ chmod 755 "$ROOT"
 A="$ROOT/usr/share/APPLaunch"
 L="$A/lib/$PKG/nomadbridge"   # own module name, so ps does not look like TNT MCP Link
 install -d "$ROOT/DEBIAN" "$A/applications" "$A/bin" "$A/share/images" "$L" "$ROOT/usr/bin" \
-  "$ROOT/usr/lib/$PKG" "$ROOT/usr/lib/systemd/user" "$ROOT/etc/sudoers.d"
+  "$ROOT/usr/lib/$PKG" "$ROOT/usr/lib/systemd/user"
 install -m 644 packaging/$PKG.desktop "$A/applications/$PKG.desktop"
 install -m 755 packaging/$PKG "$A/bin/$PKG"
 ln -s /usr/share/APPLaunch/bin/$PKG "$ROOT/usr/bin/$PKG"
@@ -31,9 +31,7 @@ sed -i "s/^__version__ = .*/__version__ = \"$VER\"/" "$L/__init__.py"
 sed -i "1s/.*/\"\"\"Nomad AI Bridge for the M5Stack CardputerZero (TheTechNomad.com).\"\"\"/" "$L/__init__.py"
 install -m 755 packaging/rootrun "$ROOT/usr/lib/$PKG/rootrun"
 install -m 644 packaging/$PKG.service "$ROOT/usr/lib/systemd/user/$PKG.service"
-install -m 440 packaging/sudoers "$ROOT/etc/sudoers.d/$PKG"
-for s in preinst postinst prerm; do install -m 755 packaging/$s "$ROOT/DEBIAN/$s"; done
-echo "/etc/sudoers.d/$PKG" > "$ROOT/DEBIAN/conffiles"
+for s in preinst postinst prerm postrm; do install -m 755 packaging/$s "$ROOT/DEBIAN/$s"; done
 SIZE=$(du -sk "$ROOT/usr" | cut -f1)
 cat > "$ROOT/DEBIAN/control" <<CTL
 Package: $PKG
@@ -60,8 +58,9 @@ Description: Nomad AI Bridge: let your AI connect to and control your CardputerZ
  the screen walk through making the ngrok account and pasting the token
  from a phone; a no-account quick test tunnel and Cloudflare are options.
  Each app signs in with OAuth plus a one-time pairing code shown on the
- device. Admin (sudo) mode uses a root helper allowed by
- /etc/sudoers.d/nomad-ai-bridge and is only used while switched on.
+ device. Nothing runs as root. Admin (sudo) is optional: the owner sets it
+ up once by typing the device password in the app (not saved), or with
+ "sudo nomad-ai-bridge --enable-admin"; --disable-admin removes it.
  .
  Powered by ngrok. Not affiliated with ngrok, Anthropic or OpenAI.
 CTL

@@ -82,7 +82,8 @@ def _k(key) -> tuple[str, str, bool]:
 
 @dataclass
 class Field:
-    """One row. kind: text | ip | mask | secret | number | bool | choice | header | action."""
+    """One row. kind: text | ip | mask | secret | password | number | bool | choice | header | action.
+    password is like secret but stays hidden while typing too."""
     key: str
     label: str
     kind: str = "text"
@@ -94,7 +95,7 @@ class Field:
 
     @property
     def editable(self) -> bool:
-        return self.kind in ("text", "ip", "mask", "secret", "number")
+        return self.kind in ("text", "ip", "mask", "secret", "password", "number")
 
     @property
     def selectable(self) -> bool:
@@ -206,7 +207,7 @@ class EditList:
 
     def _edit_key(self, f: Field, name: str, char: str, ctrl: bool) -> str | None:
         if name == "enter":
-            v = self.buf if f.kind == "secret" else self.buf.strip()
+            v = self.buf if f.kind in ("secret", "password") else self.buf.strip()
             self.editing = False
             self.values[f.key] = v
             return f"changed:{f.key}"
@@ -244,7 +245,7 @@ class EditList:
             return names[0] if v else names[1]
         if f.kind in ("header", "action"):
             return ""
-        if f.kind == "secret":
+        if f.kind in ("secret", "password"):
             return "•" * len(str(v or "")) if v else "(none)"
         return str(v if v is not None else "")
 
@@ -263,7 +264,8 @@ class EditList:
             label = f"[ {f.label} ]" if f.kind == "action" else f.label
             color = f.color or (OK if f.kind == "action" else FG)
             if i == self.sel and self.editing:
-                out.append(RowView(label, self.buf, "editing", color, self.pos))
+                shown = "•" * len(self.buf) if f.kind == "password" else self.buf
+                out.append(RowView(label, shown, "editing", color, self.pos))
             else:
                 out.append(RowView(label, self.fmt(f), "selected" if i == self.sel else "normal", color))
         return out

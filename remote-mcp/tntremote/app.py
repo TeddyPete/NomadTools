@@ -11,7 +11,7 @@ import textwrap
 import threading
 import time
 
-from . import __version__, brand, config as C, control, oauth
+from . import __version__, adminsetup, brand, config as C, control, oauth
 from . import lcd as L
 from . import tntui as T
 from .keys import Keyboard
@@ -395,13 +395,30 @@ class ClientInfo(Screen):
 class PermsScreen(FormScreen):
     def __init__(self, app):
         cfg = app.cfg
+        self.setup_needed = adminsetup.needed()
+        self.admin_ok = adminsetup.enabled() if self.setup_needed else True
         fields = [T.Field("allow_commands", "Run commands", "bool"),
                   T.Field("allow_sudo", "Admin (sudo)", "bool", color=T.BAD),
                   T.Field("allow_writes", "Change files", "bool"),
-                  T.Field("allow_net_tools", "Net Tools", "bool")]
-        super().__init__(app, "Permissions", T.EditList(fields, {f.key: bool(cfg.get(f.key)) for f in fields}))
+                  T.Field("allow_net_tools", "Net Tools", "bool"),
+                  T.Field("admin_remove", "Remove Admin setup", "action", color=T.WARN,
+                          visible=lambda v: self.setup_needed and self.admin_ok)]
+        super().__init__(app, "Permissions", T.EditList(fields, {f.key: bool(cfg.get(f.key)) for f in fields[:4]}))
 
     def event(self, ev):
+        if ev == "action:admin_remove":
+            def yes():
+                err = adminsetup.disable()
+                if err:
+                    self.app.toast("Could not remove it: " + err)
+                    return
+                self.admin_ok = False
+                self.form.values["allow_sudo"] = False
+                self.save()
+                self.app.toast("Admin setup removed. The AI can no longer run commands as root.")
+            self.app.push(Confirm(self.app, "Remove Admin",
+                                  "Remove the Admin (sudo) setup? Turning Admin on later asks for the password again.", yes))
+            return
         if not ev.startswith("changed:"):
             return
         key = ev.split(":", 1)[1]
@@ -412,17 +429,68 @@ class PermsScreen(FormScreen):
                 self.form.values["allow_sudo"] = True
                 self.save()
                 self.app.toast("Admin is ON: the AI can run commands as root. The dot in the title bar turns red.")
-            self.app.push(Confirm(self.app, "Admin (sudo)",
-                                  "Let the AI run commands as root (apt install, system settings)? Turn it off when you're done.",
-                                  yes, T.BAD))
+
+            def ask():
+                self.app.push(Confirm(self.app, "Admin (sudo)",
+                                      "Let the AI run commands as root (apt install, system settings)? Turn it off when you're done.",
+                                      yes, T.BAD))
+            if self.setup_needed and not self.admin_ok:
+                def done():
+                    self.admin_ok = True
+                    ask()
+                self.app.push(AdminSetupScreen(self.app, done))
+            else:
+                ask()
             return
         self.save()
 
     def save(self):
         cfg = C.load()
-        cfg.update(self.form.values)
+        cfg.update({k: v for k, v in self.form.values.items() if k.startswith("allow_")})
         C.save(cfg)
         self.app.cfg = cfg
+
+
+class AdminSetupScreen(FormScreen):
+    """First time Admin is switched on: the owner types the pi password once. It goes
+    straight to sudo on stdin to add the rule, and is then forgotten (never saved)."""
+
+    def __init__(self, app, on_done):
+        self.on_done = on_done
+        fields = [T.Field("h1", "One-time setup: type the", "header"),
+                  T.Field("h2", "pi password (not saved)", "header"),
+                  T.Field("pw", "Password", "password", maxlen=128),
+                  T.Field("go", "Set up Admin", "action", color=T.BAD)]
+        super().__init__(app, "Admin setup", T.EditList(fields, {"pw": ""}))
+        self.form.sel = 2
+
+    def hint(self):
+        return "OK type/run  ESC cancel" if not self.form.editing else "type password, OK done"
+
+    def event(self, ev):
+        if ev == "changed:pw" and self.form.values.get("pw"):
+            self.form.sel = 3
+        elif ev == "action:go":
+            pw = self.form.values.get("pw") or ""
+            self.form.values["pw"] = ""          # forget it right away
+            if not pw:
+                self.app.toast("Type the pi password first (the one you use for sudo).")
+                return
+            err = adminsetup.enable(pw)
+            del pw
+            if err:
+                self.app.toast("Admin setup failed: " + err + ".")
+                return
+            self.app.pop()
+            self.on_done()
+
+    def key(self, k):
+        ev = self.form.handle(k)
+        if ev == "back":
+            self.form.values["pw"] = ""
+            self.app.pop()
+        elif ev:
+            self.event(ev)
 
 
 KIND_NAMES = {"ngrok": "ngrok", "cloudflare": "Cloudflare", "quick": "Quick test"}
