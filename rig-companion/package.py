@@ -30,9 +30,10 @@ Maintainer: TheTechNomad <https://www.TheTechNomad.com>
 Section: hamradio
 Priority: optional
 Depends: python3, python3-pygame, python3-numpy, python3-dbus, python3-gi, python3-pil, bluez, fonts-dejavu-core, libstdc++6
-Description: Rig Companion TH-D75 controls and APRS for CardputerZero
+Description: Rig Companion TH-D75 controls, APRS and D-STAR for CardputerZero
  Keyboard radio controls, native APRS receive, persistent messages,
- weather and optional BLE/TCP KISS bridges. Hardware qualification beta.
+ weather, packet tools, optional BLE/TCP KISS bridges and a D-STAR
+ reflector terminal. Hardware qualification beta.
 """)
     launcher = """#!/bin/sh
 export PYTHONPATH=/usr/share/APPLaunch/lib/rig-companion-zero
