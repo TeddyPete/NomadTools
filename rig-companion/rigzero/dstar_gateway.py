@@ -176,7 +176,8 @@ class RadioPort:
                 self.sock, self.channel = sock, ch
                 break
             if not self.sock:
-                raise ConnectionError("Radio did not accept the gateway link (" + "; ".join(errors) + ")")
+                self.detail = "; ".join(errors)
+                raise ConnectionError("TH-D75 not answering. Check power, Menu 650 and 985.")
             self.label = f"Bluetooth ch {self.channel}"
 
     def fileno(self):
