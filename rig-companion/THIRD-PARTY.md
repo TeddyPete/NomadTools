@@ -35,3 +35,14 @@ Ylian Saint-Hilaire and contributors, pinned revision
 notices are included. `native/packet_backend.cpp` adapts those engines to
 the Cardputer Zero's Linux filesystem and shared radio worker.
 
+
+## D-STAR protocols and reflector lists
+
+- `rigzero/dstar.py` is Rig Companion code written from the public protocol
+  behaviour of MMDVMHost and ircDDBGateway (Jonathan Naylor G4KLX, GPL-2.0-or-later)
+  and DroidStar (Doug McLain AD8DP, GPL-3.0): MMDVM serial framing, D-STAR header
+  CRC, slow data, DExtra, DCS and DPlus packets, and the D-Plus registration ping.
+  No source files are copied.
+- Reflector addresses are downloaded at run time from the Pi-Star host files
+  (https://www.pistar.uk/downloads/) and cached under `~/.cache/rig-companion-zero/dstar-hosts`.
+- Optional name / city lookups for US callsigns use https://callook.info (public FCC data).

@@ -1,5 +1,39 @@
 # Rig Companion for CardputerZero
 
+## 0.5.0 D-STAR Reflector Terminal
+
+**R** (or **8 Link → D-STAR reflectors**) opens D-STAR. The TH-D75 becomes a
+D-STAR terminal: its own AMBE vocoder handles audio, and Rig Companion links
+it to REF, XRF, XLX and DCS reflectors over the Cardputer's network.
+
+On the radio: band A in DV mode, **Menu 650** DV Gateway Mode = Reflector
+TERM Mode, **Menu 651** = your callsign, **Menu 985** DV Gateway = Bluetooth
+(or USB). Then on the Cardputer: **8 Start**, **5 Link**, pick a reflector and
+module, and talk with UR = CQCQCQ. The radio transmits nothing on RF in this
+mode, and the TH-D75 has no Access Point mode.
+
+- **Dashboard**: link state, who is talking now (callsign, name and city for
+  US calls from callook.info, the 20-character D-STAR message, RX/TX timer),
+  and the last stations heard.
+- **Reflectors**: favorites and recent links, then the full REF / XRF / XLX /
+  DCS lists from the Pi-Star host files (cached; **8** updates). **6** finds,
+  **7** adds a favorite. The last reflector relinks on start (Setup).
+- **Last heard**: up to 60 transmissions with message, duration, route and
+  D-PRS position. **5** shows a station on the map.
+- **D-PRS**: positions in slow data (`$$CRC` APRS lines or NMEA) become APRS
+  stations, so they appear on the existing map and APRS list.
+- **From the radio**: UR `REF001CL` links REF001 C, seven spaces + `U`
+  unlinks, + `E` records and plays back an echo test, + `I` shows the link.
+- REF reflectors (DPlus) need your callsign registered at
+  regist.dstargateway.org to transmit; otherwise they link listen-only. XRF,
+  XLX and DCS need no registration. Callsign routing through ircDDB is not
+  supported.
+- While D-STAR runs it owns the radio link; CAT controls and KISS resume when
+  you stop it (**8**).
+
+The radio link is the TH-D75's MMDVM-style serial gateway on Bluetooth
+RFCOMM channel 2 (channel is selectable in Setup) or USB `/dev/ttyACM*`.
+
 ## 0.4.0 Packet Tools
 
 **U** opens Packet Tools. Use F/X or the arrows to move and Enter to open.
