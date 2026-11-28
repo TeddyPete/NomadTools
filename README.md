@@ -12,6 +12,7 @@ The **Nomad** apps are by Tech Nomad Ted, [TheTechNomad.com](https://TheTechNoma
 | Nomad Packet Capture: mirror-port or inline-tap pcap | [`pcap-capture/`](pcap-capture/) | `nomad-packet-capture` | NMPC |
 | Nomad Display Control: power, input and volume for TVs and projectors | [`display-control/`](display-control/) | `nomad-display-control` | NMDC |
 | Nomad AI Bridge: let your AI connect to and control your CardputerZero (MCP) | `nomad-ai-bridge/` (own PR) | `nomad-ai-bridge` | NMAB |
+| Rig Companion: Kenwood TH-D75 controls, APRS inbox and map, KISS bridges | [`rig-companion/`](rig-companion/) | `rig-companion-zero` | NMRC |
 
 Each app lives in its own folder with its own README and install steps.
 
