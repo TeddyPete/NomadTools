@@ -603,6 +603,10 @@ def main():
             for name, char in keyboard.poll(.05):
                 if name == "exit":       # Esc held: leave the app (key spec)
                     app.running = False
+                    display.surface.fill(BG)   # the radio can take a few seconds to restore
+                    display.text("Closing Rig Companion...", 10, 70, INK, 16)
+                    display.text("Restoring the radio", 10, 96, DIM, 12)
+                    display.flush()
                     break
                 try:
                     app.handle(name, char)
