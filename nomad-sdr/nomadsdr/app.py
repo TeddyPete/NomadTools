@@ -314,7 +314,7 @@ class Radio_(Screen):
         mt = f["small"].render(f"{cfg['mode']} {fmt_bw(r.filter_for(cfg['mode']))}", True, (255, 255, 255))
         surf.blit(mt, (mx + (W - mx - 4 - mt.get_width()) // 2, 31))
         gain = "AGC" if cfg.get("gain") is None else f"{cfg['gain']:g}dB"
-        st = f["tiny"].render(f"{fmt_step(int(cfg.get('step', 12500)))} step  {gain}", True, T.DIM)
+        st = f["tiny"].render(f"{fmt_step(int(cfg.get('step', 12500)))}  {gain}", True, T.DIM)
         surf.blit(st, (mx, 50))
         # meter
         y = 64
