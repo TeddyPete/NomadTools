@@ -212,6 +212,9 @@ class App:
         while not self.quit:
             keys = self.kb.poll(0.1) if self.kb else (time.sleep(0.1) or [])
             for k in keys:
+                if k.name == "exit":     # Esc held: leave the app (key spec)
+                    self.quit = True
+                    break
                 if self.stack:
                     self.dispatch(k)
                 self.dirty = True
@@ -281,7 +284,7 @@ class Home(Menu):
             ("Help", lambda: app.push(Message(app, "Help", HELP))),
             ("About", lambda: app.open_about()),
         ]
-        super().__init__(app, APP_TITLE, items, "↑↓ move  OK/→ open  ESC quit")
+        super().__init__(app, APP_TITLE, items, "↑↓ move  OK open  hold ESC exit")
 
     def softkeys(self):
         app = self.app

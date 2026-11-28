@@ -10,7 +10,7 @@ What every Nomad app does on the 320x170 screen:
              used actions of a screen; their labels sit at the bottom of the
              screen with a short line pointing down to each key (keybar).
   * Fn+H     shows / hides the help for the current screen.
-  * Hold ESC goes to HOME (the launcher does that; apps never fight it).
+  * Hold ESC exits the app to HOME (about 1 s; keys.py sends "exit").
              This is the official CardputerZero key spec:
              https://cardputer.cc/#/documents/cp0-keys
   * Fields:  OK or Right on a text field starts editing it right there and the
@@ -94,7 +94,7 @@ KEYS_HELP = [
     "Z/← or ESC  back one level",
     "4 5 6 7 8  the actions shown at",
     "   the bottom of the screen",
-    "Hold ESC  go to HOME",
+    "Hold ESC  exit the app (HOME)",
     "Fn+H  show / hide this help",
 ]
 

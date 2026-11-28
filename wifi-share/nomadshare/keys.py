@@ -10,6 +10,7 @@ import glob
 import os
 import select
 import struct
+import time
 from dataclasses import dataclass
 
 EV_KEY = 1
@@ -39,6 +40,11 @@ NAMED = {1: "esc", 14: "backspace", 15: "tab", 28: "enter", 96: "enter", 103: "u
          105: "left", 106: "right", 111: "delete", 102: "home", 107: "end", 104: "pageup",
          109: "pagedown", 138: "help"}   # 138 KEY_HELP = Fn+H
 SHIFT, CTRL, ALT, CAPS = {42, 54}, {29, 97}, {56, 100}, 58
+# CardputerZero key spec: Esc short press = back one level, long press = exit
+# to HOME. A short press is sent when Esc is released; holding it this long
+# sends Key("exit") instead, and the app quits the same way as from its main
+# page (the launcher would otherwise kill the app after 3 s).
+ESC_HOLD_S = 1.0
 
 
 @dataclass
@@ -80,6 +86,7 @@ class Keyboard:
         self.shift = self.ctrl = self.alt = False
         self.internal = any(_name(p).startswith("tca8418") for p in paths) or devices is not None
         self.caps = False
+        self.esc_down: float | None = None   # when Esc went down (None = up)
 
     @property
     def ok(self) -> bool:
@@ -89,6 +96,8 @@ class Keyboard:
         if not self.fds:
             select.select([], [], [], timeout)
             return []
+        if self.esc_down is not None:   # wake up in time to report a long Esc
+            timeout = max(0.0, min(timeout, self.esc_down + ESC_HOLD_S - time.monotonic()))
         r, _, _ = select.select(self.fds, [], [], timeout)
         keys: list[Key] = []
         for fd in r:
@@ -104,6 +113,9 @@ class Keyboard:
                     k = self._feed(code, value)
                     if k:
                         keys.append(k)
+        if self.esc_down is not None and time.monotonic() - self.esc_down >= ESC_HOLD_S:
+            self.esc_down = None
+            keys.append(Key("exit"))
         return keys
 
     def _feed(self, code: int, value: int) -> Key | None:
@@ -121,12 +133,18 @@ class Keyboard:
             if value == 1:
                 self.caps = not self.caps
             return None
+        if code == 1:      # Esc: short press = back (on release), long press = exit
+            if value == 1:
+                self.esc_down = time.monotonic()
+            elif value == 0 and self.esc_down is not None:
+                self.esc_down = None
+                return Key("esc", ctrl=self.ctrl)
+            return None
         if not down:
             return None
         if code in NAMED:
-            # Holding ESC exits to the launcher's HOME; its auto-repeat must not
-            # back out of several screens. OK/Enter doesn't repeat either.
-            if value == 2 and NAMED[code] in ("esc", "enter"):
+            # OK/Enter doesn't auto-repeat.
+            if value == 2 and NAMED[code] == "enter":
                 return None
             return Key(NAMED[code], ctrl=self.ctrl)
         if code in (FN_KEY, SYM_KEY):

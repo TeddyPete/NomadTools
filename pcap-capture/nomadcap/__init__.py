@@ -1,2 +1,2 @@
 """Nomad Packet Capture for the M5Stack CardputerZero (TheTechNomad.com)."""
-__version__ = "0.4.1"
+__version__ = "0.4.2"

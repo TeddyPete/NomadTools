@@ -540,7 +540,7 @@ class App:
             draw_about(d, ACCENT, INK, DIM)
         elif self.editor == "help":
             d.header("Radio controls")
-            for i, text in enumerate(("Up/down tune or memory · Tab A/B", "Enter frequency · V VFO / MR", "M mode · P power · D dual", "S squelch · J/K volume", "4–8 pages · Esc back or exit", "A about · Enter or Esc closes")):
+            for i, text in enumerate(("Up/down tune or memory · Tab A/B", "Enter frequency · V VFO / MR", "M mode · P power · D dual", "S squelch · J/K volume", "4–8 pages · Esc back · hold Esc exit", "A about · Enter or Esc closes")):
                 d.text(text, 10, 31 + i * 21, INK, 12)
         elif self.editor == "quit":
             d.header("Exit Rig Companion?")
@@ -601,6 +601,13 @@ def main():
             app.tell("No keyboard input is available")
         while app.running:
             for name, char in keyboard.poll(.05):
+                if name == "exit":       # Esc held: leave the app (key spec)
+                    app.running = False
+                    display.surface.fill(BG)   # the radio can take a few seconds to restore
+                    display.text("Closing Rig Companion...", 10, 70, INK, 16)
+                    display.text("Restoring the radio", 10, 96, DIM, 12)
+                    display.flush()
+                    break
                 try:
                     app.handle(name, char)
                 except Exception as error:

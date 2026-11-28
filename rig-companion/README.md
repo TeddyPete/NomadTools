@@ -108,7 +108,7 @@ the logged-in user, who needs normal input, video and Bluetooth permissions.
 python3 -m unittest discover -s tests -v
 python3 -m rigzero --preview previews
 python3 package.py
-sudo dpkg -i dist/rig-companion-zero_0.2.2-1_arm64.deb
+sudo dpkg -i dist/rig-companion-zero_0.2.3-1_arm64.deb
 rig-companion-zero
 ```
 
