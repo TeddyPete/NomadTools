@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nomad SDR
+Exec=bin/nomad-sdr
+Terminal=false
+Icon=share/images/nomad-sdr.png
+Type=Application

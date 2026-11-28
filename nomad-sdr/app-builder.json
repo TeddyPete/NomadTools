@@ -1,0 +1,42 @@
+{
+  "package_name": "nomad-sdr",
+  "version": "0.1.0",
+  "app_name": "Nomad SDR",
+  "bin_name": "nomad-sdr",
+  "description": "Ham radio receiver for RTL-SDR dongles",
+  "store": {
+    "summary": "Nomad SDR: ham receiver for RTL-SDR with band plan, APRS, recording, fox hunt",
+    "description": "Part of the Nomad tools by Tech Nomad Ted, TheTechNomad.com. A ham-friendly receiver for RTL-SDR dongles (made for the RTL-SDR Blog V3). Listen with NFM, AM, USB, LSB, CW and broadcast FM with filter, gain, squelch, AGC and PPM controls, live spectrum and a signal meter. The US band plan shows what each part of a band is for and whether your license class (Technician, General, Extra) may transmit there, with repeater offsets and one key to listen on a repeater's input. HF (0.5-28.8 MHz) through the V3's direct sampling or an upconverter. Record to WAV, then play, download from a web page by QR code, or copy to a USB stick. Bias-tee switch for LNAs and active antennas. APRS receive on 144.390 shows stations with distance and hands every packet to Rig Companion's list and map. Fox-hunt meter with peak hold, trend and a rising tone. Keys 4-8: Mode, Freq, Rec, Band, Menu. Fn+H shows help. Needs an RTL-SDR dongle on USB.",
+    "categories": [
+      "Radio & Comms",
+      "Hardware & IoT"
+    ],
+    "screenshots": [
+      "screenshots/lcd_0.png",
+      "screenshots/lcd_1.png",
+      "screenshots/lcd_2.png",
+      "screenshots/lcd_3.png",
+      "screenshots/lcd_4.png",
+      "screenshots/lcd_5.png"
+    ],
+    "icon": "packaging/icon.png",
+    "license": "GPL-3.0-only",
+    "source_repo": "https://github.com/TeddyPete/NomadTools",
+    "author": {
+      "github": "TeddyPete",
+      "display_name": "TheTechNomad",
+      "website": "https://www.TheTechNomad.com"
+    },
+    "share_code": "NMSR",
+    "permissions": {
+      "camera": false,
+      "microphone": false,
+      "imu": false,
+      "network": true,
+      "additional_hardware": true,
+      "background_service": false,
+      "external_display": false
+    },
+    "locales": {}
+  }
+}
