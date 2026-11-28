@@ -38,16 +38,18 @@ def render_screens(out_dir: str) -> None:
         shots.append(p)
 
     shot()                                         # 0 home
-    app.push(A.AppPick(app))                       # 1 which AI app
+    app.push(A.QRScreen(app, "ngrok 1/3: account", A.NGROK_SIGNUP,   # 1 setup: QR steps
+                        "Scan and make a free ngrok account (or sign in). After sign-up choose Share localhost. Then press OK.",
+                        lambda: None))
     shot()
     app.pop()
-    app.push(A.PairScreen(app))                    # 2 one-time code
+    app.push(A.AppPick(app))                       # 2 which AI app
     shot()
     app.pop()
-    app.push(A.ClientsScreen(app))                 # 3 connected apps
+    app.push(A.PairScreen(app))                    # 3 one-time code
     shot()
     app.pop()
-    app.push(A.TextScreen(app, "Status", [], live=app.status_lines))   # 4 status
+    app.push(A.ClientsScreen(app))                 # 4 connected apps
     shot()
     app.pop()
     A.adminsetup.enabled = lambda: False
