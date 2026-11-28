@@ -49,6 +49,13 @@ messages, 500 saved packets, and 2000 recent unsaved packets are retained in
 `~/.config/rig-companion-zero/station.sqlite3`. Native messages are captured
 as received. Older records held only by the handheld cannot be downloaded.
 
+## Packets from Nomad SDR
+
+Nomad SDR's APRS receiver (an RTL-SDR on 144.390) writes every packet it decodes
+into the same store, so they show up in the APRS list, inbox, weather page and
+map next to the TH-D75's packets. Since 0.2.4 the map also refreshes while both
+apps are running.
+
 ## Readable reports and map
 
 Positions, compressed positions, Mic-E, objects/items and PHG site information
@@ -108,7 +115,7 @@ the logged-in user, who needs normal input, video and Bluetooth permissions.
 python3 -m unittest discover -s tests -v
 python3 -m rigzero --preview previews
 python3 package.py
-sudo dpkg -i dist/rig-companion-zero_0.2.3-1_arm64.deb
+sudo dpkg -i dist/rig-companion-zero_0.2.4-1_arm64.deb
 rig-companion-zero
 ```
 

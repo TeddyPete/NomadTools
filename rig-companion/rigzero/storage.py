@@ -98,7 +98,10 @@ class Store:
 
     def stations(self):
         with self.lock:
-            if self.station_cache[0] == self.revision:
+            # data_version also changes when another program (Nomad SDR's APRS
+            # receiver) adds packets, so the map picks those up too.
+            version = (self.revision, self.db.execute("PRAGMA data_version").fetchone()[0])
+            if self.station_cache[0] == version:
                 return self.station_cache[1]
             seen, stations, by_key = set(), [], {}
             for key, body in self.db.execute("SELECT id,body FROM packets ORDER BY id DESC LIMIT 2500"):
@@ -121,7 +124,7 @@ class Store:
                                         trail=[[data["lat"], data["lon"]]]))
                 stations.append(station)
                 by_key[identity] = station
-            self.station_cache = (self.revision, stations)
+            self.station_cache = (version, stations)
             return stations
 
     def close(self):
