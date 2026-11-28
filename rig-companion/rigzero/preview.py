@@ -19,7 +19,7 @@ def render_previews(folder: Path):
         store.record(inspect_packet("N0TEST-3", "APRS", "WIDE1-1", "!4515.10N/09238.77W#PHG5450 Test digipeater"))
         store.record(inspect_packet("N0TEST-9", "APRS", "", "T#016,122,075,099,045,128,00000000"))
         radio = Radio(store)
-        radio.update(identity=True, connected=True, status="TH-D75 connected")
+        radio.update(identity=True, connected=True, model="TH-D75", status="TH-D75 connected")
         import time
         radio.identified_at = time.monotonic()
         radio.state["bands"] = [{"hz": 144390000, "mode": 0, "power": 2, "channel": 0,
@@ -58,6 +58,16 @@ def render_previews(folder: Path):
         screen.save(folder / "compose.png")
         app.editor = None
         app.detail = None
+        app.panels.open("guide", radio.snapshot(), query="KISS")
+        app.draw()
+        screen.save(folder / "field-manual.png")
+        app.panels.open("packet", radio.snapshot())
+        app.draw()
+        screen.save(folder / "packet-setup.png")
+        app.panels.open("beacon", radio.snapshot())
+        app.draw()
+        screen.save(folder / "beacon.png")
+        app.panels.screen = ""
         radio.update(identity=False, connected=False)
         app.page = 0
         app.draw()

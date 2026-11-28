@@ -1,5 +1,73 @@
 # Rig Companion for CardputerZero
 
+## 0.4.0 Packet Tools
+
+**U** opens Packet Tools. Use F/X or the arrows to move and Enter to open.
+Monitor filters by callsign, type and RX/TX. It can observe other packet
+sessions and export the current filter to CSV/PCAP. **Q** on Radio opens
+volume, squelch, power, band, mode, channel mode and dual receive controls.
+The screen shows values read from the radio.
+
+- **AX.25 Terminal** uses the radio's current packet channel. Set the peer,
+  review the RF confirmation, then call. Use Write for lines, Stop to
+  disconnect, S to save the transcript, Y to send a YAPP file, and L to
+  allow incoming files. Terminal logs and YAPP files use
+  `~/Documents/Rig-Companion-Transfers`. Files are limited to 2 MiB.
+- **Winlink Mail** has Inbox, Drafts, Outbox, and Sent. Gate lets you save a
+  gateway callsign and optional MHz frequency. Pass accepts the Winlink
+  password for the current app run. Use the radio's tuned channel for models
+  without verified remote tuning. The Winlink engine reads and commits its
+  mail independently of the display. Attachments are retained in incoming
+  stored messages. The current keyboard editor handles text messages.
+- **APRS Tools** groups station conversations, manually saved contacts,
+  WXBOT requests, the acknowledgment outbox, and beacon setup. A recent
+  TH-D75 position fix can be sent once as a position report. Get the fix
+  before entering KISS, then use the GPS beacon action within 30 seconds.
+- **Phone / PC Bridge** retains the RadioMail BLE and TCP KISS options.
+  The radio permits one KISS session owner. At the end, wait for the
+  restoration result on the Radio page.
+
+The native engine is built by `package.py` with Debian's C++ compiler.
+For source-tree testing, build `native/packet_backend.cpp` as
+`rigzero/libpacket.so` with `g++ -std=c++17 -shared -fPIC`.
+
+## 0.3.0 Kenwood companion
+
+This build keeps the existing package ID and station database. **G** opens
+Field Manual and **U** opens APRS / Packet setup. Both are also under **8 Link**.
+
+**8 Link → GPS time from TH-D75** reads UTC from the radio. Enable built-in
+GPS (400), PC Output (405), GPRMC (406), and Bluetooth GPS output (981) on
+the handset. After two advancing fixes pass validation, packet timestamps
+use GPS UTC, including during KISS holdover. Enter on the GPS screen requests
+a one-time Cardputer system clock update when a fresh fix is available and
+the OS permits it. The app leaves NTP configured as found.
+
+- Field Manual has a searchable 216-item TH-D75 menu index, key combinations,
+  PF key notes and operating tips. **8 Model** switches to starter guides
+  for the TH-D74 and TM-D750.
+- Link discovers known models and other devices advertising Bluetooth Serial
+  Port Profile. An exact CAT ID sets the model. If the ID is unrecognized or
+  missing, pairing can still be used with Handset KISS monitor.
+- Automatic KISS requires a recognized CAT identity and validated radio
+  readbacks. Direct CAT writes and automatic gateway retuning use the TH-D75
+  profile. With Handset KISS monitor, start and stop KISS on the handset.
+  The app receives frames and sends no TNC commands in this mode.
+- Packet setup selects band and rate for the next local KISS session. It
+  displays the confirmed frequency before send. Export CSV and PCAP under
+  `~/Documents/Rig-Companion-Captures`. PCAP holds exact bytes newly captured
+  through KISS. Older and native APRS text records are included in CSV.
+- Beacon Setup sends a fixed position once or repeats at 5/10/20 minutes
+  with explicit confirmation and local 1200 bps KISS. Ending KISS, closing
+  the app or losing the link clears the schedule. The handheld's GPS and
+  SmartBeaconing setup is documented in the Field Manual.
+
+Kenwood sources: [TH-D75](https://manual.kenwood.com/en_contents/attachDownload/109792/),
+[TH-D74](https://manual.kenwood.com/en_contents/attachDownload/98115/),
+[TM-D750](https://manuals.jvckenwood.com/download/files/B5A-4729-00_01.pdf).
+
+## Existing radio and packet functions
+
 Version 0.2.1 adds arrow-key navigation in the APRS lists and packet detail (0.2.0 added readable APRS reports and a station map). It uses the CYD project's
 verified CAT conventions and KISS framing with Linux BlueZ, a keyboard UI and
 SQLite storage. Pairing, both VFO readbacks and live KISS reception have been
@@ -41,7 +109,7 @@ UTC receive timestamp. Clock accuracy follows the device's system clock.
 Set your licensed callsign and SSID under **Link > Callsign**. Compose pre-fills
 From, and Reply pre-fills To. Tab switches between recipient and body. Enter
 starts KISS if needed, then opens a send confirmation. Enter in that confirmation
-sends one packet. Local messages have no automatic retry or delivery receipt.
+sends one packet. Local messages request an APRS acknowledgment. Check Packet Setup > APRS Outbox for the matched response. Messages are not automatically retried.
 Use the displayed frequency to confirm the intended APRS channel before sending.
 
 Native and KISS receive share the same stored inbox. Up to 500 distinct text
@@ -108,7 +176,7 @@ the logged-in user, who needs normal input, video and Bluetooth permissions.
 python3 -m unittest discover -s tests -v
 python3 -m rigzero --preview previews
 python3 package.py
-sudo dpkg -i dist/rig-companion-zero_0.2.3-1_arm64.deb
+sudo dpkg -i dist/rig-companion-zero_0.3.0-1_arm64.deb
 rig-companion-zero
 ```
 

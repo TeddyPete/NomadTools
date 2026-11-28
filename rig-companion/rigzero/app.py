@@ -8,6 +8,7 @@ import math
 import os
 import queue
 import signal
+import subprocess
 import threading
 import time
 from datetime import datetime, timezone
@@ -16,7 +17,10 @@ from pathlib import Path
 from .bluetooth import BluetoothLink
 from .about import draw_about
 from .bridges import BleBridge, TcpBridge
+from .panels import Panels
+from .packet_ui import PacketTools
 from .display import ACCENT, ALERT, BG, DIM, INK, LINE, PANEL, SELECT, SELECT_DIM, Display, Keyboard
+from .gps_clock import LIVE_SECONDS
 from .protocol import MODES, POWERS, valid_call
 from .radio import Radio
 from .storage import Store
@@ -34,6 +38,7 @@ class App:
         self.saved = False
         self.editor = None
         self.compose = {"to": "", "text": ""}
+        self.message_session = None
         self.field = "to"
         self.edit_value = ""
         self.notice = ""
@@ -52,6 +57,8 @@ class App:
         self.map_active = False
         self.map_view = None
         self.raw_detail = False
+        self.panels = Panels(self)
+        self.packet = PacketTools(self)
 
     def tell(self, message):
         self.notice = str(message)
@@ -131,7 +138,10 @@ class App:
         elif self.store.get("recovery", None):
             self.radio.submit("end_kiss")
         elif state["connected"]:
-            self.radio.submit("start_kiss")
+            if state.get("model"):
+                self.radio.submit("start_kiss")
+            else:
+                self.panels.open("monitor", state)
         else:
             self.tell("Connect the TH-D75 first")
 
@@ -186,6 +196,12 @@ class App:
         if self.editor:
             self.edit(name, char, state)
             return
+        if self.panels.screen:
+            self.panels.handle(name, char, state)
+            return
+        if self.packet.screen and not self.detail and not self.map_active:
+            self.packet.press(name, char, state)
+            return
         if self.map_active:
             self.map_key(name, char)
             return
@@ -227,7 +243,13 @@ class App:
             return
         navigation = {"f": "up", "x": "down", "z": "left", "c": "right"}
         name = navigation.get(char.lower(), name)
-        if char == "?":
+        if char.lower() == "g":
+            self.panels.open("guide", state)
+        elif char.lower() == "u":
+            self.packet.open("home")
+        elif char.lower() == "q" and self.page == 0:
+            self.packet.open("controls")
+        elif char == "?":
             self.editor = "help"
         elif self.page == 0:
             actions = {"m": ("change", "mode"), "p": ("change", "power"), "v": ("change", "channel"),
@@ -272,7 +294,9 @@ class App:
                 self.link_action(action, state)
 
     def link_options(self):
-        options = [("Find TH-D75 / pair", "scan"), ("Callsign  " + (self.store.get("callsign") or "Set yours"), "callsign"),
+        options = [("Find Kenwood radio / pair", "scan"), ("GPS time from TH-D75", "gps_time"), ("Field Manual", "guide"),
+                   ("Radio Controls", "controls"), ("Packet Tools", "packet_hub"),
+                   ("APRS and packet setup", "packet"), ("Callsign  " + (self.store.get("callsign") or "Set yours"), "callsign"),
                    ("APRS path  " + (self.store.get("path") or "Direct"), "path"),
                    ("KISS  start / end / restore", "kiss"),
                    ("BLE phone bridge  " + ("On" if self.ble and self.ble.enabled else "Off"), "ble"),
@@ -295,7 +319,11 @@ class App:
             self.store.set("path", path)
         elif action == "kiss":
             self.kiss(state)
-        elif action in ("map_credits", "about"):
+        elif action in ("guide", "packet"):
+            self.panels.open(action, state)
+        elif action in ("controls", "packet_hub"):
+            self.packet.open("controls" if action == "controls" else "home")
+        elif action in ("map_credits", "about", "gps_time"):
             self.editor = action
         elif action == "tcp":
             if self.tcp:
@@ -322,6 +350,11 @@ class App:
         if name == "esc":
             self.editor = None
             return
+        if self.editor == "gps_time":
+            if name == "enter" and not getattr(self, "setting_time", False):
+                self.setting_time = True
+                self.background(self.set_system_gps_time)
+            return
         if self.editor in ("help", "map_credits", "about"):
             if name in ("enter", "left") or (self.editor == "about" and char.lower() == "z"):
                 self.editor = None
@@ -334,7 +367,7 @@ class App:
             return
         if self.editor == "confirm_send":
             if name == "enter" or char.lower() == "y":
-                self.radio.submit("send", self.compose["to"], self.compose["text"])
+                self.radio.submit("send", self.compose["to"], self.compose["text"], self.message_session)
                 self.editor = None
             return
         if self.editor == "compose":
@@ -353,6 +386,7 @@ class App:
                 elif state["owner"] != "local":
                     self.tell("Phone or TCP session owns the radio")
                 else:
+                    self.message_session = state.get("session_id")
                     self.editor = "confirm_send"
             elif name == "backspace":
                 self.compose[self.field] = self.compose[self.field][:-1]
@@ -375,6 +409,27 @@ class App:
         elif char and len(self.edit_value) < (9 if self.editor == "callsign" else 12):
             self.edit_value += char.upper()
 
+    def set_system_gps_time(self):
+        try:
+            state = self.radio.snapshot()
+            utc, age = self.radio.gps_clock.reading()
+            if (not state["connected"] or state.get("model") != "TH-D75" or state["kiss"]
+                    or utc is None or age > LIVE_SECONDS):
+                self.tell("Wait for a fresh TH-D75 GPS fix")
+                return
+            result = subprocess.run(
+                ["timedatectl", "--no-ask-password", "set-time", f"@{int(utc.timestamp())}"],
+                capture_output=True, text=True, timeout=7, check=False,
+            )
+            if result.returncode == 0:
+                self.tell("Cardputer clock set from TH-D75 GPS")
+            elif "automatic time synchronization" in result.stderr.lower():
+                self.tell("System NTP enabled. App GPS time active.")
+            else:
+                self.tell("System rejected clock set. App GPS time active.")
+        finally:
+            self.setting_time = False
+
     def draw(self):
         state = self.radio.snapshot()
         d = self.display
@@ -390,12 +445,26 @@ class App:
         if self.editor:
             self.draw_editor(state)
             return
+        if self.panels.screen:
+            self.panels.draw(d, state)
+            message = self.notice if time.monotonic() < self.notice_until else state["error"]
+            if message:
+                d.rect(0, 129, 320, 17, BG)
+                d.text(message, 9, 130, ALERT, 12, 302)
+            return
+        if self.packet.screen and not self.detail and not self.map_active:
+            self.packet.draw(d, state)
+            message = self.notice if time.monotonic() < self.notice_until else state["error"]
+            if message:
+                d.rect(0, 129, 320, 17, BG)
+                d.text(message, 9, 130, ALERT, 14, 302)
+            return
         if self.map_active:
             stations = self.store.stations()
-            d.header("APRS Map", f"{len(stations)} stations")
-            d.text("© OpenStreetMap", 116, 6, DIM, 12)
+            d.header("APRS Map", f"{len(stations)} stn")
+            d.text("© OpenStreetMap", 109, 5, DIM, 12)
             self.map_view.render(d, stations)
-            d.footer(labels=["Back", "Zoom -", "Zoom +", "Next", "Open"])
+            d.footer(labels=["Back", "Zoom−", "Zoom+", "Next", "Open"])
             return
         if self.detail:
             packet = self.detail
@@ -414,7 +483,9 @@ class App:
                 d.rect(0, 129, 320, 17, BG)
                 d.text(self.notice, 9, 130, ALERT, 12, 302)
             return
-        d.header("Rig Companion" if self.page == 0 else PAGES[self.page], status)
+        if state["connected"] and not state.get("model") and not state["kiss"]:
+            status = "Model unconfirmed"
+        d.header((state.get("model") or "Rig Companion") if self.page == 0 else PAGES[self.page], status)
         if self.page == 0:
             self.draw_radio(state)
         elif self.page in (1, 2):
@@ -445,7 +516,7 @@ class App:
         band = state["bands"][state["active"]]
         power = POWERS[band["power"]] if 0 <= band["power"] < len(POWERS) else "--"
         d.text(f"Vol {state['volume'] if state['volume'] >= 0 else '--'}   SQL {band['squelch'] if band['squelch'] >= 0 else '--'}   {power}", 10, 111, DIM, 12, 300)
-        text = state["error"] or ("Enter tune · Tab A/B · ? controls" if state["connected"] else
+        text = state["error"] or ("Enter tune   Q controls   G manual" if state["connected"] else
                                   "Last readback · 8 Link to reconnect" if any(b["hz"] for b in state["bands"]) else
                                   "8 Link · Find TH-D75 to pair")
         d.text(text, 10, 130, ALERT if state["error"] else DIM, 12, 302)
@@ -519,7 +590,23 @@ class App:
 
     def draw_editor(self, state):
         d = self.display
-        if self.editor == "compose":
+        if self.editor == "gps_time":
+            utc, age = self.radio.gps_clock.reading()
+            live = utc is not None and age <= LIVE_SECONDS and state["connected"] and not state["kiss"]
+            d.header("TH-D75 GPS Time", "Live" if live else "Holdover" if utc else "Waiting")
+            if utc:
+                d.text(utc.strftime("%Y-%m-%d  %H:%M:%S UTC"), 10, 34, ACCENT, 17, 300)
+                d.text("New packets use GPS time", 10, 61, DIM, 14, 300)
+            if live:
+                d.wrap("Enter sets the Cardputer clock. The system may keep control if NTP is active.", y=85, height=48)
+            elif state["kiss"]:
+                d.wrap("End KISS to receive live GPS time.", y=85 if utc else 38, height=49)
+            else:
+                y = 82 if utc else 39
+                d.text("TH-D75: 400 GPS On, 405 PC Output On", 10, y, INK, 14, 300)
+                d.text("406 GPRMC, 981 Bluetooth. Get a fix.", 10, y + 21, INK, 14, 300)
+            d.text("Esc back", 10, 149, DIM, 14)
+        elif self.editor == "compose":
             d.header("APRS message", "KISS" if state["kiss"] else "Native")
             d.text("From " + (self.store.get("callsign") or "Set under Link"), 10, 30, DIM, 12, 300)
             d.rect(8, 49, 304, 24, PANEL, 3)
@@ -529,7 +616,7 @@ class App:
         elif self.editor == "confirm_send":
             d.header("Send APRS message?")
             d.text("To " + self.compose["to"], 10, 36, ACCENT, 17)
-            hz = state["bands"][state["active"]]["hz"]
+            hz = state.get("packet_hz", 0)
             d.text(f"{hz / 1000000:.6f} MHz" if hz else "Frequency readback unavailable", 10, 64, INK, 14)
             d.wrap("Confirm the radio is on your intended APRS channel. Enter sends one packet. Esc cancels.", y=88, height=63)
         elif self.editor == "map_credits":
@@ -603,10 +690,6 @@ def main():
             for name, char in keyboard.poll(.05):
                 if name == "exit":       # Esc held: leave the app (key spec)
                     app.running = False
-                    display.surface.fill(BG)   # the radio can take a few seconds to restore
-                    display.text("Closing Rig Companion...", 10, 70, INK, 16)
-                    display.text("Restoring the radio", 10, 96, DIM, 12)
-                    display.flush()
                     break
                 try:
                     app.handle(name, char)

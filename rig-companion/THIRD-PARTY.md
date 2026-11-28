@@ -26,3 +26,12 @@ Retrieved November 27, 2026. External source files are reference material and we
 - The map requests only currently visible tiles over HTTPS, identifies the app, honors caching headers and displays attribution. It does not prefetch regions. Previously viewed cached areas work offline; an uncached offline view shows station markers without geographic map detail.
 
 No aprs.fi code, branding, API or historical database is used. Full Linux APRS clients reviewed: https://github.com/Xastir/Xastir and https://www.ka2ddo.org/ka2ddo/YAAC.html . They remain separate apps, not bundled components.
+## Connected packet tools
+
+The connected AX.25, Winlink B2F, and YAPP cores under `native/` are reused from
+the Tab5 Rig Companion / HTCommander handoffs. They derive from HTCommander by
+Ylian Saint-Hilaire and contributors, pinned revision
+`50434c0369b404cca1fc72d8a4c1a58aa75e9f9c`. The original Apache 2.0 and Dart
+notices are included. `native/packet_backend.cpp` adapts those engines to
+the Cardputer Zero's Linux filesystem and shared radio worker.
+
