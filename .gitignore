@@ -3,3 +3,4 @@ __pycache__/
 out/
 device_report.txt
 build/
+dist/
