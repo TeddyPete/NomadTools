@@ -19,6 +19,7 @@ from .about import draw_about
 from .bridges import BleBridge, TcpBridge
 from .panels import Panels
 from .packet_ui import PacketTools
+from .dstar_ui import DStarTools
 from .display import ACCENT, ALERT, BG, DIM, INK, LINE, PANEL, SELECT, SELECT_DIM, Display, Keyboard
 from .gps_clock import LIVE_SECONDS
 from .protocol import MODES, POWERS, valid_call
@@ -59,6 +60,7 @@ class App:
         self.raw_detail = False
         self.panels = Panels(self)
         self.packet = PacketTools(self)
+        self.dstar = DStarTools(self)
 
     def tell(self, message):
         self.notice = str(message)
@@ -202,6 +204,9 @@ class App:
         if self.packet.screen and not self.detail and not self.map_active:
             self.packet.press(name, char, state)
             return
+        if self.dstar.screen and not self.detail and not self.map_active:
+            self.dstar.press(name, char, state)
+            return
         if self.map_active:
             self.map_key(name, char)
             return
@@ -247,6 +252,8 @@ class App:
             self.panels.open("guide", state)
         elif char.lower() == "u":
             self.packet.open("home")
+        elif char.lower() == "r":
+            self.dstar.open("home")
         elif char.lower() == "q" and self.page == 0:
             self.packet.open("controls")
         elif char == "?":
@@ -296,6 +303,7 @@ class App:
     def link_options(self):
         options = [("Find Kenwood radio / pair", "scan"), ("GPS time from TH-D75", "gps_time"), ("Field Manual", "guide"),
                    ("Radio Controls", "controls"), ("Packet Tools", "packet_hub"),
+                   ("D-STAR reflectors", "dstar"),
                    ("APRS and packet setup", "packet"), ("Callsign  " + (self.store.get("callsign") or "Set yours"), "callsign"),
                    ("APRS path  " + (self.store.get("path") or "Direct"), "path"),
                    ("KISS  start / end / restore", "kiss"),
@@ -321,6 +329,8 @@ class App:
             self.kiss(state)
         elif action in ("guide", "packet"):
             self.panels.open(action, state)
+        elif action == "dstar":
+            self.dstar.open("home")
         elif action in ("controls", "packet_hub"):
             self.packet.open("controls" if action == "controls" else "home")
         elif action in ("map_credits", "about", "gps_time"):
@@ -459,6 +469,12 @@ class App:
                 d.rect(0, 129, 320, 17, BG)
                 d.text(message, 9, 130, ALERT, 14, 302)
             return
+        if self.dstar.screen and not self.detail and not self.map_active:
+            self.dstar.draw(d, state)
+            if time.monotonic() < self.notice_until:
+                d.rect(0, 129, 320, 17, BG)
+                d.text(self.notice, 9, 130, ALERT, 12, 302)
+            return
         if self.map_active:
             stations = self.store.stations()
             d.header("APRS Map", f"{len(stations)} stn")
@@ -519,6 +535,8 @@ class App:
         text = state["error"] or ("Enter tune   Q controls   G manual" if state["connected"] else
                                   "Last readback · 8 Link to reconnect" if any(b["hz"] for b in state["bands"]) else
                                   "8 Link · Find TH-D75 to pair")
+        if getattr(self.radio, "suspended", "") and not state["error"]:
+            text = "D-STAR gateway is using the radio · R opens it"
         d.text(text, 10, 130, ALERT if state["error"] else DIM, 12, 302)
 
     def draw_list(self):
@@ -627,7 +645,7 @@ class App:
             draw_about(d, ACCENT, INK, DIM)
         elif self.editor == "help":
             d.header("Radio controls")
-            for i, text in enumerate(("Up/down tune or memory · Tab A/B", "Enter frequency · V VFO / MR", "M mode · P power · D dual", "S squelch · J/K volume", "4–8 pages · Esc back · hold Esc exit", "A about · Enter or Esc closes")):
+            for i, text in enumerate(("Up/down tune or memory · Tab A/B", "Enter frequency · V VFO / MR", "M mode · P power · D dual", "S squelch · J/K volume", "4–8 pages · R D-STAR · U packet · G manual", "Esc back · hold Esc exit · A about")):
                 d.text(text, 10, 31 + i * 21, INK, 12)
         elif self.editor == "quit":
             d.header("Exit Rig Companion?")
@@ -643,6 +661,7 @@ class App:
             d.text(self.notice, 9, 131, ALERT, 12, 302)
 
     def close(self):
+        self.dstar.close()
         if self.map_view:
             self.map_view.close()
         if self.tcp:
@@ -690,6 +709,10 @@ def main():
             for name, char in keyboard.poll(.05):
                 if name == "exit":       # Esc held: leave the app (key spec)
                     app.running = False
+                    display.surface.fill(BG)   # the radio can take a few seconds to restore
+                    display.text("Closing Rig Companion...", 10, 70, INK, 17)
+                    display.text("Restoring the radio", 10, 96, DIM, 12)
+                    display.flush()
                     break
                 try:
                     app.handle(name, char)

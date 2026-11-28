@@ -48,6 +48,7 @@ class Radio:
         self.next_poll = 0.0
         self.poll_index = 0
         self.closed = False
+        self.suspended = ""         # another feature (D-STAR gateway) is using the radio link
         self.thread = threading.Thread(target=self._run, name="rig-radio", daemon=True)
         self.thread.start()
 
@@ -614,6 +615,8 @@ class Radio:
                 action, args = None, ()
             try:
                 if action == "connect":
+                    if self.suspended:
+                        raise RuntimeError(f"Stop the {self.suspended} first")
                     if self.native:
                         raise RuntimeError("Disconnect Terminal or Winlink before changing radios")
                     if self.connection:
@@ -632,7 +635,8 @@ class Radio:
                          "packet_open": self.packet_open, "packet_stop": self.packet_stop,
                          "packet_send": self.packet_send, "packet_file": self.packet_file,
                          "packet_receive_files": self.packet_receive_files,
-                         "remote_open": self._remote_open}[action](*args)
+                         "remote_open": self._remote_open,
+                         "suspend": self.suspend, "resume": self.resume}[action](*args)
                 elif self.connection:
                     self._receive()
                     try:
@@ -646,7 +650,7 @@ class Radio:
                     if not self.state["kiss"] and time.monotonic() >= self.next_poll:
                         if not self.store.get("recovery", None):
                             self._poll()
-                elif self.link and time.monotonic() >= next_connect:
+                elif self.link and not self.suspended and time.monotonic() >= next_connect:
                     next_connect = time.monotonic() + 8
                     device = self.store.get("device", None)
                     if device:
@@ -677,6 +681,26 @@ class Radio:
         if self.link:
             self.link.disconnect()
         self.closed = True
+
+    def suspend(self, reason):
+        """Release the Bluetooth link so the D-STAR gateway can use the radio."""
+        if self.native:
+            raise RuntimeError("Disconnect Terminal or Winlink before D-STAR")
+        if self.state["kiss"]:
+            self.end_kiss()
+        self.stop_beacon()
+        self.remote_reply = None
+        if self.connection and self.link:
+            self.link.disconnect()
+        self.connection = None
+        self.suspended = reason
+        self.gps_clock.break_stream()
+        self.update(connected=False, identity=False, kiss=False, owner="",
+                    status=f"{reason} is using the radio", error="")
+
+    def resume(self):
+        self.suspended = ""
+        self.update(status="Reconnecting to the radio", error="")
 
     def _lost(self, reason):
         if self.native:
