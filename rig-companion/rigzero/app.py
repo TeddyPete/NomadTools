@@ -16,7 +16,7 @@ from pathlib import Path
 from .bluetooth import BluetoothLink
 from .about import draw_about
 from .bridges import BleBridge, TcpBridge
-from .display import ACCENT, ALERT, BG, DIM, INK, LINE, PANEL, Display, Keyboard
+from .display import ACCENT, ALERT, BG, DIM, INK, LINE, PANEL, SELECT, SELECT_DIM, Display, Keyboard
 from .protocol import MODES, POWERS, valid_call
 from .radio import Radio
 from .storage import Store
@@ -433,15 +433,15 @@ class App:
         for index, band in enumerate(state["bands"]):
             y = 31 + index * 39
             selected = state["active"] == index
-            d.rect(8, y, 304, 36, "#193b3b" if selected else PANEL, 4)
-            d.text("A" if index == 0 else "B", 15, y + 5, ACCENT if selected else DIM, 17)
+            d.rect(8, y, 304, 36, SELECT if selected else PANEL, 4)
+            d.text("A" if index == 0 else "B", 15, y + 5, INK if selected else DIM, 17)
             hz = band["hz"]
             d.text(f"{hz / 1000000:.6f}" if hz else "---.------", 37, y + 1,
                    INK if state["connected"] else DIM, 23)
             mode = MODES[band["mode"]] if 0 <= band["mode"] < len(MODES) else "--"
             channel = {0: "VFO", 1: "MR", 2: "CALL"}.get(band["channel"], "--")
-            d.text(mode + " " + channel, 224, y + 2, DIM, 12, 83)
-            d.text(f"SM {band['meter']}" if band["meter"] >= 0 else "SM --", 224, y + 18, ACCENT, 12)
+            d.text(mode + " " + channel, 224, y + 2, SELECT_DIM if selected else DIM, 12, 83)
+            d.text(f"SM {band['meter']}" if band["meter"] >= 0 else "SM --", 224, y + 18, INK if selected else ACCENT, 12)
         band = state["bands"][state["active"]]
         power = POWERS[band["power"]] if 0 <= band["power"] < len(POWERS) else "--"
         d.text(f"Vol {state['volume'] if state['volume'] >= 0 else '--'}   SQL {band['squelch'] if band['squelch'] >= 0 else '--'}   {power}", 10, 111, DIM, 12, 300)
@@ -461,11 +461,12 @@ class App:
             start = max(0, self.selected - 2)
             for i, packet in enumerate(rows[start:start + 3]):
                 y = 30 + i * 32
-                if start + i == self.selected:
-                    d.rect(7, y, 306, 31, "#193b3b", 3)
-                d.text(packet.get("sender", packet["source"]), 12, y, ACCENT, 14, 125)
-                d.text(packet["kind"], 145, y + 2, DIM, 12, 90)
-                d.text(packet["time"][11:19], 249, y + 2, DIM, 12)
+                chosen = start + i == self.selected
+                if chosen:
+                    d.rect(7, y, 306, 31, SELECT, 3)
+                d.text(packet.get("sender", packet["source"]), 12, y, INK if chosen else ACCENT, 14, 125)
+                d.text(packet["kind"], 145, y + 2, SELECT_DIM if chosen else DIM, 12, 90)
+                d.text(packet["time"][11:19], 249, y + 2, SELECT_DIM if chosen else DIM, 12)
                 d.text(packet.get("summary", packet["text"]), 12, y + 16, INK, 12, 294)
         d.text("→ open · ← back · M map · N write" + (" · S " + ("live" if self.saved else "saved") if self.page == 1 else " · K KISS"),
                10, 130, DIM, 12, 302)
@@ -507,9 +508,9 @@ class App:
         for index, (label, _) in enumerate(options[start:start + 4]):
             y = 29 + index * 23
             if start + index == self.link_selected:
-                d.rect(7, y, 306, 22, "#193b3b", 3)
+                d.rect(7, y, 306, 22, SELECT, 3)
             d.text(label, 12, y + 2, INK, 14, 295)
-        status = "Searching… Open Menu 934" if self.scan_active else state["error"] or "Enter select · F/X move · Esc back"
+        status = "Searching… Open Menu 934" if self.scan_active else state["error"] or "→ select · ← back · F/X move"
         if self.ble and self.ble.enabled:
             status = self.ble.status
         if self.tcp and self.tcp.error:

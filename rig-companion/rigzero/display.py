@@ -14,6 +14,7 @@ import pygame
 
 BG, HEADER, PANEL = "#10191e", "#151f25", "#202e35"
 INK, DIM, ACCENT, LINE, ALERT = "#f0f8f7", "#a8bfc3", "#65e2d2", "#3a5058", "#ffc875"
+SELECT, SELECT_DIM = "#1f63e0", "#d6e4ff"  # bright blue highlight and its secondary text
 
 
 class Display:
@@ -67,10 +68,10 @@ class Display:
         self.rect(0, 146, 320, 1, LINE)
         labels = labels or ["Radio", "APRS", "Inbox", "WX", "Link"]
         for i, (center, label) in enumerate(zip((49, 105, 161, 217, 273), labels)):
-            color = ACCENT if i == active else DIM
+            color = INK if i == active else DIM
             if active == i:
-                self.rect(center - 26, 147, 52, 23, "#193b3b")
-                self.rect(center - 16, 168, 32, 2, ACCENT)
+                self.rect(center - 26, 147, 52, 23, SELECT)
+                self.rect(center - 16, 168, 32, 2, INK)
             image = self.fonts[12].render(label, True, color)
             self.surface.blit(image, (center - image.get_width() // 2, 151))
 

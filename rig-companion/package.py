@@ -7,7 +7,7 @@ from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parent
 PACKAGE = "rig-companion-zero"
-VERSION = "0.2.1-1"
+VERSION = "0.2.2-1"
 
 
 def build():
