@@ -106,8 +106,21 @@ class Keyboard:
                         keys.append(k)
         return keys
 
+    LONG_ESC = 0.8     # seconds: holding ESC this long exits the app (CardputerZero key spec)
+
     def _feed(self, code: int, value: int) -> Key | None:
         down = value != 0
+        if code in NAMED and NAMED[code] == "esc":
+            # short ESC = back; hold ESC = exit to HOME ("esc_long", sent once)
+            import time
+            now = time.monotonic()
+            if value == 1:
+                self._esc_t, self._esc_fired = now, False
+            elif not getattr(self, "_esc_fired", True) and now - getattr(self, "_esc_t", now) >= self.LONG_ESC:
+                self._esc_fired = True
+                return Key("esc_long", ctrl=self.ctrl)
+            elif value == 0:
+                self._esc_fired = True
         if code in SHIFT:
             self.shift = down
             return None

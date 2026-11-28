@@ -72,6 +72,66 @@ HINT_MENU = "↑↓ move  OK/→ open  ←/ESC back"
 HINT_FORM = "↑↓ move  OK/→ edit  ESC back"
 HINT_EDIT = "OK save  ESC cancel"
 
+# ---- cyber theme (Nomad AI Bridge) ----------------------------------------------
+# Near-black with faint scanlines, monospace, neon cyan lines, magenta accent.
+CYBER = False
+CYAN = (0, 234, 255)
+CYAN_D = (0, 92, 110)
+MAG = (255, 46, 160)
+LIME = (120, 255, 150)
+
+
+def use_cyber() -> None:
+    """Switch every screen to the cyber look. Call once at start-up, before fonts()."""
+    global CYBER, BG, FG, DIM, TITLE_BG, TITLE_FG, TITLE_RIGHT, SEL_BG, EDIT_BG, EDIT_FIELD
+    global OK, BAD, HINT_BG, HINT_FG, CHEVRON, KEYBAR_BG, SOFT_BG, SOFT_FG, SOFT_LINE, FONT_PATHS, FONT_SIZES
+    CYBER = True
+    BG, FG, DIM = (4, 6, 12), (226, 246, 255), (110, 150, 170)
+    TITLE_BG, TITLE_FG, TITLE_RIGHT = (4, 6, 12), CYAN, LIME
+    SEL_BG = (0, 140, 170)
+    EDIT_BG, EDIT_FIELD = (175, 18, 70), (80, 6, 34)
+    OK, BAD = LIME, (255, 70, 110)
+    HINT_BG, HINT_FG = (6, 14, 20), CYAN
+    CHEVRON = CYAN_D
+    KEYBAR_BG, SOFT_BG, SOFT_FG, SOFT_LINE = (4, 6, 12), (6, 22, 30), CYAN, CYAN
+    FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+                  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+    FONT_SIZES = {"title": 16, "row": 16, "small": 13, "tiny": 12}
+    _fonts.clear()
+
+
+def glow_line(surf, x1: int, y: int, x2: int, color) -> None:
+    surf.fill(tuple(c // 3 for c in color), (x1, y - 1, x2 - x1, 3))
+    surf.fill(color, (x1, y, x2 - x1, 1))
+
+
+def corners(surf, rect, color, n: int = 6) -> None:
+    """Bracket corners around rect (cyber frames)."""
+    x, y, w, h = rect
+    for cx, cy, dx, dy in ((x, y, 1, 1), (x + w - 1, y, -1, 1), (x, y + h - 1, 1, -1), (x + w - 1, y + h - 1, -1, -1)):
+        surf.fill(color, (min(cx, cx + dx * (n - 1)), cy, n, 1))
+        surf.fill(color, (cx, min(cy, cy + dy * (n - 1)), 1, n))
+
+
+def code_box(surf, text: str, font, cy: int) -> None:
+    """The big one-time code, centred at height cy."""
+    import pygame
+    img = font.render(text, True, CYAN if CYBER else (255, 255, 255))
+    x = (W - img.get_width()) // 2
+    y = cy - img.get_height() // 2
+    r = pygame.Rect(x - 12, y - 4, img.get_width() + 24, img.get_height() + 8)
+    if CYBER:
+        r = pygame.Rect(10, r.y, W - 20, r.h)
+        surf.fill((0, 30, 40), r)
+        corners(surf, r, CYAN, 10)
+        glow = font.render(text, True, CYAN_D)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            surf.blit(glow, (x + dx, y + dy))
+    else:
+        pygame.draw.rect(surf, SEL_BG, r, border_radius=6)
+    surf.blit(img, (x, y))
+
+
 # ---- number keys 4..8: label bar at the bottom (official CardputerZero key spec,
 # cardputer.cc/#/documents/cp0-keys), same look as the other Nomad apps ----------
 SOFT_KEYS = "45678"
@@ -369,16 +429,32 @@ def render(surf, title: str, rows: list, hint: str = "", selected: int | None = 
     import pygame
     f = f or fonts()
     surf.fill(BG)
-    surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
-    surf.blit(f["title"].render(title, True, TITLE_FG), (6, 2), (0, 0, W - 12, TITLE_H))
+    if CYBER:
+        for sy in range(0, H, 3):                  # faint scanlines
+            surf.fill((8, 12, 20), (0, sy, W, 1))
+        surf.blit(f["title"].render("\u258c" + title.upper(), True, TITLE_FG), (3, 3), (0, 0, W - 10, TITLE_H))
+        glow_line(surf, 0, TITLE_H - 1, W, CYAN)
+        surf.fill(MAG, (0, TITLE_H - 2, 40, 3))
+    else:
+        surf.fill(TITLE_BG, (0, 0, W, TITLE_H))
+        surf.blit(f["title"].render(title, True, TITLE_FG), (6, 2), (0, 0, W - 12, TITLE_H))
     rs = remote_state()
     dot = 16 if rs else 0
     if right:
-        img = f["small"].render(right, True, TITLE_RIGHT)
-        surf.fill(TITLE_BG, (W - img.get_width() - 12 - dot, 0, img.get_width() + 12 + dot, TITLE_H))
-        surf.blit(img, (W - img.get_width() - 6 - dot, 5))
+        rc = TITLE_RIGHT
+        if CYBER:
+            right = "● " + right
+            rc = MAG if right.endswith("ROOT") else DIM if right.endswith("OFF") else LIME
+        img = f["small"].render(right, True, rc)
+        if CYBER:
+            surf.fill(BG, (W - img.get_width() - 12 - dot, 0, img.get_width() + 12 + dot, TITLE_H - 2))
+            surf.blit(img, (W - img.get_width() - 6 - dot, 6))
+            img = None
+        if img is not None:
+            surf.fill(TITLE_BG, (W - img.get_width() - 12 - dot, 0, img.get_width() + 12 + dot, TITLE_H))
+            surf.blit(img, (W - img.get_width() - 6 - dot, 5))
     if rs:
-        surf.fill(TITLE_BG, (W - dot - 4, 0, dot + 4, TITLE_H))
+        surf.fill(TITLE_BG, (W - dot - 4, 0, dot + 4, TITLE_H - (2 if CYBER else 0)))
         pygame.draw.circle(surf, REMOTE_ROOT if rs == "root" else REMOTE_ON, (W - 10, TITLE_H // 2), 6)
     y = TITLE_H + 1
     n = ROWS_KEYS if keys and any(keys) else ROWS
@@ -389,6 +465,8 @@ def render(surf, title: str, rows: list, hint: str = "", selected: int | None = 
         draw_keybar(surf, keys, f)
     elif hint:
         surf.fill(HINT_BG, (0, H - HINT_H, W, HINT_H))
+        if CYBER:
+            glow_line(surf, 0, H - HINT_H, W, CYAN_D)
         surf.blit(f["small"].render(hint, True, HINT_FG), (6, H - HINT_H + 1), (0, 0, W - 12, HINT_H))
 
 
@@ -415,16 +493,23 @@ def draw_row(surf, font, y: int, r: RowView, f: dict | None = None) -> None:
     color = r.color or FG
     if sel:
         surf.fill(SEL_BG, (0, y, W, ROW_H))
-        if color == BAD:                       # a risky action keeps a red edge when highlighted
+        if CYBER:
+            surf.fill(BAD if color == BAD else MAG, (0, y, 3, ROW_H))
+        elif color == BAD:                     # a risky action keeps a red edge when highlighted
             surf.fill((235, 60, 60), (0, y, 4, ROW_H))
     x = 6
     if r.icon:
         text, bg = r.icon
         box = pygame.Rect(x, y + 2, 16, ROW_H - 4)
-        pygame.draw.rect(surf, bg, box, border_radius=4)
-        if sel:
-            pygame.draw.rect(surf, SEL_FG, box, 1, border_radius=4)
-        img = f["tiny"].render(text, True, (255, 255, 255))
+        if CYBER:
+            ic = SEL_FG if sel else bg
+            pygame.draw.rect(surf, ic, box, 1)
+            img = f["tiny"].render(text, True, ic)
+        else:
+            pygame.draw.rect(surf, bg, box, border_radius=4)
+            if sel:
+                pygame.draw.rect(surf, SEL_FG, box, 1, border_radius=4)
+            img = f["tiny"].render(text, True, (255, 255, 255))
         surf.blit(img, (box.centerx - img.get_width() // 2, box.centery - img.get_height() // 2))
         x += 22
     right = W - 6
@@ -433,7 +518,11 @@ def draw_row(surf, font, y: int, r: RowView, f: dict | None = None) -> None:
         pygame.draw.lines(surf, SEL_FG if sel else CHEVRON, False,
                           [(cx - 3, cy - 5), (cx + 2, cy), (cx - 3, cy + 5)], 2)
         right = W - 20
-    if r.pill is not None:
+    if r.pill is not None and CYBER:
+        img = f["small"].render("[ON]" if r.pill else "[OFF]", True, SEL_FG if sel else (LIME if r.pill else DIM))
+        surf.blit(img, (right - img.get_width(), y + 2))
+        right -= img.get_width() + 6
+    elif r.pill is not None:
         img = f["small"].render("On" if r.pill else "Off", True, (255, 255, 255))
         pw = 40
         box = pygame.Rect(right - pw, y + 2, pw, ROW_H - 4)
@@ -444,7 +533,7 @@ def draw_row(surf, font, y: int, r: RowView, f: dict | None = None) -> None:
         right = box.x - 6
     vw = 0
     if r.value:
-        img = font.render(r.value, True, SEL_FG if sel else DIM)
+        img = font.render(r.value, True, SEL_FG if sel else (CYAN if CYBER else DIM))
         lw = font.size(r.label)[0]
         vw = min(img.get_width(), max((right - x) // 2, right - x - lw - 12))
         surf.blit(img, (right - vw, y + 1), (0, 0, vw, ROW_H))
@@ -467,7 +556,10 @@ def draw_keybar(surf, keys: list, f: dict | None = None) -> None:
     f = f or fonts()
     top = H - KEYBAR_H
     surf.fill(KEYBAR_BG, (0, top, W, KEYBAR_H))
-    surf.fill((40, 46, 62), (0, top, W, 1))
+    if CYBER:
+        glow_line(surf, 0, top, W, CYAN_D)
+    else:
+        surf.fill((40, 46, 62), (0, top, W, 1))
     by = top + 2
     for i, cx in enumerate(SOFT_X):
         lab = keys[i] if i < len(keys) else None
@@ -477,10 +569,15 @@ def draw_keybar(surf, keys: list, f: dict | None = None) -> None:
         if isinstance(lab, (tuple, list)):
             lab, color = lab[0], lab[1]
         r = pygame.Rect(cx - SOFT_W // 2, by, SOFT_W, SOFT_SIZE)
-        pygame.draw.rect(surf, SOFT_BG, r, border_radius=4)
+        if CYBER:
+            r = r.inflate(-2, -2)
+            surf.fill(SOFT_BG, r)
+            corners(surf, r, color, 5)
+        else:
+            pygame.draw.rect(surf, SOFT_BG, r, border_radius=4)
         font = _fit(f, lab, SOFT_W - 4)
         img = font.render(lab, True, color)
         if img.get_width() > SOFT_W - 4:
             img = pygame.transform.smoothscale(img, (SOFT_W - 4, img.get_height()))
         surf.blit(img, (cx - img.get_width() // 2, by + (SOFT_SIZE - img.get_height()) // 2))
-        surf.fill(SOFT_LINE, (cx, by + SOFT_SIZE + 1, 1, H - (by + SOFT_SIZE + 1)))
+        surf.fill(color if CYBER else SOFT_LINE, (cx, by + SOFT_SIZE + 1, 1, H - (by + SOFT_SIZE + 1)))

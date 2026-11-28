@@ -21,3 +21,4 @@ OWNER = "the owner's"
 NET_TOOLS = "Nomad Net Tools"
 APPS_WORD = "Nomad"
 ADMIN_SETUP = True               # store rule: no root by default; owner grants Admin once with the pi password
+THEME = "cyber"                  # LCD look: near-black, neon cyan + magenta, monospace (0.2.11)

@@ -18,6 +18,9 @@ from .keys import Keyboard
 
 APP_TITLE = brand.APP_NAME
 
+if getattr(brand, "THEME", "") == "cyber":
+    T.use_cyber()
+
 HELP = (
     brand.APP_NAME + " turns this CardputerZero into an MCP server that AI apps can use from "
     "anywhere it has internet: Claude (phone app, claude.ai, Claude Code), ChatGPT "
@@ -32,6 +35,8 @@ HELP = (
     "While it is on, the title bar (here and in " + brand.APPS_WORD + " apps) shows an orange dot (red when Admin "
     "/ sudo is allowed). Turn Remote access Off to cut every AI app off at once; "
     "Disconnect everyone forgets all sign-ins.\n"
+    "Keys: ESC goes back, hold ESC exits to HOME, number keys 4-8 do the actions shown at the "
+    "bottom of the screen.\n"
     + (brand.CREDITS + "\n" if brand.CREDITS else "") +
     "\n".join(brand.DEVELOPER)
 )
@@ -198,7 +203,7 @@ class Home(FormScreen):
         return rows
 
     def hint(self):
-        return "↑↓ move  OK select  ESC quit"
+        return "↑↓ move  OK select  hold ESC exit"
 
     def keys(self):
         return ["Connect", "Status", "Apps", "Perms", "Help"]
@@ -208,7 +213,12 @@ class Home(FormScreen):
 
     def key(self, k):
         if k.name == "esc":
-            self.app.quit = True
+            # like Rig Companion: a short ESC on the main page asks first; holding ESC exits
+            def yes():
+                self.app.quit = True
+            on = "Remote access stays ON, so your AI apps can still reach the device." if self.app.on else ""
+            self.app.push(Confirm(self.app, "Exit " + APP_TITLE + "?",
+                                  ("OK exits, ESC stays. " + on).strip(), yes, T.FG))
             return
         super().key(k)
 
@@ -304,11 +314,7 @@ class PairScreen(Screen):
         if oauth.pairing_state()["active"]:
             import pygame
             f = big_font()
-            img = f.render(self.code, True, (255, 255, 255))
-            x = (T.W - img.get_width()) // 2
-            y = T.TITLE_H + T.ROW_H + 6
-            pygame.draw.rect(surf, T.SEL_BG, (x - 10, y - 4, img.get_width() + 20, img.get_height() + 8), border_radius=6)
-            surf.blit(img, (x, y))
+            T.code_box(surf, self.code, f, T.TITLE_H + T.ROW_H + 6 + f.get_height() // 2)
 
     def hint(self):
         return "OK new code   ESC back"
@@ -329,7 +335,7 @@ def big_font():
         import os
         import pygame
         path = next((p for p in T.FONT_PATHS if os.path.exists(p)), None)
-        _big.append(pygame.font.Font(path, 40) if path else pygame.font.Font(None, 56))
+        _big.append(pygame.font.Font(path, 36 if T.CYBER else 40) if path else pygame.font.Font(None, 56))
     return _big[0]
 
 
@@ -1228,6 +1234,9 @@ class App:
         while not self.quit:
             keys = self.kb.poll(0.25) if self.kb else []
             for k in keys:
+                if k.name == "esc_long":           # hold ESC: exit to HOME from any screen
+                    self.quit = True
+                    break
                 s = self.stack[-1]
                 i = T.soft_index(getattr(k, "char", ""))
                 if i is not None and not s.typing() and any(s.keys()):
