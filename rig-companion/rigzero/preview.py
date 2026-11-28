@@ -19,7 +19,7 @@ def render_previews(folder: Path):
         store.record(inspect_packet("N0TEST-3", "APRS", "WIDE1-1", "!4515.10N/09238.77W#PHG5450 Test digipeater"))
         store.record(inspect_packet("N0TEST-9", "APRS", "", "T#016,122,075,099,045,128,00000000"))
         radio = Radio(store)
-        radio.update(identity=True, connected=True, status="TH-D75 connected")
+        radio.update(identity=True, connected=True, model="TH-D75", status="TH-D75 connected")
         import time
         radio.identified_at = time.monotonic()
         radio.state["bands"] = [{"hz": 144390000, "mode": 0, "power": 2, "channel": 0,
@@ -58,6 +58,17 @@ def render_previews(folder: Path):
         screen.save(folder / "compose.png")
         app.editor = None
         app.detail = None
+        app.panels.open("guide", radio.snapshot(), query="KISS")
+        app.draw()
+        screen.save(folder / "field-manual.png")
+        app.panels.open("packet", radio.snapshot())
+        app.draw()
+        screen.save(folder / "packet-setup.png")
+        app.panels.open("beacon", radio.snapshot())
+        app.draw()
+        screen.save(folder / "beacon.png")
+        app.panels.screen = ""
+        render_dstar(app, screen, store, radio, folder, Path(temp))
         radio.update(identity=False, connected=False)
         app.page = 0
         app.draw()
@@ -66,3 +77,59 @@ def render_previews(folder: Path):
         radio.close()
         store.close()
 
+
+
+def render_dstar(app, screen, store, radio, folder, temp):
+    """D-STAR screens with example traffic (no radio, no network)."""
+    from datetime import datetime, timedelta, timezone
+    from .dstar_gateway import DStarGateway
+    store.record(inspect_packet("N0TEST-9", "API51", "DSTAR*", "!4459.20N/09316.10W>D-PRS via D-STAR"))
+    gateway = DStarGateway(store, radio, cache_folder=temp)
+    gateway.hosts.table = {"REF001": ("104.237.157.7", 20001), "REF030": ("74.208.200.42", 20001),
+                           "XRF757": ("44.32.0.1", 30001), "XLX307": ("44.32.0.2", 30001),
+                           "DCS001": ("5.252.227.231", 30051), "REF002": ("45.56.119.213", 20001)}
+    gateway.hosts.updated = 1e12
+    now = datetime.now(timezone.utc)
+    def at(seconds):
+        return (now - timedelta(seconds=seconds)).isoformat(timespec="seconds")
+    heard = [{"call": "N0TEST", "suffix": "D75", "source": "NET", "reflector": "XRF757 A", "time": at(40),
+              "seconds": 12.4, "message": "Mobile in Minneapolis", "ur": "CQCQCQ", "rpt1": "XRF757 G",
+              "rpt2": "XRF757 A", "lat": 44.9867, "lon": -93.2683, "name": "", "place": ""},
+             {"call": "N0CALL", "suffix": "", "source": "RF", "reflector": "XRF757 A", "time": at(95),
+              "seconds": 6.0, "message": "Rig Companion", "ur": "CQCQCQ", "rpt1": "N0CALL A",
+              "rpt2": "XRF757 A", "lat": None, "lon": None},
+             {"call": "N0DEMO", "suffix": "ID52", "source": "NET", "reflector": "XRF757 A", "time": at(300),
+              "seconds": 21.8, "message": "", "ur": "CQCQCQ", "rpt1": "XRF757 G", "rpt2": "XRF757 A",
+              "lat": None, "lon": None, "name": "Example Operator", "place": "St Paul, MN"}]
+    gateway.state.update(running=True, transport="Bluetooth ch 2", radio="Radio ready", version="TH-D75",
+                         link="Linked", reflector="XRF757", module="A", protocol="DExtra",
+                         linked_at=at(600), heard=heard, notice="", error="")
+    tools = app.dstar
+    tools.gateway = gateway
+    tools.seen_notice = ""
+    tools.screen = "home"
+    gateway.state["talker"] = dict(heard[0], time=at(7), active=True, name="Example Operator",
+                                   place="Minneapolis, MN")
+    app.notice_until = 0
+    app.draw()
+    screen.save(folder / "dstar-live.png")
+    gateway.state["talker"] = None
+    app.draw()
+    screen.save(folder / "dstar-home.png")
+    tools.screen, tools.selected = "heard", 0
+    app.draw()
+    screen.save(folder / "dstar-heard.png")
+    tools.screen, tools.category, tools.selected = "reflectors", 1, 1
+    app.draw()
+    screen.save(folder / "dstar-reflectors.png")
+    tools.screen, tools.pick = "pick", ["REF030", "C"]
+    app.draw()
+    screen.save(folder / "dstar-module.png")
+    tools.screen, tools.selected = "setup", 0
+    app.draw()
+    screen.save(folder / "dstar-setup.png")
+    tools.screen, tools.entry, tools.offset = "entry", dict(heard[0], name="Example Operator", place="Minneapolis, MN"), 0
+    app.draw()
+    screen.save(folder / "dstar-detail.png")
+    tools.screen = ""
+    gateway.state["running"] = False

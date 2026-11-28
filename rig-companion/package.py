@@ -7,7 +7,7 @@ from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parent
 PACKAGE = "rig-companion-zero"
-VERSION = "0.2.3-1"
+VERSION = "0.5.0-1"
 
 
 def build():
@@ -19,6 +19,8 @@ def build():
     app = root / "usr/share/APPLaunch/lib" / PACKAGE
     app.mkdir(parents=True)
     shutil.copytree(SOURCE / "rigzero", app / "rigzero", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    subprocess.run(["g++", "-std=c++17", "-O1", "-shared", "-fPIC", "-o",
+                    str(app / "rigzero" / "libpacket.so"), str(SOURCE / "native" / "packet_backend.cpp")], check=True)
     control = root / "DEBIAN"
     control.mkdir()
     (control / "control").write_text(f"""Package: {PACKAGE}
@@ -27,10 +29,11 @@ Architecture: arm64
 Maintainer: TheTechNomad <https://www.TheTechNomad.com>
 Section: hamradio
 Priority: optional
-Depends: python3, python3-pygame, python3-numpy, python3-dbus, python3-gi, python3-pil, bluez, fonts-dejavu-core
-Description: Rig Companion TH-D75 controls and APRS for CardputerZero
+Depends: python3, python3-pygame, python3-numpy, python3-dbus, python3-gi, python3-pil, bluez, fonts-dejavu-core, libstdc++6
+Description: Rig Companion TH-D75 controls, APRS and D-STAR for CardputerZero
  Keyboard radio controls, native APRS receive, persistent messages,
- weather and optional BLE/TCP KISS bridges. Hardware qualification beta.
+ weather, packet tools, optional BLE/TCP KISS bridges and a D-STAR
+ reflector terminal. Hardware qualification beta.
 """)
     launcher = """#!/bin/sh
 export PYTHONPATH=/usr/share/APPLaunch/lib/rig-companion-zero
@@ -81,6 +84,8 @@ Categories=HamRadio;
     if licence.exists():
         shutil.copy2(licence, docs / "copyright")
     shutil.copytree(SOURCE / "licenses", docs / "licenses")
+    for notice in ("LICENSE-upstream.txt", "LICENSE-dart-http.txt"):
+        shutil.copy2(SOURCE / "native" / notice, docs / "licenses" / ("packet-" + notice))
     for path in root.rglob("*"):
         if path.is_dir():
             path.chmod(0o755)

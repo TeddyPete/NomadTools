@@ -6,6 +6,8 @@ import logging
 import socket
 import threading
 
+from .models import discovery_candidate
+
 SPP = "00001101-0000-1000-8000-00805f9b34fb"
 
 
@@ -37,7 +39,7 @@ class BluetoothLink:
                 @dbus.service.method("org.bluez.Agent1", in_signature="ou", out_signature="", async_callbacks=("accept", "reject"))
                 def RequestConfirmation(self, device, number, accept, reject):
                     logging.warning("Bluetooth pairing: confirmation requested")
-                    link.pair_target = "TH-D75" if str(device) == link.radio_device else "phone"
+                    link.pair_target = "radio" if str(device) == link.radio_device else "phone"
                     link.waiting_confirmation = (accept, reject)
                     link.emit("pair", f"{int(number):06d}")
 
@@ -167,7 +169,7 @@ class BluetoothLink:
         for path, interfaces in self.objects().items():
             props = interfaces.get("org.bluez.Device1", {})
             name = str(props.get("Alias", props.get("Name", "")))
-            if name.startswith("TH-D75"):
+            if discovery_candidate(name, props.get("UUIDs", ())):
                 devices.append({"path": str(path), "name": name, "address": str(props["Address"]),
                                 "paired": bool(props.get("Paired", False))})
         return devices

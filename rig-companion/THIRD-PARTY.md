@@ -26,3 +26,23 @@ Retrieved November 27, 2026. External source files are reference material and we
 - The map requests only currently visible tiles over HTTPS, identifies the app, honors caching headers and displays attribution. It does not prefetch regions. Previously viewed cached areas work offline; an uncached offline view shows station markers without geographic map detail.
 
 No aprs.fi code, branding, API or historical database is used. Full Linux APRS clients reviewed: https://github.com/Xastir/Xastir and https://www.ka2ddo.org/ka2ddo/YAAC.html . They remain separate apps, not bundled components.
+## Connected packet tools
+
+The connected AX.25, Winlink B2F, and YAPP cores under `native/` are reused from
+the Tab5 Rig Companion / HTCommander handoffs. They derive from HTCommander by
+Ylian Saint-Hilaire and contributors, pinned revision
+`50434c0369b404cca1fc72d8a4c1a58aa75e9f9c`. The original Apache 2.0 and Dart
+notices are included. `native/packet_backend.cpp` adapts those engines to
+the Cardputer Zero's Linux filesystem and shared radio worker.
+
+
+## D-STAR protocols and reflector lists
+
+- `rigzero/dstar.py` is Rig Companion code written from the public protocol
+  behaviour of MMDVMHost and ircDDBGateway (Jonathan Naylor G4KLX, GPL-2.0-or-later)
+  and DroidStar (Doug McLain AD8DP, GPL-3.0): MMDVM serial framing, D-STAR header
+  CRC, slow data, DExtra, DCS and DPlus packets, and the D-Plus registration ping.
+  No source files are copied.
+- Reflector addresses are downloaded at run time from the Pi-Star host files
+  (https://www.pistar.uk/downloads/) and cached under `~/.cache/rig-companion-zero/dstar-hosts`.
+- Optional name / city lookups for US callsigns use https://callook.info (public FCC data).
