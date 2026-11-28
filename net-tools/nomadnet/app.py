@@ -18,7 +18,7 @@ from . import keys, reports, store, util  # noqa: E402
 from . import nomadui as T  # noqa: E402
 from .ui import AboutScreen, DIM, Field, Form, Line, Menu, Message, Renderer, Screen, TaskScreen, View  # noqa: E402
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 T.set_about("Nomad Net Tools", VERSION)
 
 
@@ -625,7 +625,7 @@ def main_menu(app) -> Menu:
         (lambda: f"Site & reports [{app.site or 'no site'}]", site_menu),
         ("Settings / about", settings_menu),
         ("About", lambda app: app.push(AboutScreen())),
-    ], "F/X move  OK open  Esc quit",
+    ], "F/X move  OK open  hold Esc exit",
         softkeys=[("Find all", do_findall), ("Ping", do_ping), ("AV gear", do_findav),
                   ("Term", lambda app: terminal.setup(app)), ("Reports", site_menu)],
         help="AV network tools. Find all devices lists everything on the network with "

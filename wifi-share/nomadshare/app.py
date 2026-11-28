@@ -107,6 +107,9 @@ class App:
         while not self.quit:
             keys = self.kb.poll(0.1) if self.kb else (time.sleep(0.1) or [])
             for k in keys:
+                if k.name == "exit":     # Esc held: leave the app (key spec)
+                    self.quit = True
+                    break
                 if self.stack:
                     self.dispatch(k)
                 self.dirty = True
@@ -179,7 +182,7 @@ class Home(Menu):
             ("Stop sharing", self.stop, ""),
             ("About", lambda: app.open_about(), ""),
         ]
-        super().__init__(app, APP_TITLE, items, "\u2191\u2193 move  OK/\u2192 open  ESC quit")
+        super().__init__(app, APP_TITLE, items, "\u2191\u2193 move  OK open  hold ESC exit")
 
     help = ("Share Wi-Fi to Ethernet gives a switch (and the gear on it) this device's Wi-Fi "
             "internet. Hotspot from Ethernet makes a Wi-Fi hotspot from a wired network (its own "

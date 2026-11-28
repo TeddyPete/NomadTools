@@ -5,6 +5,7 @@ import glob
 import os
 import select
 import struct
+import time
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -121,8 +122,13 @@ class Keyboard:
                76: "{", 77: "}", 79: ";", 80: ":", 81: "'", 82: '"', 83: "<", 85: ">",
                86: "\\", 89: "|", 90: ",", 91: ".", 92: "/", 93: "?"}
 
+    # CardputerZero key spec: Esc short press = back one level (reported when
+    # Esc is released), long press = exit to HOME (reported as "exit").
+    ESC_HOLD_S = 1.0
+
     def __init__(self):
         self.fds = []
+        self.esc_down = None
         self.shift = set()
         self.caps = False
         self.characters = {}
@@ -144,6 +150,8 @@ class Keyboard:
                 continue
 
     def poll(self, timeout=.05):
+        if self.esc_down is not None:
+            timeout = max(0, min(timeout, self.esc_down + self.ESC_HOLD_S - time.monotonic()))
         ready, _, _ = select.select([fd for fd, _ in self.fds], [], [], timeout)
         keys = []
         for fd, internal in list(self.fds):
@@ -168,6 +176,13 @@ class Keyboard:
                     else:
                         self.shift.discard((fd, code))
                     continue
+                if code == 1:
+                    if value == 1:
+                        self.esc_down = time.monotonic()
+                    elif value == 0 and self.esc_down is not None:
+                        self.esc_down = None
+                        keys.append(("esc", ""))
+                    continue
                 if code == 58 and value == 1:
                     self.caps = not self.caps
                 if not value or code in (389, 383):
@@ -181,6 +196,9 @@ class Keyboard:
                     low, high = self.characters[code]
                     uppercase = bool(self.shift) ^ (self.caps and low.isalpha())
                     keys.append(("text", high if uppercase else low))
+        if self.esc_down is not None and time.monotonic() - self.esc_down >= self.ESC_HOLD_S:
+            self.esc_down = None
+            keys.append(("exit", ""))
         return keys
 
     def close(self):

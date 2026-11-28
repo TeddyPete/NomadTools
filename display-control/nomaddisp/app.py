@@ -135,6 +135,9 @@ class App:
         while not self.quit:
             keys = self.kb.poll(0.1) if self.kb else (time.sleep(0.1) or [])
             for k in keys:
+                if k.name == "exit":     # Esc held: leave the app (key spec)
+                    self.quit = True
+                    break
                 if self.stack:
                     self.dispatch(k)
                 self.dirty = True
@@ -239,7 +242,7 @@ def power_badge(app, d: Display):
 
 class Home(List):
     title = APP_TITLE
-    hint = "↑↓ move  OK/→ open  ESC quit"
+    hint = "↑↓ move  OK open  hold ESC exit"
     help = HELP_MAIN
 
     def items(self):

@@ -17,6 +17,7 @@ import glob
 import os
 import select
 import struct
+import time
 from dataclasses import dataclass
 
 
@@ -73,6 +74,7 @@ CHARS = {
 SHIFT, CTRL, CAPS = {42, 54}, {29, 97}, 58
 FN_KEY, SYM_KEY = 389, 383   # KEY_DVD, KEY_CD: layer keys, never text
 EV_KEY = 1
+ESC_HOLD_S = 1.0   # CardputerZero key spec: long Esc = exit to HOME
 EVENT = struct.Struct("llHHi")
 
 
@@ -98,6 +100,7 @@ class EvdevKeyboard:
         self.path = path
         self.shift = self.ctrl = self.caps = False
         self.held: set[int] = set()
+        self.esc_down: float | None = None   # when Esc went down (None = up)
         self.last_raw: list[str] = []
         self.log = None
         try:
@@ -113,13 +116,15 @@ class EvdevKeyboard:
 
     def poll(self, timeout: float = 0.0) -> list[Key]:
         out: list[Key] = []
+        if self.esc_down is not None:   # wake up in time to report a long Esc
+            timeout = max(0.0, min(timeout, self.esc_down + ESC_HOLD_S - time.monotonic()))
         r, _, _ = select.select([self.fd], [], [], timeout)
         if not r:
-            return out
+            return self._esc_hold(out)
         try:
             data = os.read(self.fd, EVENT.size * 64)
         except BlockingIOError:
-            return out
+            return self._esc_hold(out)
         for i in range(0, len(data) - EVENT.size + 1, EVENT.size):
             _, _, etype, code, value = EVENT.unpack_from(data, i)
             if etype in (EV_KEY, 4):
@@ -142,17 +147,13 @@ class EvdevKeyboard:
                 self.caps = not self.caps
                 continue
             if code == 1:
-                # Short Esc = back one level; holding Esc exits the app
-                # (the CardputerZero convention). Ignore Esc auto-repeat.
-                import time as _t
+                # CardputerZero key spec: short Esc = back one level (sent on
+                # release), long Esc = exit the app (Key "exit", see below).
                 if value == 1:
-                    self.esc_down = _t.monotonic()
-                    self.esc_done = False
+                    self.esc_down = time.monotonic()
+                elif value == 0 and self.esc_down is not None:
+                    self.esc_down = None
                     out.append(Key("esc"))
-                elif value == 2 and not getattr(self, "esc_done", True) \
-                        and _t.monotonic() - getattr(self, "esc_down", 0) >= 0.8:
-                    self.esc_done = True
-                    out.append(Key("exit"))
                 continue
             if value == 0 or code in (FN_KEY, SYM_KEY):
                 continue
@@ -161,6 +162,12 @@ class EvdevKeyboard:
             k = self.translate(code)
             if k:
                 out.append(k)
+        return self._esc_hold(out)
+
+    def _esc_hold(self, out: list[Key]) -> list[Key]:
+        if self.esc_down is not None and time.monotonic() - self.esc_down >= ESC_HOLD_S:
+            self.esc_down = None
+            out.append(Key("exit"))
         return out
 
     def translate(self, code: int) -> Key | None:

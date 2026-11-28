@@ -23,7 +23,7 @@ _nomadui.set_about("Nomad AV Tester", __version__)
 # layer: Fn+F up, Fn+X down, Fn+Z left, Fn+C right; OK is Enter):
 #   Up/Down move, Right or OK select, Left back one level,
 #   Esc back one level and quit from the main menu.
-MENU_HELP = "↑↓ move  OK/→ open  ESC quit"
+MENU_HELP = "↑↓ move  OK open  hold ESC exit"
 KEYS_HELP = "Up/Dn pattern  OK info  < back  T tone"
 PICK_HELP = "↑↓ move  OK/→ choose  ←/ESC back"
 SYNC_HELP = "OK start  0 zero cal  S save  < back"
@@ -74,6 +74,35 @@ AUDIO_MODES = [(None, "Off"), ("tone", "1 kHz tone, both"), ("lr", "1 kHz L then
                ("left", "1 kHz left only"), ("right", "1 kHz right only"), ("pink", "Pink noise"),
                ("sweep", "Log sweep 20 Hz-20 kHz"), ("polarity", "Polarity pulse")]
 REPORT_DIR = os.path.expanduser("~/.local/share/nomad-av-tester/reports")
+
+
+class _EscHold:
+    """CardputerZero key spec: Esc short press = back one level, long press =
+    exit to HOME. A short Esc is acted on when it is released; holding it for
+    ESC_HOLD_S turns into a quit (the launcher would kill the app after 3 s)."""
+    ESC_HOLD_S = 1.0
+
+    def __init__(self, pg):
+        self.pg, self.down = pg, None
+
+    def filter(self, events):
+        pg = self.pg
+        out = []
+        for ev in events:
+            if ev.type == pg.KEYDOWN and ev.key == pg.K_ESCAPE:
+                self.down = time.monotonic()
+                continue
+            if ev.type == pg.KEYUP and ev.key == pg.K_ESCAPE:
+                if self.down is not None:
+                    out.append(pg.event.Event(pg.KEYDOWN, key=pg.K_ESCAPE, unicode="\x1b",
+                                              mod=0, scancode=getattr(ev, "scancode", 0)))
+                self.down = None
+                continue
+            out.append(ev)
+        if self.down is not None and time.monotonic() - self.down >= self.ESC_HOLD_S:
+            self.down = None
+            out.append(pg.event.Event(pg.QUIT, esc_hold=True))
+        return out
 
 
 class _HelpKey:
@@ -415,10 +444,12 @@ def run(args) -> None:
         can = [m.label for m in modes]
         return secs + [(f"This device can send ({len(can)})", can)]
 
+    esc = _EscHold(pygame)
     while True:
-        for ev in pygame.event.get():
+        for ev in esc.filter(pygame.event.get()):
             if ev.type in (pygame.QUIT, pygame.WINDOWCLOSE):
-                print("quit: stop request from the launcher (SIGTERM) or window close",
+                print("quit: Esc held" if getattr(ev, "esc_hold", False) else
+                      "quit: stop request from the launcher (SIGTERM) or window close",
                       file=sys.stderr, flush=True)
                 tones.stop()
                 out.close()

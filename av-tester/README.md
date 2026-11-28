@@ -72,7 +72,7 @@ typing in a text field. OK is Enter.
 | Up / Down | Move in a menu or list, scroll a page, or step patterns |
 | Right / OK | Select |
 | Left | Back one level |
-| Esc | Back one level; quits from the main menu. Hold Esc for 2 s to go HOME |
+| Esc | Back one level; quits from the main menu. Hold Esc (about 1 s) to exit to HOME |
 
 The main menu lists Test patterns, Video mode, Audio output, Lip-sync test, Audio meter / RTA,
 Display EDID, HDMI link status and Room report. HDMI keeps showing the current pattern meanwhile.
