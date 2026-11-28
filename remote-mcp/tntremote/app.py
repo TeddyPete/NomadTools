@@ -74,6 +74,19 @@ class Screen:
     def right(self) -> str:
         return ""
 
+    def keys(self) -> list:
+        """Labels for number keys 4..8 (bottom label bar); [] = plain hint bar."""
+        return []
+
+    def soft(self, i: int) -> None:
+        """Number key 4..8 pressed (i = 0..4)."""
+
+    def typing(self) -> bool:
+        return False
+
+    def nrows(self) -> int:
+        return T.ROWS_KEYS if any(self.keys()) else T.ROWS
+
     def key(self, k) -> None:
         if T.nav_name(k.name, k.char) in T.BACK:
             self.app.pop()
@@ -92,11 +105,12 @@ class TextScreen(Screen):
 
     def rows(self):
         ls = self.lines()
-        self.top = max(0, min(self.top, len(ls) - T.ROWS))
-        return ls[self.top:self.top + T.ROWS]
+        n = self.nrows()
+        self.top = max(0, min(self.top, len(ls) - n))
+        return ls[self.top:self.top + n]
 
     def hint(self):
-        return "↑↓ scroll  ESC back" if len(self.lines()) > T.ROWS else "ESC back"
+        return "↑↓ scroll  ESC back" if len(self.lines()) > self.nrows() else "ESC back"
 
     def key(self, k):
         n = T.nav_name(k.name, k.char)
@@ -137,10 +151,13 @@ class FormScreen(Screen):
         self.title, self.form = title, form
 
     def rows(self):
-        return self.form.view(T.ROWS)
+        return self.form.view(self.nrows())
 
     def hint(self):
         return self.form.hint()
+
+    def typing(self):
+        return self.form.editing
 
     def key(self, k):
         ev = self.form.handle(k)
@@ -174,16 +191,20 @@ class Home(FormScreen):
 
     def rows(self):
         self.form.values["remote"] = self.app.on
-        rows = self.form.view(T.ROWS)
+        rows = self.form.view(self.nrows())
         for r in rows:
-            if r.label == "Remote access":
-                r.color = T.OK if self.app.on else T.FG
-            if r.label == "[ Connected apps ]":
+            if r.label == "Connected apps":
                 r.value = str(len(self.app.clients))
         return rows
 
     def hint(self):
         return "↑↓ move  OK select  ESC quit"
+
+    def keys(self):
+        return ["Connect", "Status", "Apps", "Perms", "Help"]
+
+    def soft(self, i):
+        self.event("action:" + ("pair", "status", "clients", "perms", "help")[i])
 
     def key(self, k):
         if k.name == "esc":
@@ -292,6 +313,7 @@ class PairScreen(Screen):
     def hint(self):
         return "OK new code   ESC back"
 
+
     def key(self, k):
         if k.name == "enter":
             self.code = oauth.new_pairing_code()
@@ -311,6 +333,20 @@ def big_font():
     return _big[0]
 
 
+def app_badge(name: str) -> tuple:
+    """Small letter badge for an AI app in lists: (text, color)."""
+    n = (name or "").lower()
+    if "claude code" in n:
+        return (">", (200, 98, 60))
+    if "claude" in n:
+        return ("C", (204, 110, 74))
+    if "chatgpt" in n or "openai" in n:
+        return ("G", (16, 150, 120))
+    if "codex" in n:
+        return ("X", (90, 96, 200))
+    return ("•", (100, 110, 130))
+
+
 class ClientsScreen(Screen):
     """Connected apps: who, last used. OK on one shows details and Disconnect."""
     title = "Connected apps"
@@ -324,19 +360,33 @@ class ClientsScreen(Screen):
         cl = self.app.clients
         n = len(cl) + 1                     # + Disconnect everyone
         self.sel = max(0, min(self.sel, n - 1))
-        top = max(0, self.sel - (T.ROWS - 1))
+        nr = self.nrows()
+        top = max(0, self.sel - (nr - 1))
         rows = []
         for i, c in enumerate(cl):
             label = (c["name"] or c["id"][:12]) + (" (key)" if c.get("kind") == "key" else "")
             rows.append(T.RowView(label, "used " + ago(c["last_used"]) if c["last_used"] else "",
-                                  "selected" if i == self.sel else "normal"))
+                                  "selected" if i == self.sel else "normal", icon=app_badge(c["name"] or "")))
         if not cl:
             rows.append(T.RowView("No apps connected", "", "normal", T.DIM))
-        rows.append(T.RowView("[ Disconnect everyone ]", "", "selected" if self.sel == len(cl) else "normal", T.BAD))
-        return rows[top:top + T.ROWS]
+        rows.append(T.RowView("Disconnect everyone", "", "selected" if self.sel == len(cl) else "normal", T.BAD,
+                              chevron=True))
+        return rows[top:top + nr]
 
     def hint(self):
         return "OK select  ESC back"
+
+    def keys(self):
+        return ["Info", ("Remove", T.BAD) if self.sel < len(self.app.clients) else "", "Connect"]
+
+    def soft(self, i):
+        cl = self.app.clients
+        if i == 0 and self.sel < len(cl):
+            self.app.push(ClientInfo(self.app, cl[self.sel]))
+        elif i == 1 and self.sel < len(cl):
+            ClientInfo(self.app, cl[self.sel]).ask()
+        elif i == 2:
+            self.app.push(AppPick(self.app))
 
     def key(self, k):
         n = T.nav_name(k.name, k.char)
@@ -379,15 +429,19 @@ class ClientInfo(Screen):
     def hint(self):
         return "OK disconnect  ESC back"
 
+    def ask(self, from_info: bool = False):
+        def yes():
+            oauth.Store().revoke_client(self.c["id"])
+            if from_info:
+                self.app.pop()
+            self.app.refresh(now=True)
+            self.app.toast(f"{self.title} disconnected. It must pair again to come back.")
+        self.app.push(Confirm(self.app, "Disconnect " + self.title,
+                              f"Sign {self.title} out of this device? It has to pair again with a new code.", yes))
+
     def key(self, k):
         if k.name == "enter":
-            def yes():
-                oauth.Store().revoke_client(self.c["id"])
-                self.app.pop()
-                self.app.refresh(now=True)
-                self.app.toast(f"{self.title} disconnected. It must pair again to come back.")
-            self.app.push(Confirm(self.app, "Disconnect " + self.title,
-                                  f"Sign {self.title} out of this device? It has to pair again with a new code.", yes))
+            self.ask(True)
         else:
             super().key(k)
 
@@ -457,19 +511,42 @@ class AdminSetupScreen(FormScreen):
 
     def __init__(self, app, on_done):
         self.on_done = on_done
-        fields = [T.Field("h1", "One-time setup: type the", "header"),
-                  T.Field("h2", "pi password (not saved)", "header"),
+        fields = [T.Field("h1", "Type the pi password once", "header"),
                   T.Field("pw", "Password", "password", maxlen=128),
                   T.Field("go", "Set up Admin", "action", color=T.BAD)]
         super().__init__(app, "Admin setup", T.EditList(fields, {"pw": ""}))
-        self.form.sel = 2
+        self.form.sel = 1
 
     def hint(self):
         return "OK type/run  ESC cancel" if not self.form.editing else "type password, OK done"
 
+    def keys(self):
+        return [] if self.form.editing else [("Set up", T.BAD), "Cancel"]
+
+    def soft(self, i):
+        if i == 0:
+            self.event("action:go")
+        elif i == 1:
+            self.form.values["pw"] = ""
+            self.app.pop()
+
+    EXPLAIN = ("Lets the AI run commands as root (apt install, settings) only while "
+               "Admin is on. Password never saved.")
+
+    def draw_extra(self, surf):
+        f = self.app.panel.fonts["small"]
+        y = T.TITLE_H + 1 + 3 * T.ROW_H + 3
+        surf.fill((40, 46, 62), (6, y - 2, T.W - 12, 1))
+        bottom = T.H - (T.KEYBAR_H if any(self.keys()) else T.HINT_H) - 2
+        for line in QRScreen._wrap(f, self.EXPLAIN, T.W - 14):
+            if y + 15 > bottom:
+                break
+            surf.blit(f.render(line, True, T.DIM), (7, y))
+            y += 15
+
     def event(self, ev):
         if ev == "changed:pw" and self.form.values.get("pw"):
-            self.form.sel = 3
+            self.form.sel = 2
         elif ev == "action:go":
             pw = self.form.values.get("pw") or ""
             self.form.values["pw"] = ""          # forget it right away
@@ -642,6 +719,12 @@ class AppPick(FormScreen):
         self.wizard = wizard
         fields = [T.Field(k, label, "action") for k, label, _, _ in AI_APPS]
         super().__init__(app, "Which AI app?", T.EditList(fields, {}))
+
+    def rows(self):
+        rows = super().rows()
+        for r in rows:
+            r.icon = app_badge(r.label)
+        return rows
 
     def event(self, ev):
         if not ev.startswith("action:"):
@@ -873,7 +956,7 @@ class WelcomeScreen(Screen):
         self.top = max(0, min(self.top, len(ls) - n))
         rows = [T.RowView(l, "", "normal", T.FG) for l in ls[self.top:self.top + n]]
         rows += [T.RowView("", "", "normal")] * (n - len(rows))
-        rows.append(T.RowView("[ Start setup ]", "OK", "selected", T.FG))
+        rows.append(T.RowView("Start setup", "OK", "selected", T.FG, chevron=True))
         return rows
 
     def hint(self):
@@ -1010,13 +1093,13 @@ class SetupScreen(FormScreen):
     def rows(self):
         rows = self.form.view(T.ROWS)
         for r in rows:
-            if r.label == "[ Tunnel ]":
+            if r.label == "Tunnel":
                 r.value = KIND_NAMES.get(self.app.cfg.get("tunnel_kind"), "?")
-            elif r.label == "[ Tunnel token ]":
+            elif r.label == "Tunnel token":
                 r.value = "set" if C.tunnel_token() else "missing"
-            elif r.label == "[ ngrok setup ]":
+            elif r.label == "ngrok setup":
                 r.value = "done" if C.ngrok_token() else "start"
-            elif r.label == "[ cloudflared ]":
+            elif r.label == "cloudflared":
                 r.value = self.cfv or "install"
         return rows
 
@@ -1134,7 +1217,8 @@ class App:
 
     def draw(self) -> None:
         s = self.stack[-1]
-        T.render(self.panel.surf, s.title, s.rows(), s.hint(), None, s.right(), self.panel.fonts)
+        T.render(self.panel.surf, s.title, s.rows(), s.hint(), None, s.right(), self.panel.fonts,
+                 [] if s.typing() else s.keys())
         if hasattr(s, "draw_extra"):
             s.draw_extra(self.panel.surf)
         self.panel.flush()
@@ -1144,7 +1228,12 @@ class App:
         while not self.quit:
             keys = self.kb.poll(0.25) if self.kb else []
             for k in keys:
-                self.stack[-1].key(k)
+                s = self.stack[-1]
+                i = T.soft_index(getattr(k, "char", ""))
+                if i is not None and not s.typing() and any(s.keys()):
+                    s.soft(i)
+                else:
+                    s.key(k)
                 next_draw = 0
             self.refresh()
             if time.time() >= next_draw:

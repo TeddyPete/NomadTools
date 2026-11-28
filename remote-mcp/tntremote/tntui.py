@@ -2,7 +2,9 @@
 
 What every TNT app does on the 320x170 screen:
 
-  * Title bar is green, the highlighted row is blue, a field being edited is red.
+  * Title bar is green, the highlighted row is bright blue with white text, a
+    field being edited is red. Rows that open something end in a ">", On/Off
+    switches are a green / grey pill. Number keys 4..8 get a label bar at the bottom.
   * Menus:   Up/Down move (plain F / X work too, no Fn needed).
              OK (Enter) or Right selects.  Left or ESC goes back one level;
              ESC on the main page quits.  (Plain Z / C = Left / Right.)
@@ -38,7 +40,11 @@ DIM = (145, 155, 170)
 TITLE_BG = (18, 120, 52)      # green title bar
 TITLE_FG = (255, 255, 255)
 TITLE_RIGHT = (210, 255, 215)
-SEL_BG = (30, 90, 200)        # blue highlight
+SEL_BG = (31, 99, 224)        # bright blue highlight (as Rig Companion); text on it is white
+SEL_FG = (255, 255, 255)
+CHEVRON = (120, 130, 150)     # ">" at the right end of rows that open something
+PILL_ON = (22, 150, 72)       # On/Off switches: green pill / grey pill, white text
+PILL_OFF = (78, 86, 104)
 EDIT_BG = (190, 28, 28)       # red while editing
 EDIT_FIELD = (90, 8, 8)       # darker red box behind the text being typed
 OK = (110, 220, 120)
@@ -53,7 +59,7 @@ TITLE_H, ROW_H, HINT_H = 26, 20, 19
 ROWS = (H - TITLE_H - HINT_H - 2) // ROW_H     # 6 rows of 17 px bold text
 FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
               "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
-FONT_SIZES = {"title": 19, "row": 17, "small": 14}
+FONT_SIZES = {"title": 19, "row": 17, "small": 14, "tiny": 12}
 
 # ---- keys -----------------------------------------------------------------------
 UP, DOWN = {"up"}, {"down"}
@@ -65,6 +71,24 @@ NAV_LETTERS = {"f": "up", "x": "down", "z": "left", "c": "right"}
 HINT_MENU = "↑↓ move  OK/→ open  ←/ESC back"
 HINT_FORM = "↑↓ move  OK/→ edit  ESC back"
 HINT_EDIT = "OK save  ESC cancel"
+
+# ---- number keys 4..8: label bar at the bottom (official CardputerZero key spec,
+# cardputer.cc/#/documents/cp0-keys), same look as the other Nomad apps ----------
+SOFT_KEYS = "45678"
+SOFT_X = (49, 105, 161, 217, 273)   # recommended icon centres
+SOFT_SIZE = 22
+SOFT_W = 52
+KEYBAR_H = 30                        # bottom strip y 140..170
+ROWS_KEYS = (H - TITLE_H - KEYBAR_H - 2) // ROW_H   # 5 rows above a keybar
+KEYBAR_BG = (14, 17, 26)
+SOFT_BG = (36, 48, 76)
+SOFT_FG = (235, 240, 255)
+SOFT_LINE = (150, 200, 255)
+
+
+def soft_index(char: str) -> int | None:
+    """0..4 for number keys 4..8, else None."""
+    return SOFT_KEYS.index(char) if char and len(char) == 1 and char in SOFT_KEYS else None
 
 
 def nav_name(name: str, char: str = "", ctrl: bool = False) -> str:
@@ -112,6 +136,9 @@ class RowView:
     state: str = "normal"       # normal | selected | editing | header
     color: Any = None
     cursor: int | None = None   # cursor position in value while editing
+    chevron: bool = False       # draw ">" at the right: this row opens something
+    pill: bool | None = None    # On/Off switch: True green "On", False grey "Off"
+    icon: Any = None            # (text, color): small badge at the left
 
 
 @dataclass
@@ -261,13 +288,17 @@ class EditList:
             if f.kind == "header":
                 out.append(RowView(f.label, state="header", color=f.color or WARN))
                 continue
-            label = f"[ {f.label} ]" if f.kind == "action" else f.label
-            color = f.color or (OK if f.kind == "action" else FG)
+            label = f.label
+            color = f.color or FG
             if i == self.sel and self.editing:
                 shown = "•" * len(self.buf) if f.kind == "password" else self.buf
                 out.append(RowView(label, shown, "editing", color, self.pos))
             else:
-                out.append(RowView(label, self.fmt(f), "selected" if i == self.sel else "normal", color))
+                st = "selected" if i == self.sel else "normal"
+                if f.kind == "bool" and not f.choices:
+                    out.append(RowView(label, "", st, color, pill=bool(self.values.get(f.key))))
+                else:
+                    out.append(RowView(label, self.fmt(f), st, color, chevron=f.kind == "action"))
         return out
 
     def hint(self) -> str:
@@ -278,6 +309,8 @@ class EditList:
         f = self.current
         if f and f.kind in ("bool", "choice"):
             return "↑↓ move  OK/→ change  ESC back"
+        if f and f.kind == "action":
+            return HINT_MENU
         return HINT_FORM
 
 
@@ -329,7 +362,7 @@ def remote_state() -> str:
 
 
 def render(surf, title: str, rows: list, hint: str = "", selected: int | None = None,
-           right: str = "", f: dict | None = None) -> None:
+           right: str = "", f: dict | None = None, keys: list | None = None) -> None:
     """Draw a whole TNT screen: green title, up to ROWS rows, hint bar.
     While TNT MCP Link is on, every TNT app shows an orange dot (red with sudo)
     at the right end of the title bar."""
@@ -348,15 +381,19 @@ def render(surf, title: str, rows: list, hint: str = "", selected: int | None = 
         surf.fill(TITLE_BG, (W - dot - 4, 0, dot + 4, TITLE_H))
         pygame.draw.circle(surf, REMOTE_ROOT if rs == "root" else REMOTE_ON, (W - 10, TITLE_H // 2), 6)
     y = TITLE_H + 1
-    for i, row in enumerate(rows[:ROWS]):
-        draw_row(surf, f["row"], y, as_view(row, selected == i))
+    n = ROWS_KEYS if keys and any(keys) else ROWS
+    for i, row in enumerate(rows[:n]):
+        draw_row(surf, f["row"], y, as_view(row, selected == i), f)
         y += ROW_H
-    if hint:
+    if keys and any(keys):
+        draw_keybar(surf, keys, f)
+    elif hint:
         surf.fill(HINT_BG, (0, H - HINT_H, W, HINT_H))
         surf.blit(f["small"].render(hint, True, HINT_FG), (6, H - HINT_H + 1), (0, 0, W - 12, HINT_H))
 
 
-def draw_row(surf, font, y: int, r: RowView) -> None:
+def draw_row(surf, font, y: int, r: RowView, f: dict | None = None) -> None:
+    import pygame
     if r.state == "editing":
         surf.fill(EDIT_BG, (0, y, W, ROW_H))
         lw = font.size(r.label)[0]
@@ -373,15 +410,77 @@ def draw_row(surf, font, y: int, r: RowView) -> None:
         cx = fx + font.size(r.value[start:r.cursor])[0]
         surf.fill((255, 255, 255), (min(cx, W - 6), y + 3, 2, ROW_H - 6))
         return
+    f = f or fonts()
     sel = r.state == "selected"
+    color = r.color or FG
     if sel:
         surf.fill(SEL_BG, (0, y, W, ROW_H))
-    color = r.color or FG
+        if color == BAD:                       # a risky action keeps a red edge when highlighted
+            surf.fill((235, 60, 60), (0, y, 4, ROW_H))
+    x = 6
+    if r.icon:
+        text, bg = r.icon
+        box = pygame.Rect(x, y + 2, 16, ROW_H - 4)
+        pygame.draw.rect(surf, bg, box, border_radius=4)
+        if sel:
+            pygame.draw.rect(surf, SEL_FG, box, 1, border_radius=4)
+        img = f["tiny"].render(text, True, (255, 255, 255))
+        surf.blit(img, (box.centerx - img.get_width() // 2, box.centery - img.get_height() // 2))
+        x += 22
+    right = W - 6
+    if r.chevron:
+        cx, cy = W - 10, y + ROW_H // 2
+        pygame.draw.lines(surf, SEL_FG if sel else CHEVRON, False,
+                          [(cx - 3, cy - 5), (cx + 2, cy), (cx - 3, cy + 5)], 2)
+        right = W - 20
+    if r.pill is not None:
+        img = f["small"].render("On" if r.pill else "Off", True, (255, 255, 255))
+        pw = 40
+        box = pygame.Rect(right - pw, y + 2, pw, ROW_H - 4)
+        pygame.draw.rect(surf, PILL_ON if r.pill else PILL_OFF, box, border_radius=8)
+        if sel:
+            pygame.draw.rect(surf, SEL_FG, box, 1, border_radius=8)
+        surf.blit(img, (box.centerx - img.get_width() // 2, box.centery - img.get_height() // 2))
+        right = box.x - 6
     vw = 0
     if r.value:
-        img = font.render(r.value, True, FG if sel else DIM)
+        img = font.render(r.value, True, SEL_FG if sel else DIM)
         lw = font.size(r.label)[0]
-        vw = min(img.get_width(), max(W // 2, W - 12 - lw - 12))
-        surf.blit(img, (W - vw - 6, y + 1), (0, 0, vw, ROW_H))
-    room = W - 12 - (vw + 10 if vw else 0)
-    surf.blit(font.render(r.label, True, color), (6, y + 1), (0, 0, room, ROW_H))
+        vw = min(img.get_width(), max((right - x) // 2, right - x - lw - 12))
+        surf.blit(img, (right - vw, y + 1), (0, 0, vw, ROW_H))
+    room = right - x - (vw + 10 if vw else 0)
+    surf.blit(font.render(r.label, True, SEL_FG if sel else color), (x, y + 1), (0, 0, room, ROW_H))
+
+
+def _fit(f: dict, text: str, width: int):
+    font = f["small"]
+    if font.size(text)[0] > width:
+        font = f.get("tiny") or font
+    return font
+
+
+def draw_keybar(surf, keys: list, f: dict | None = None) -> None:
+    """Labels for number keys 4..8 along the bottom, each with a short line pointing
+    down to its key. keys: up to 5 labels, None/"" leaves a key out. A label can be
+    ("text", color) to tint it (e.g. red for a risky action)."""
+    import pygame
+    f = f or fonts()
+    top = H - KEYBAR_H
+    surf.fill(KEYBAR_BG, (0, top, W, KEYBAR_H))
+    surf.fill((40, 46, 62), (0, top, W, 1))
+    by = top + 2
+    for i, cx in enumerate(SOFT_X):
+        lab = keys[i] if i < len(keys) else None
+        if not lab:
+            continue
+        color = SOFT_FG
+        if isinstance(lab, (tuple, list)):
+            lab, color = lab[0], lab[1]
+        r = pygame.Rect(cx - SOFT_W // 2, by, SOFT_W, SOFT_SIZE)
+        pygame.draw.rect(surf, SOFT_BG, r, border_radius=4)
+        font = _fit(f, lab, SOFT_W - 4)
+        img = font.render(lab, True, color)
+        if img.get_width() > SOFT_W - 4:
+            img = pygame.transform.smoothscale(img, (SOFT_W - 4, img.get_height()))
+        surf.blit(img, (cx - img.get_width() // 2, by + (SOFT_SIZE - img.get_height()) // 2))
+        surf.fill(SOFT_LINE, (cx, by + SOFT_SIZE + 1, 1, H - (by + SOFT_SIZE + 1)))
