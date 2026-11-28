@@ -375,7 +375,7 @@ class Radio_(Screen):
         h = y1 - y0
         surf.fill((10, 14, 24), (0, y0, W, h))
         spec = rx.spec
-        lo = rx.noise - 6 if rx.noise > -119 else float(spec.min())
+        lo = rx.noise_bin - 6 if rx.noise_bin > -159 else float(spec.min())
         span = 50.0
         import numpy as np
         v = np.clip((spec - lo) / span, 0, 1)

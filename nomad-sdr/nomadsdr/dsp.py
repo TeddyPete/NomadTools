@@ -127,8 +127,8 @@ class Receiver:
         self.sq_open = True
         self.level = -120.0          # channel power, dBFS
         self.peak = -120.0
-        self.noise = -120.0          # noise floor estimate across the spectrum, dBFS
-        self.spec = np.full(SPEC_W, -120.0, np.float32)
+        self.noise_bin = -160.0      # noise floor per FFT bin (25th percentile of the spectrum), dBFS
+        self.spec = np.full(SPEC_W, -140.0, np.float32)
         self.spec_every = 2
         self.agc_gain = 1.0
         self.agc = True
@@ -243,7 +243,16 @@ class Receiver:
         P = (X.real * X.real + X.imag * X.imag) * (1.0 / (N * N))
         P = np.fft.fftshift(P)
         mid = N // 2
-        s = P[mid - SPEC_BINS // 2: mid + SPEC_BINS // 2].reshape(SPEC_W, -1).max(axis=1)
+        s = P[mid - SPEC_BINS // 2: mid + SPEC_BINS // 2].reshape(SPEC_W, -1).mean(axis=1)
         db = (10 * np.log10(s + 1e-14)).astype(np.float32)
         self.spec = 0.6 * self.spec + 0.4 * db
-        self.noise = 0.9 * self.noise + 0.1 * float(np.percentile(db, 25)) if self.noise > -119 else float(np.percentile(db, 25))
+        nb = float(np.percentile(db, 25))
+        self.noise_bin = 0.9 * self.noise_bin + 0.1 * nb if self.noise_bin > -159 else nb
+
+    @property
+    def noise(self) -> float:
+        """Noise in the channel bandwidth (dBFS), comparable with level."""
+        if self.noise_bin <= -159:
+            return -120.0
+        bw = min(self.bw, 200000) if self.wfm else self.bw
+        return self.noise_bin + 10 * np.log10(max(bw, 50) / BIN)
